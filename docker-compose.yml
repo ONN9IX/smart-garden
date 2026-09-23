@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: smart-garden-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smart_garden
+      POSTGRES_USER: smart_garden
+      POSTGRES_PASSWORD: smart_garden_local_only
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - smart_garden_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smart_garden -d smart_garden"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  smart_garden_postgres_data:
