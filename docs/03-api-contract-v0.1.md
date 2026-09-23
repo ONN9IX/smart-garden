@@ -1,8 +1,10 @@
 # API Contract v0.1 — Этап 1
 
-Этот документ обязателен для обоих разработчиков.
+**Кому читать:** обоим разработчикам перед любой задачей, затрагивающей HTTP/API.  
+**Статус:** источник истины по сетевому контракту Stage 1.  
+**Изменения:** только согласованно, с синхронным обновлением Backend, Frontend, Issues и master draft.
 
-Изменение контракта производится только согласованно.
+Этот документ обязателен для обоих разработчиков.
 
 Base path:
 
@@ -43,7 +45,31 @@ SUPER_ADMIN
 
 ---
 
-# 3. POST /auth/login
+# 3. Сессия Stage 1
+
+Используется server-side session.
+
+- Backend генерирует криптографически случайный session token.
+- В браузер token попадает только через cookie `smart_garden_session`.
+- Cookie: `HttpOnly`; production: `Secure`; `SameSite=Lax`.
+- Frontend не получает token в JSON и не читает его JavaScript-кодом.
+- В PostgreSQL хранится только hash session token, а не raw token.
+- Logout отзывает текущую session и очищает cookie.
+- Смена временного пароля отзывает старые sessions и выдаёт новую session.
+- Истёкшая/revoked session → 401 `UNAUTHORIZED`.
+
+Минимальная серверная модель `AuthSession`:
+```text
+id UUID
+user_id UUID
+token_hash
+created_at
+expires_at
+revoked_at optional
+last_seen_at optional
+```
+
+# 4. POST /auth/login
 
 Request:
 
@@ -100,7 +126,7 @@ Errors:
 
 ---
 
-# 4. GET /auth/me
+# 5. GET /auth/me
 
 Success:
 
@@ -130,7 +156,7 @@ Errors:
 
 ---
 
-# 5. POST /auth/change-password
+# 6. POST /auth/change-password
 
 Request:
 
@@ -149,18 +175,28 @@ Success:
 }
 ```
 
+Stage 1 endpoint используется **только для обязательной смены временного пароля**, когда `must_change_password=true`.
+
 Errors:
 
 ```text
 400 INVALID_PASSWORD
 401 UNAUTHORIZED
+403 FORBIDDEN
 ```
 
-После успеха ранее выданные сессии должны обрабатываться по утверждённой политике инвалидирования.
+Если `must_change_password=false`, endpoint не используется как обычная смена постоянного пароля и возвращает 403. Обычная смена пароля с подтверждением текущего пароля проектируется отдельно позже.
+
+После успеха:
+- новый password hash сохранён;
+- `must_change_password=false`;
+- старые sessions revoked;
+- текущая временная session заменена новой session;
+- старый временный пароль не работает.
 
 ---
 
-# 6. POST /auth/logout
+# 7. POST /auth/logout
 
 Request body отсутствует.
 
@@ -172,9 +208,11 @@ Success:
 }
 ```
 
+Backend отзывает текущую server-side session и очищает cookie `smart_garden_session`.
+
 ---
 
-# 7. HTTP status policy
+# 8. HTTP status policy
 
 ```text
 200 — success
@@ -184,15 +222,14 @@ Success:
 403 — authenticated, but forbidden/blocked
 404 — entity not found or hidden by tenant isolation policy
 409 — conflict
-422 — optional validation policy if team chooses FastAPI default
 500 — unexpected server error
 ```
 
-Команда должна выбрать одну политику для validation (`400` или `422`) и придерживаться её.
+**Validation policy зафиксирована: HTTP 400.** FastAPI/Pydantic validation errors, видимые клиенту, нормализуются в общий error contract с кодом `VALIDATION_ERROR`. Frontend не должен отдельно обрабатывать FastAPI 422.
 
 ---
 
-# 8. Naming
+# 9. Naming
 
 API JSON:
 
@@ -212,7 +249,7 @@ Frontend не переименовывает поля в transport layer без 
 
 ---
 
-# 9. Date/time
+# 10. Date/time
 
 Datetime:
 
@@ -230,10 +267,12 @@ Frontend отображает в локальном часовом поясе п
 
 ---
 
-# 10. Security contract
+# 11. Security contract
 
+- все Stage 1 entity IDs в API — UUID strings;
 - password не возвращается;
 - password_hash не возвращается;
+- raw session token не возвращается JSON/API body;
 - auth credentials не передаются в URL;
 - client-supplied `organization_id` не определяет tenant context;
 - Frontend скрывает недоступные действия, Backend их реально запрещает.
