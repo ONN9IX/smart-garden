@@ -108,19 +108,23 @@ git checkout main
 git pull origin main
 ```
 
-Затем создать ветку задачи.
+Для первой задачи ветки уже созданы в GitHub. Подключиться к ним:
 
 Backend:
 
 ```bash
-git checkout -b backend/BACK-01-init
+git fetch origin
+git checkout -b backend/BACK-01-init --track origin/backend/BACK-01-init
 ```
 
 Frontend:
 
 ```bash
-git checkout -b frontend/FRONT-01-init
+git fetch origin
+git checkout -b frontend/FRONT-01-init --track origin/frontend/FRONT-01-init
 ```
+
+Для последующих задач создавать новую ветку от свежего `main`.
 
 После изменений:
 
@@ -258,9 +262,10 @@ psql --version
 ```bash
 git clone https://github.com/ONN9IX/smart-garden.git
 cd smart-garden
+git fetch origin
 git checkout main
 git pull origin main
-git checkout -b backend/BACK-01-init
+git checkout -b backend/BACK-01-init --track origin/backend/BACK-01-init
 ```
 
 Проверить:
@@ -445,9 +450,10 @@ git push -u origin backend/BACK-01-init
 ### 9.1 Начало
 
 ```bash
+git fetch origin
 git checkout main
 git pull origin main
-git checkout -b frontend/FRONT-01-init
+git checkout -b frontend/FRONT-01-init --track origin/frontend/FRONT-01-init
 ```
 
 ### 9.2 Создание
