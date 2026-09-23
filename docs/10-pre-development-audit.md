@@ -24,7 +24,7 @@
 - [x] `.editorconfig` фиксирует базовое форматирование.
 - [x] Pull Request template содержит security/integration checklist.
 - [x] GitHub Actions CI создан: conditional Backend/Frontend checks.
-- [ ] Branch protection для `main` — ручная настройка владельца, создана Issue REPO-01. Не блокирует написание кода, но должна быть выполнена до первого merge рабочего кода.
+- [x] Branch protection/ruleset для `main` включён: PR обязателен, `Backend checks` и `Frontend checks` обязательны, ветка должна быть актуальна, review threads должны быть resolved, force push и deletion заблокированы, bypass отсутствует. REPO-01 закрыта.
 - [x] Code/comment/error standard создан.
 - [x] Master draft хранит историю решений.
 - [x] Stage 1 имеет общую E2E Integration Issue.
@@ -42,7 +42,7 @@
 
 # Gate перед началом
 
-Репозиторий технически готов к написанию кода Stage 1. Единственный оставшийся организационный gate — включить защиту `main` до первого merge рабочего PR (REPO-01).
+Репозиторий технически и организационно готов к написанию кода Stage 1. Обязательный gate защиты `main` выполнен.
 
 Каждый разработчик перед кодом:
 1. читает свою Issue;
