@@ -1,3 +1,4 @@
+# Shared formatting baseline for both Frontend and Backend developers.
 root = true
 
 [*]
