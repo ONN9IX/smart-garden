@@ -23,6 +23,8 @@
 - [x] `.gitignore` закрывает environment, venv, node_modules и build output.
 - [x] `.editorconfig` фиксирует базовое форматирование.
 - [x] Pull Request template содержит security/integration checklist.
+- [x] GitHub Actions CI создан: conditional Backend/Frontend checks.
+- [ ] Branch protection для `main` — ручная настройка владельца, создана Issue REPO-01. Не блокирует написание кода, но должна быть выполнена до первого merge рабочего кода.
 - [x] Code/comment/error standard создан.
 - [x] Master draft хранит историю решений.
 - [x] Stage 1 имеет общую E2E Integration Issue.
@@ -40,7 +42,7 @@
 
 # Gate перед началом
 
-Репозиторий технически готов к Stage 1.
+Репозиторий технически готов к написанию кода Stage 1. Единственный оставшийся организационный gate — включить защиту `main` до первого merge рабочего PR (REPO-01).
 
 Каждый разработчик перед кодом:
 1. читает свою Issue;
