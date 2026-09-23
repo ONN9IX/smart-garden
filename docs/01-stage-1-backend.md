@@ -2,8 +2,9 @@
 
 **Проект:** Умный сад  
 **Версия:** MVP 0.1  
-**Исполнитель:** Backend-разработчик  
-**Статус:** Ready for development
+**Исполнитель Stage 1:** F1zname (роль может смениться на следующем этапе)  
+**Статус:** Ready for development  
+**Перед кодом:** прочитать `docs/00-development-guide.md`, `docs/03-api-contract-v0.1.md`, `docs/08-team-access-and-environments.md`, `docs/09-code-and-error-standards.md`.
 
 ---
 
@@ -37,6 +38,7 @@
 - Alembic
 - Pydantic
 - pytest
+- Ruff
 
 Допускается изменение стека только до начала реализации при совместном решении команды.
 
@@ -103,7 +105,7 @@ docker compose up -d postgres
 APP_ENV=development
 DATABASE_URL=postgresql+psycopg://smart_garden:smart_garden_local_only@localhost:5432/smart_garden
 SECRET_KEY=CHANGE_ME_LOCAL
-AUTH_TOKEN_TTL=3600
+AUTH_SESSION_TTL_SECONDS=3600
 CORS_ORIGINS=http://localhost:3000
 ```
 
@@ -161,7 +163,7 @@ updated_at
 
 ## Требования
 
-- `id` — UUID либо другой согласованный безопасный идентификатор;
+- `id` — UUID;
 - каждая пользовательская сущность в будущем должна иметь принадлежность к `organization_id`;
 - заблокированная организация не должна получать рабочий доступ к API.
 
@@ -302,17 +304,38 @@ GET  /api/v1/auth/me
 
 ## Сессия / токен
 
-Допустим JWT или серверная session-модель.
+Stage 1 использует **server-side session**.
 
-Обязательные свойства независимо от реализации:
+Механизм:
+- при успешном login Backend генерирует криптографически случайный raw session token;
+- raw token отправляется браузеру только в cookie `smart_garden_session`;
+- cookie имеет `HttpOnly`, `SameSite=Lax`; в production также `Secure`;
+- raw token не хранится в PostgreSQL;
+- в PostgreSQL хранится только hash token;
+- Frontend не получает token в JSON и не хранит его в localStorage/sessionStorage;
+- logout отзывает текущую session и очищает cookie;
+- password change отзывает старые sessions;
+- blocked user/organization не получают доступ даже при наличии старой cookie.
 
-- credential не хранится во Frontend в `localStorage`;
-- должен существовать механизм logout;
-- заблокированный пользователь теряет доступ;
-- после reset/change password должна существовать возможность инвалидировать старые активные сессии;
-- секреты не попадают в URL.
+Минимальная модель `AuthSession`:
 
-Предпочтительный вариант для web MVP: защищённая `HttpOnly` cookie.
+```text
+id UUID
+user_id UUID
+token_hash
+created_at
+expires_at
+revoked_at optional
+last_seen_at optional
+```
+
+Session token — высокоэнтропийный случайный секрет. Для хранения его server-side допускается криптографический hash token; это не password hashing и не заменяет Argon2id/bcrypt для пользовательских паролей.
+
+---
+
+## CORS для local dev
+
+Backend разрешает Frontend origin `http://localhost:3000` и credentials. При работе с credentialed requests нельзя использовать wildcard `*` как allowed origin.
 
 ---
 
@@ -444,6 +467,8 @@ INTERNAL_ERROR
 
 # 18. Валидация
 
+Клиентская validation policy Stage 1: **HTTP 400 + VALIDATION_ERROR**. FastAPI/Pydantic validation errors должны быть приведены к общему error contract; 422 наружу как отдельный формат не оставлять.
+
 Backend обязан проверять:
 
 - username;
@@ -474,7 +499,8 @@ Backend обязан проверять:
 - password;
 - temporary password;
 - password_hash;
-- полный request body login/change-password.
+- полный request body login/change-password;
+- raw session token/cookie.
 
 ---
 
@@ -508,6 +534,7 @@ downgrade
 
 1. organization
 2. user
+3. auth_session
 
 Приложение не должно создавать production tables через `create_all()` при старте.
 
@@ -524,9 +551,12 @@ downgrade
 - blocked user;
 - blocked organization;
 - must_change_password;
-- успешная смена пароля;
+- успешная обязательная смена временного пароля;
+- change-password при `must_change_password=false` запрещён;
 - старый пароль не работает;
-- logout.
+- старые sessions после смены revoked;
+- logout отзывает текущую session и очищает cookie;
+- revoked/expired session → 401.
 
 ### Permissions
 - endpoint без auth → 401;
@@ -618,6 +648,10 @@ OpenAPI + Backend README.
 # 26. Definition of Done
 
 Этап 1 Backend считается завершённым, когда:
+
+- source-файлы соответствуют `docs/09-code-and-error-standards.md`;
+- `ruff check .` проходит;
+- `pytest` проходит;
 
 - приложение поднимается с чистой БД;
 - миграции проходят;
