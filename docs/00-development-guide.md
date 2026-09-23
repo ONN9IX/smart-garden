@@ -62,6 +62,7 @@ Frontend получает и изменяет данные только чере
 - Alembic
 - Pydantic
 - pytest
+- Ruff
 
 ### Frontend
 - Next.js
@@ -166,14 +167,14 @@ git push -u origin backend/BACK-01-init
 ```json
 {
   "user": {
-    "id": 1,
+    "id": "uuid",
     "username": "director-demo",
     "role": "DIRECTOR",
     "status": "active",
     "must_change_password": true
   },
   "organization": {
-    "id": 1,
+    "id": "uuid",
     "name": "Детский сад «Солнышко»"
   }
 }
@@ -192,6 +193,8 @@ Frontend использует именно эти поля. Нельзя сам�
 - `docs/02-stage-1-frontend.md`
 - `docs/03-api-contract-v0.1.md`
 - `docs/05-personal-data-baseline.md`
+- `docs/08-team-access-and-environments.md`
+- `docs/09-code-and-error-standards.md`
 
 Затем закрывается SHARED-01 после подтверждения контракта.
 
@@ -306,7 +309,7 @@ Windows PowerShell:
 Установить зависимости:
 
 ```bash
-pip install fastapi uvicorn sqlalchemy psycopg[binary] alembic pydantic-settings pytest httpx
+pip install fastapi uvicorn sqlalchemy psycopg[binary] alembic pydantic-settings pytest httpx ruff
 pip freeze > requirements.txt
 ```
 
@@ -347,7 +350,7 @@ backend/
 APP_ENV=development
 DATABASE_URL=postgresql+psycopg://smart_garden:smart_garden_local_only@localhost:5432/smart_garden
 SECRET_KEY=CHANGE_ME_LOCAL
-AUTH_TOKEN_TTL=3600
+AUTH_SESSION_TTL_SECONDS=3600
 CORS_ORIGINS=http://localhost:3000
 ```
 
@@ -520,7 +523,7 @@ git push -u origin frontend/FRONT-01-init
 
 ## 10. Когда впервые соединяем Frontend и Backend
 
-После появления Backend auth endpoints и Frontend API client начинается реальная интеграция.
+После появления Backend auth endpoints и Frontend API client начинается реальная интеграция. Auth transport уже зафиксирован: server-side session в PostgreSQL + HttpOnly cookie `smart_garden_session`; Frontend использует credentials и не хранит raw token.
 
 Целевая локальная схема:
 - Frontend: `http://localhost:3000`
@@ -576,6 +579,8 @@ Frontend отправляет запрос Backend. Backend читает/изм�
 
 Issue закрывается только если:
 - код запускается;
+- вручную созданные нетривиальные source-файлы имеют полезный header comment/docstring по `docs/09-code-and-error-standards.md`;
+- ошибки обрабатываются по общему стандарту, без raw stack trace клиенту;
 - требования Issue выполнены;
 - существующий функционал не сломан;
 - нет секретов/реальных ПДн;
