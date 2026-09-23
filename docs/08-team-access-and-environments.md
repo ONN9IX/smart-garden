@@ -1,5 +1,8 @@
 # Доступы, окружения и смена ролей разработчиков
 
+**Кому читать:** обоим разработчикам перед первой задачей и перед сменой Frontend/Backend роли.  
+**Статус:** обязательный стандарт окружения и секретов.
+
 > Этот документ обязателен для команды. Его цель — сделать так, чтобы любой разработчик мог в любой момент перейти с Frontend на Backend или обратно без запроса чужих паролей, локальных файлов и ручной передачи секретов.
 
 # 1. Роли разработчиков не постоянные
@@ -83,7 +86,7 @@ Backend `.env.example` должен содержать совместимый lo
 APP_ENV=development
 DATABASE_URL=postgresql+psycopg://smart_garden:smart_garden_local_only@localhost:5432/smart_garden
 SECRET_KEY=CHANGE_ME_LOCAL
-AUTH_TOKEN_TTL=3600
+AUTH_SESSION_TTL_SECONDS=3600
 CORS_ORIGINS=http://localhost:3000
 ```
 
@@ -235,7 +238,18 @@ Seed/utility должен:
 ## Human account
 У каждого человека свой account. Пароли между разработчиками не передаются.
 
-# 15. Ключевой принцип
+# 15. Auth session secret
+
+Stage 1 использует server-side sessions. Raw session token:
+- генерируется Backend;
+- хранится у браузера только в HttpOnly cookie;
+- в PostgreSQL хранится только hash;
+- не передаётся между разработчиками;
+- не является частью `.env`.
+
+Локальный разработчик не должен спрашивать у другого человека session token.
+
+# 16. Ключевой принцип
 
 ```text
 Код + документация + migrations + seed + env template
