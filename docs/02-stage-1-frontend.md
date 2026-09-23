@@ -8,6 +8,28 @@
 
 ---
 
+## 0. Обязательные общие правила Stage 1
+
+Этот блок является частью ТЗ разработчика. Его нужно проверять перед каждой Issue, а не помнить по переписке.
+
+1. **Одна архитектура:** Frontend → Backend `/api/v1` → PostgreSQL.
+2. **Одна БД:** только PostgreSQL. Frontend не имеет собственной БД и не подключается к PostgreSQL напрямую.
+3. **Один API contract:** `docs/03-api-contract-v0.1.md`. Нельзя самостоятельно менять URL, JSON-поля, роли, статусы или error format только на одной стороне.
+4. **Auth:** `username + password`; server-side session; cookie `smart_garden_session` — HttpOnly; raw session token не хранится во Frontend и не возвращается JSON.
+5. **IDs:** Stage 1 использует UUID.
+6. **Validation:** клиентские validation errors → HTTP 400 + `VALIDATION_ERROR`.
+7. **Roles Stage 1:** только `DIRECTOR` и `ADMIN`. Backend — источник истины по permissions.
+8. **Tenant isolation:** текущая организация определяется Backend из authenticated context. Client-supplied `organization_id` не даёт доступ.
+9. **Персональные данные:** dev/test только synthetic data; никаких реальных данных детей/родителей/сотрудников.
+10. **Secrets:** `.env`, production credentials, password, password hash и raw session token не коммитятся и не логируются.
+11. **Ошибки:** клиенту не возвращаются traceback, SQL error, внутренние пути или raw exception.
+12. **Комментарии:** нетривиальные вручную созданные source-файлы документируются по `docs/09-code-and-error-standards.md`.
+13. **Git:** fresh `main` → отдельная Issue-ветка → code → checks → PR → CI → merge. Прямой push в `main` запрещён ruleset.
+14. **Смена разработчика:** всё окружение должно воспроизводиться из Git без запроса чужого пароля или локального файла.
+15. **Если есть противоречие:** остановить реализацию и сверить API Contract + Development Guide; не придумывать локальное решение.
+
+---
+
 # 1. Цель этапа
 
 Создать стабильный web-каркас приложения и полностью реализовать первый пользовательский сценарий:
