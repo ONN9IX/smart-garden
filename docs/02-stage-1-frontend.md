@@ -2,8 +2,9 @@
 
 **Проект:** Умный сад  
 **Версия:** MVP 0.1  
-**Исполнитель:** Frontend-разработчик  
-**Статус:** Ready for development
+**Исполнитель Stage 1:** ONN9IX (роль может смениться на следующем этапе)  
+**Статус:** Ready for development  
+**Перед кодом:** прочитать `docs/00-development-guide.md`, `docs/03-api-contract-v0.1.md`, `docs/08-team-access-and-environments.md`, `docs/09-code-and-error-standards.md`.
 
 ---
 
@@ -30,6 +31,8 @@
 - Next.js
 - React
 - TypeScript
+- npm + committed `package-lock.json`
+- ESLint
 
 Допускается согласованная UI-библиотека.
 
@@ -68,8 +71,8 @@ frontend/
 
 `.env.example`:
 
-```text
-NEXT_PUBLIC_API_BASE_URL=
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
 ```
 
 Не размещать API secrets во frontend environment.
@@ -228,18 +231,16 @@ must_change_password
 
 # 11. Хранение auth credentials
 
-Frontend не должен сохранять auth token в:
+Stage 1 использует **server-side session + HttpOnly cookie `smart_garden_session`**.
 
-```text
-localStorage
-sessionStorage
-```
+Frontend:
+- не сохраняет token в `localStorage` или `sessionStorage`;
+- не получает raw session token в JSON;
+- не имеет JavaScript-доступа к session cookie;
+- во всех auth requests использует credentials/cookies через единый API client;
+- не реализует собственную альтернативную auth/session схему.
 
-если Backend использует безопасную HttpOnly cookie.
-
-Frontend не должен иметь JavaScript-доступ к password/token без необходимости.
-
-Финальный механизм определяется общим API Contract.
+Источник истины: `docs/03-api-contract-v0.1.md`.
 
 ---
 
@@ -367,6 +368,7 @@ SUPER_ADMIN
 Требования:
 
 - base URL из environment;
+- `credentials: "include"` для запросов, где нужна session cookie;
 - единая обработка network errors;
 - автоматическая работа с cookie/session;
 - единый разбор backend error format;
@@ -572,6 +574,10 @@ Blocked user → интерфейс не открывается.
 # 27. Definition of Done
 
 Frontend Этап 1 готов, когда:
+
+- source-файлы соответствуют `docs/09-code-and-error-standards.md`;
+- `npm run lint` проходит;
+- `npm run build` проходит;
 
 - login работает с реальным или утверждённым mock API;
 - email нигде не требуется;
