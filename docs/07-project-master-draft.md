@@ -2148,3 +2148,84 @@ docker compose up -d postgres
 - `docs/08-team-access-and-environments.md`.
 
 Это решение принято специально для будущей ротации разработчиков между Frontend и Backend.
+
+
+---
+
+# 91. Решение: Stage 1 server-side sessions
+
+**Дата:** 23 сентября 2026  
+**Статус:** принятое решение.
+
+Ранее документация оставляла Backend-разработчику выбор между JWT и server session. Это признано источником потенциальной рассинхронизации.
+
+Зафиксировано:
+- server-side session;
+- raw session token генерирует Backend;
+- браузер получает его только в HttpOnly cookie `smart_garden_session`;
+- PostgreSQL хранит только hash token;
+- logout отзывает session;
+- forced password change отзывает старые sessions и создаёт новую;
+- Frontend не получает и не хранит raw token.
+
+---
+
+# 92. Решение: единая validation policy
+
+Stage 1 использует:
+- HTTP 400;
+- error code `VALIDATION_ERROR`;
+- единый error contract.
+
+FastAPI 422 не должен становиться вторым публичным форматом ошибок Frontend.
+
+---
+
+# 93. Решение: UUID для Stage 1 identifiers
+
+Organization, User и AuthSession используют UUID. API представляет UUID как string.
+
+Причина: убрать неоднозначность между числовыми ID и UUID до начала разработки.
+
+---
+
+# 94. Решение: обязательный стандарт комментариев и ошибок
+
+Создан:
+- `docs/09-code-and-error-standards.md`.
+
+Вручную созданные нетривиальные source-файлы должны иметь короткий полезный module header/docstring. Комментарии объясняют назначение, контракт и security-ограничения, а не очевидный синтаксис.
+
+Также зафиксированы:
+- правила Backend/Frontend error handling;
+- запрет raw stack trace клиенту;
+- запрет silent catch;
+- logging restrictions;
+- TODO только со ссылкой на Issue.
+
+---
+
+# 95. Решение: автоматический CI
+
+Создан `.github/workflows/ci.yml`.
+
+После появления кода:
+- Backend проверяется Ruff и pytest;
+- Frontend проверяется lint и build;
+- CI использует PostgreSQL 16 service с synthetic dev credentials.
+
+До появления соответствующей части проекта job корректно пропускает отсутствующие проверки.
+
+---
+
+# 96. Риск: main пока не protected
+
+Проверка перед Stage 1 показала, что GitHub branch `main` пока не имеет branch protection.
+
+Создана Issue REPO-01:
+- require Pull Request;
+- require CI checks;
+- block force push;
+- block deletion.
+
+Это не блокирует написание кода, но должно быть выполнено до первого merge рабочего кода в `main`.
