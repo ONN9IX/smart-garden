@@ -196,13 +196,13 @@ Frontend проверяет:
 
 Backend остаётся конечным источником валидации.
 
-После успешной смены:
+После успешной обязательной смены:
+- Backend отзывает старую временную session;
+- Backend устанавливает новую HttpOnly session cookie;
+- Frontend обновляет auth context через `/auth/me`;
+- пользователь переходит в `/dashboard`.
 
-```text
-Пароль изменён
-```
-
-и переход в `/dashboard`.
+Если `must_change_password=false`, этот Stage 1 endpoint не используется как обычная смена постоянного пароля.
 
 ---
 
@@ -469,6 +469,7 @@ Frontend может начать раньше готового Backend.
     "id": "demo-user-1",
     "username": "director-demo",
     "role": "DIRECTOR",
+    "status": "active",
     "must_change_password": false
   },
   "organization": {
