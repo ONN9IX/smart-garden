@@ -81,21 +81,39 @@ backend/
 
 # 4. Environment
 
-Создать `.env.example`.
+Локальная Backend-среда должна быть воспроизводима любым разработчиком без запроса чужих паролей.
 
-Минимальные переменные:
+Основной способ запуска PostgreSQL в dev:
 
-```text
-APP_ENV=
-DATABASE_URL=
-SECRET_KEY=
-AUTH_TOKEN_TTL=
-CORS_ORIGINS=
+```bash
+docker compose up -d postgres
 ```
 
-Секреты запрещено коммитить.
+Корневой `docker-compose.yml` поднимает локальную PostgreSQL:
+- database: `smart_garden`;
+- user: `smart_garden`;
+- dev-only password: `smart_garden_local_only`;
+- port: `127.0.0.1:5432`.
+
+Этот пароль относится только к локальному synthetic environment и запрещён для staging/production.
+
+Создать `backend/.env.example`:
+
+```env
+APP_ENV=development
+DATABASE_URL=postgresql+psycopg://smart_garden:smart_garden_local_only@localhost:5432/smart_garden
+SECRET_KEY=CHANGE_ME_LOCAL
+AUTH_TOKEN_TTL=3600
+CORS_ORIGINS=http://localhost:3000
+```
+
+Каждый разработчик копирует его в локальный `.env` и создаёт собственный local `SECRET_KEY`. Спрашивать локальный SECRET_KEY у предыдущего Backend-разработчика не нужно.
+
+Production/shared secrets запрещено коммитить.
 
 `.env` должен находиться в `.gitignore`.
+
+Полная политика смены ролей и доступов: `docs/08-team-access-and-environments.md`.
 
 ---
 
