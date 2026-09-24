@@ -24,6 +24,8 @@ npm run build
 
 Проверьте вручную сценарии 1–8 из `docs/02-stage-1-frontend.md` после запуска Backend. Ветка Frontend сама по себе не подменяет backend-сессию локальным mock: end-to-end проверка проходит на интеграционном этапе `Frontend → Backend → PostgreSQL`.
 
+Автоматический сценарий `npm run test:e2e` использует реальный Backend, PostgreSQL и Chromium. Для локального запуска создайте синтетических пользователей через Backend seed, задайте их временные пароли только в переменных окружения `CI_DIRECTOR_PASSWORD` и `CI_ADMIN_PASSWORD`, запустите оба сервера и установите браузер командой `npx playwright install chromium`. В Pull Request эти действия выполняет интеграционный job GitHub Actions.
+
 ## API и данные
 
 Контракт: `docs/03-api-contract-v0.1.md`. Все вызовы идут из `src/lib/api/` с `credentials: "include"`. Браузер отправляет HttpOnly cookie `smart_garden_session`; приложение не читает её, не сохраняет пароли или токены в web storage. Организация и роль приходят от `/auth/me`. Сообщения об ошибках строятся из фиксированных безопасных строк, серверный traceback не показывается.
