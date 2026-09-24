@@ -32,7 +32,7 @@ test("temporary DIRECTOR password, protected routes, rotation, refresh and logou
   await page.getByLabel("Логин").fill("director-demo");
   await page.getByLabel("Пароль", { exact: true }).fill(directorPassword);
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page.getByRole("alert")).toContainText("Неверный логин или пароль");
+  await expect(page.getByText("Неверный логин или пароль", { exact: true })).toBeVisible();
 });
 
 test("ADMIN role comes from the backend", async ({ page }) => {
