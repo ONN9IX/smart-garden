@@ -2,6 +2,8 @@
 
 FastAPI + PostgreSQL + SQLAlchemy + Alembic. HTTP-контракт: `../docs/03-api-contract-v0.1.md`.
 
+Новому разработчику: начните с [HANDOVER.md](HANDOVER.md) — там карта файлов, сценарий входа и порядок проверки.
+
 ## Локальный запуск
 
 Требуются Python 3.12+, Docker Compose. Из корня репозитория:
