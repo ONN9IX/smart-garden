@@ -211,3 +211,27 @@ jobs:
           curl --fail --silent http://localhost:8000/api/v1/health > /dev/null
           curl --fail --silent http://localhost:3000/login > /dev/null
           npm --prefix frontend run test:e2e
+
+  preview:
+    name: Local browser preview (Docker Compose)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start full stack with a private local key
+        run: |
+          printf 'SMART_GARDEN_PREVIEW_SECRET_KEY=%s\n' "$(openssl rand -hex 48)" > .env.preview
+          docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.preview.yml up -d --build --wait --wait-timeout 180
+      - name: Check browser, API and synthetic seed
+        run: |
+          curl --fail --silent http://localhost:8000/api/v1/health | grep -q '"status":"ok"'
+          curl --fail --silent http://localhost:3000/login --output /tmp/smart-garden-preview-login.html
+          grep -q '<html' /tmp/smart-garden-preview-login.html
+          seed_output=$(docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.preview.yml exec -T backend python -m app.services.seed)
+          printf '%s\n' "$seed_output" | grep -q '^director-demo: temporary password'
+          printf '%s\n' "$seed_output" | grep -q '^admin-demo: temporary password'
+      - name: Diagnose failure without exposing credentials
+        if: failure()
+        run: docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.preview.yml ps
+      - name: Stop preview
+        if: always()
+        run: docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.preview.yml down
