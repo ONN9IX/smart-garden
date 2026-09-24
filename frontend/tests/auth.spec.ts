@@ -16,8 +16,8 @@ test("temporary DIRECTOR password, protected routes, rotation, refresh and logou
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/change-password$/);
   const newPassword = `new-secret-${crypto.randomUUID()}`;
-  await page.getByLabel("Новый пароль").fill(newPassword);
-  await page.getByLabel("Повторите новый пароль").fill(newPassword);
+  await page.getByLabel("Новый пароль", { exact: true }).fill(newPassword);
+  await page.getByLabel("Повторите новый пароль", { exact: true }).fill(newPassword);
   await page.getByRole("button", { name: "Сохранить пароль" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("main")).toContainText("Директор");
@@ -43,8 +43,8 @@ test("ADMIN role comes from the backend", async ({ page }) => {
   await page.getByRole("button", { name: "Войти" }).click();
   await expect(page).toHaveURL(/\/change-password$/);
   const newPassword = `new-secret-${crypto.randomUUID()}`;
-  await page.getByLabel("Новый пароль").fill(newPassword);
-  await page.getByLabel("Повторите новый пароль").fill(newPassword);
+  await page.getByLabel("Новый пароль", { exact: true }).fill(newPassword);
+  await page.getByLabel("Повторите новый пароль", { exact: true }).fill(newPassword);
   await page.getByRole("button", { name: "Сохранить пароль" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("main")).toContainText("Администратор");
