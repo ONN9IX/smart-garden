@@ -20,7 +20,7 @@ class ChangePasswordRequest(BaseModel):
 class UserResponse(BaseModel):
     id: UUID
     username: str
-    role: Literal["DIRECTOR", "ADMIN"]
+    role: Literal["DIRECTOR", "ADMIN", "PARENT"]
     status: Literal["active"]
     must_change_password: bool
 
