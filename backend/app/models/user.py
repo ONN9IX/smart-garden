@@ -14,7 +14,7 @@ from app.models.organization import Organization
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint("role IN ('DIRECTOR', 'ADMIN')"),
+        CheckConstraint("role IN ('DIRECTOR', 'ADMIN', 'PARENT')", name="ck_users_role"),
         CheckConstraint("status IN ('active', 'blocked', 'archived')"),
     )
 
