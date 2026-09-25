@@ -2229,3 +2229,30 @@ Organization, User и AuthSession используют UUID. API предста�
 - block deletion.
 
 Это не блокирует написание кода, но должно быть выполнено до первого merge рабочего кода в `main`.
+
+
+---
+
+# 97. Решение: main защищён Ruleset
+
+**Дата:** 23 сентября 2026  
+**Статус:** выполнено и проверено.
+
+Ruleset `Protect main` активен и применяется к default branch.
+
+Проверено:
+- Pull Request обязателен;
+- required approvals = 0 для текущей команды;
+- review threads должны быть resolved;
+- обязательные CI checks: `Backend checks` и `Frontend checks`;
+- strict status checks включены, ветка должна быть актуальна;
+- force push / non-fast-forward запрещён;
+- deletion запрещён;
+- bypass actors отсутствуют;
+- текущий пользователь не может обходить ruleset.
+
+Практическая проверка: попытка изменить файл напрямую в `main` была отклонена GitHub rule violation с требованием Pull Request и двух status checks.
+
+Issue REPO-01 закрыта.
+
+После этого рабочий код должен попадать в `main` только через PR и зелёные checks.
