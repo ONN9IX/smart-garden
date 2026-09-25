@@ -1,0 +1,42 @@
+# Local browser preview with synthetic accounts. Load alongside docker-compose.yml.
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.preview
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://smart_garden:smart_garden_local_only@postgres:5432/smart_garden
+      SECRET_KEY: ${SMART_GARDEN_PREVIEW_SECRET_KEY:?Run bash scripts/start-preview.sh first}
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.preview
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
