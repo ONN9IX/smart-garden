@@ -26,4 +26,4 @@ def require_role(*roles: str) -> Callable:
 def require_tenant(user: User, resource_organization_id: UUID) -> None:
     if user.organization_id != resource_organization_id:
         # Hidden tenant resources get 404; never leak existence or payload.
-        raise AppError(404, "FORBIDDEN")
+        raise AppError(404, "NOT_FOUND")

@@ -132,6 +132,7 @@ def test_role_and_tenant_guards(client, users, db):
     with pytest.raises(AppError) as hidden:
         require_tenant(director, other.id)
     assert hidden.value.status == 404
+    assert hidden.value.code == "NOT_FOUND"
 
     # Exercise the guards through HTTP on temporary test-only routes.
     protected = FastAPI()
