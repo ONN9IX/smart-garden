@@ -56,9 +56,14 @@ def summary(child: Child) -> ChildSummary:
 
 
 def detail(child: Child) -> ChildResponse:
-    # Child ↔ Guardian details are populated when BACK2-05 adds relation endpoints.
+    from app.services.relations import response
+
+    links = [
+        response(link) for link in child.guardian_links
+        if link.organization_id == child.organization_id and link.guardian.organization_id == child.organization_id
+    ]
     return ChildResponse(
-        **summary(child).model_dump(), guardians=[], archived_at=child.archived_at,
+        **summary(child).model_dump(), guardians=links, archived_at=child.archived_at,
         created_at=child.created_at, updated_at=child.updated_at,
     )
 
@@ -108,6 +113,7 @@ def update_child(db: Session, user: User, child_id: UUID, payload: ChildPatch) -
 
 def archive_child(db: Session, user: User, child_id: UUID) -> ChildResponse:
     child = get_child(db, user, child_id)
+    db.execute(select(Child).where(Child.id == child.id).with_for_update()).scalar_one()
     if child.status != "archived":
         child.status = "archived"
         child.archived_at = utc_now()
