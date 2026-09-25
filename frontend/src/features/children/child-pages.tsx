@@ -16,6 +16,7 @@ import { Loading } from "@/components/ui/loading";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { childrenApi } from "@/lib/api/children";
 import { groupsApi } from "@/lib/api/groups";
+import { ChildRelations } from "@/features/guardians/relation-controls";
 import { ApiError, userMessage } from "@/lib/api/client";
 import type { Child, ChildFields, ChildSummary, Group, StatusFilter } from "@/types/stage2";
 
@@ -176,7 +177,7 @@ function ChildDetail({ id }: { id: string }) {
       <div className="page-heading section-space"><span className="eyebrow">Ребёнок · {child.status === "active" ? "Активен" : "Архив"}</span><h1>{fullName(child)}</h1><p>Дата рождения: {dateLabel(child.birth_date)} · Группа: {child.group.name}</p></div>
       {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
       {editing ? <ChildForm key={child.updated_at} initial={{ first_name: child.first_name, last_name: child.last_name, middle_name: child.middle_name, birth_date: child.birth_date, group_id: child.group.id }} groups={groups} busy={busy} submit={save} cancel={() => setEditing(false)} /> : <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить</Button><Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{child.status === "active" ? "Архивировать" : "Восстановить"}</Button></div>}
-      <section className="section-space"><h2>Родители и законные представители</h2>{child.guardians.length ? <ul className="record-list">{child.guardians.map((relation) => <li key={relation.id}><Link className="record-link" href={`/guardians/${relation.guardian.id}`}>{fullName(relation.guardian)}</Link></li>)}</ul> : <p className="empty-state">Представители пока не связаны с карточкой.</p>}</section>
+      <ChildRelations child={child} refresh={load} />
     </>}
   </AppShell>;
 }

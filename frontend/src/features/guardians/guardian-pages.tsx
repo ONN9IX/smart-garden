@@ -15,8 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Loading } from "@/components/ui/loading";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { guardiansApi } from "@/lib/api/guardians";
+import { childrenApi } from "@/lib/api/children";
+import { GuardianRelations } from "@/features/guardians/relation-controls";
 import { ApiError, userMessage } from "@/lib/api/client";
-import { RELATION_LABELS, type Guardian, type GuardianFields, type GuardianListItem, type StatusFilter } from "@/types/stage2";
+import { RELATION_LABELS, type Guardian, type GuardianFields, type GuardianListItem, type RelationType, type StatusFilter } from "@/types/stage2";
 
 function fullName(item: { last_name: string; first_name: string; middle_name: string | null }) {
   return [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(" ");
@@ -86,21 +88,30 @@ function GuardiansContent() {
   </AppShell>;
 }
 
-export function NewGuardianPage() {
-  return <AuthGate route="dashboard"><NewGuardianContent /></AuthGate>;
+export function NewGuardianPage({ childId }: { childId?: string }) {
+  return <AuthGate route="dashboard"><NewGuardianContent childId={childId} /></AuthGate>;
 }
 
-function NewGuardianContent() {
+function NewGuardianContent({ childId }: { childId?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [relationType, setRelationType] = useState<RelationType>("other");
+  const createdId = useRef<string | null>(null);
   async function create(fields: GuardianFields) {
     setBusy(true); setError("");
-    try { const guardian = await guardiansApi.create(fields); router.push(`/guardians/${guardian.id}`); }
+    try {
+      if (!createdId.current) createdId.current = (await guardiansApi.create(fields)).id;
+      if (childId) await childrenApi.link(childId, createdId.current, relationType);
+      router.push(childId ? `/children/${childId}` : `/guardians/${createdId.current}`);
+    }
     catch (reason) { setError(userMessage(reason)); }
     finally { setBusy(false); }
   }
-  return <AppShell><Link className="text-link" href="/guardians">← К списку представителей</Link><div className="page-heading section-space"><h1>Добавить представителя</h1></div>{error && <Alert>{error}</Alert>}<GuardianForm busy={busy} submit={create} /></AppShell>;
+  return <AppShell><Link className="text-link" href={childId ? `/children/${childId}` : "/guardians"}>← Назад</Link><div className="page-heading section-space"><h1>Добавить представителя</h1></div>{error && <Alert>{error}</Alert>}
+    {childId && <div className="field"><label htmlFor="new-guardian-relation">Отношение к ребёнку</label><select className="input" id="new-guardian-relation" value={relationType} onChange={(event) => setRelationType(event.target.value as RelationType)}>{Object.entries(RELATION_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>}
+    <GuardianForm busy={busy} submit={create} />
+  </AppShell>;
 }
 
 export function GuardianDetailPage({ id }: { id: string }) {
@@ -145,7 +156,7 @@ function GuardianDetail({ id }: { id: string }) {
         <p>Телефон: {guardian.phone ?? "Не указан"}</p><p>Email: {guardian.email ?? "Не указан"}</p>
         <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить</Button><Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{guardian.status === "active" ? "Архивировать" : "Восстановить"}</Button></div>
       </section>}
-      <section className="section-space"><h2>Дети</h2>{guardian.children.length ? <ul className="record-list">{guardian.children.map((relation) => <li key={relation.relation_id}><Link className="record-link" href={`/children/${relation.child.id}`}><strong>{fullName(relation.child)}</strong><span>{relation.child.group.name} · {RELATION_LABELS[relation.relation_type]}</span></Link></li>)}</ul> : <p className="empty-state">Связанных детей пока нет.</p>}</section>
+      <GuardianRelations guardian={guardian} refresh={load} />
       <section className="section-space"><h2>Учётная запись родителя</h2><p className="card section-card">{guardian.account ? `${guardian.account.username} · ${guardian.account.status === "active" ? "Активна" : "Заблокирована"}` : "Не создана."}</p></section>
     </>}
   </AppShell>;
