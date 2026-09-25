@@ -1,6 +1,6 @@
 /**
- * Shared HTTP client for the Stage 1 API.
- * Source of truth: docs/03-api-contract-v0.1.md.
+ * Shared HTTP client for Stage 1/2 API.
+ * Source of truth: docs/15-api-contract-stage-2.md.
  * Security: browser sends the HttpOnly cookie; JavaScript never reads its value.
  */
 const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1").replace(/\/$/, "");
@@ -15,7 +15,20 @@ type ApiErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "VALIDATION_ERROR"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "NOT_FOUND"
+  | "GROUP_NAME_CONFLICT"
+  | "GROUP_NOT_EMPTY"
+  | "GROUP_ARCHIVED"
+  | "INVALID_BIRTH_DATE"
+  | "CHILD_ARCHIVED"
+  | "GUARDIAN_ARCHIVED"
+  | "GUARDIAN_HAS_ACTIVE_CHILDREN"
+  | "RELATION_ALREADY_EXISTS"
+  | "RELATION_NOT_FOUND"
+  | "PARENT_ACCOUNT_ALREADY_EXISTS"
+  | "PARENT_ACCOUNT_NOT_FOUND"
+  | "PARENT_ACCOUNT_BLOCKED";
 
 const errorMessages: Partial<Record<ApiErrorCode, string>> = {
   INVALID_CREDENTIALS: "Неверный логин или пароль",
@@ -27,6 +40,19 @@ const errorMessages: Partial<Record<ApiErrorCode, string>> = {
   FORBIDDEN: "Действие недоступно для вашей учётной записи.",
   VALIDATION_ERROR: "Проверьте введённые данные.",
   INTERNAL_ERROR: "Не удалось выполнить запрос. Попробуйте ещё раз.",
+  NOT_FOUND: "Запись не найдена.",
+  GROUP_NAME_CONFLICT: "Группа с таким названием уже существует.",
+  GROUP_NOT_EMPTY: "В группе есть активные дети. Сначала переведите или архивируйте их.",
+  GROUP_ARCHIVED: "Группа в архиве. Выберите активную группу.",
+  INVALID_BIRTH_DATE: "Проверьте дату рождения.",
+  CHILD_ARCHIVED: "Карточка ребёнка в архиве.",
+  GUARDIAN_ARCHIVED: "Представитель в архиве.",
+  GUARDIAN_HAS_ACTIVE_CHILDREN: "У представителя есть связи с активными детьми. Сначала уберите эти связи.",
+  RELATION_ALREADY_EXISTS: "Связь уже существует.",
+  RELATION_NOT_FOUND: "Связь не найдена.",
+  PARENT_ACCOUNT_ALREADY_EXISTS: "Учётная запись родителя уже создана.",
+  PARENT_ACCOUNT_NOT_FOUND: "Учётная запись родителя не найдена.",
+  PARENT_ACCOUNT_BLOCKED: "Учётная запись родителя заблокирована.",
 };
 
 export class ApiError extends Error {
@@ -53,7 +79,7 @@ export function userMessage(error: unknown, fallback = "Не удалось вы
   return fallback;
 }
 
-async function request<T>(path: string, options: { method?: "GET" | "POST"; body?: object } = {}): Promise<T> {
+async function request<T>(path: string, options: { method?: "GET" | "POST" | "PATCH"; body?: object } = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${baseUrl}${path}`, {
@@ -94,4 +120,5 @@ async function request<T>(path: string, options: { method?: "GET" | "POST"; body
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: object) => request<T>(path, { method: "POST", body }),
+  patch: <T>(path: string, body: object) => request<T>(path, { method: "PATCH", body }),
 };

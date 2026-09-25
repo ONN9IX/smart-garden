@@ -10,7 +10,7 @@ import { useAuth } from "./auth-provider";
 import { Button } from "@/components/ui/button";
 import { Loading } from "@/components/ui/loading";
 
-type Route = "login" | "change-password" | "dashboard";
+type Route = "login" | "change-password" | "dashboard" | "parent";
 
 export function AuthGate({ route, children }: { route: Route; children: React.ReactNode }) {
   const { current, state, refresh } = useAuth();
@@ -20,7 +20,9 @@ export function AuthGate({ route, children }: { route: Route; children: React.Re
     ? (route === "login" ? null : "/login")
     : current.user.must_change_password
       ? (route === "change-password" ? null : "/change-password")
-      : (route === "dashboard" ? null : "/dashboard");
+      : current.user.role === "PARENT"
+        ? (route === "parent" ? null : "/parent")
+        : (route === "dashboard" ? null : "/dashboard");
 
   useEffect(() => {
     if (destination) router.replace(destination);

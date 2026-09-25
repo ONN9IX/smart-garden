@@ -1,10 +1,10 @@
 /**
- * Stage 1 transport types.
- * Source of truth: docs/03-api-contract-v0.1.md; keep JSON names unchanged.
+ * Stage 2 auth transport types. Keep server JSON names unchanged.
  */
 export const ROLES = {
   DIRECTOR: "DIRECTOR",
   ADMIN: "ADMIN",
+  PARENT: "PARENT",
 } as const;
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
@@ -35,6 +35,7 @@ export interface LogoutResult {
 export const ROLE_LABELS: Record<Role, string> = {
   [ROLES.DIRECTOR]: "Директор",
   [ROLES.ADMIN]: "Администратор",
+  [ROLES.PARENT]: "Родитель",
 };
 
 

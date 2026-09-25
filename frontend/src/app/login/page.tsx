@@ -36,7 +36,7 @@ function LoginForm() {
       await authApi.login(username.trim(), password);
       const current = await refresh();
       if (!current) throw new Error("No session after login");
-      router.replace(current.user.must_change_password ? "/change-password" : "/dashboard");
+      router.replace(current.user.must_change_password ? "/change-password" : current.user.role === "PARENT" ? "/parent" : "/dashboard");
     } catch (reason) {
       setError(userMessage(reason, "Не удалось выполнить вход. Попробуйте ещё раз."));
     } finally {
