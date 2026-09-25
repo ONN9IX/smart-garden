@@ -17,6 +17,7 @@ import { AuthGate } from "@/features/auth/auth-gate";
 import { guardiansApi } from "@/lib/api/guardians";
 import { childrenApi } from "@/lib/api/children";
 import { GuardianRelations } from "@/features/guardians/relation-controls";
+import { AccountPanel } from "@/features/parent/account-panel";
 import { ApiError, userMessage } from "@/lib/api/client";
 import { RELATION_LABELS, type Guardian, type GuardianFields, type GuardianListItem, type RelationType, type StatusFilter } from "@/types/stage2";
 
@@ -157,7 +158,7 @@ function GuardianDetail({ id }: { id: string }) {
         <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить</Button><Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{guardian.status === "active" ? "Архивировать" : "Восстановить"}</Button></div>
       </section>}
       <GuardianRelations guardian={guardian} refresh={load} />
-      <section className="section-space"><h2>Учётная запись родителя</h2><p className="card section-card">{guardian.account ? `${guardian.account.username} · ${guardian.account.status === "active" ? "Активна" : "Заблокирована"}` : "Не создана."}</p></section>
+      <AccountPanel guardian={guardian} onAccountChange={(account) => setGuardian((previous) => previous ? { ...previous, account } : previous)} />
     </>}
   </AppShell>;
 }
