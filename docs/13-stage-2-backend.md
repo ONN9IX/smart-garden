@@ -246,7 +246,9 @@ updated_at
 - email normalize lower-case;
 - username из phone/email не строить;
 - Guardian не архивировать при active ChildGuardian links к active children;
-- никаких скрытых cascade delete.
+- если Guardian архивируется и у него есть PARENT account, в той же transaction User блокируется и его active sessions revoked;
+- restore Guardian не разблокирует PARENT account автоматически;
+- никаких скрытых cascade delete бизнес-связей.
 
 Ошибка:
 
@@ -563,6 +565,8 @@ Depends(require_role("DIRECTOR", "ADMIN"))
 
 PARENT management request → 403 FORBIDDEN.
 
+Для PARENT auth также fail closed: связанный Guardian должен существовать в том же tenant и быть active. Архивация Guardian всё равно обязана блокировать User и revoke sessions.
+
 ---
 
 # 19. Error codes
@@ -589,7 +593,7 @@ UNAUTHORIZED
 
 Не возвращать DB/SQL details.
 
-Чужой tenant entity → 404.
+Чужой tenant entity → 404 `NOT_FOUND`. Для этого Stage 2 допускает обновление существующего tenant guard, чтобы он не возвращал публичный код `FORBIDDEN` при HTTP 404.
 
 ---
 
@@ -792,6 +796,7 @@ Backend часть готова только если:
 - [ ] ChildGuardian many-to-many готов;
 - [ ] PARENT account create/reset/block/unblock готов;
 - [ ] PARENT auth работает;
+- [ ] archived Guardian не может сохранять активный PARENT access;
 - [ ] PARENT management API запрещён;
 - [ ] tenant tests для двух организаций зелёные;
 - [ ] cross-tenant link невозможен;
