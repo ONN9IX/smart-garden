@@ -42,7 +42,8 @@ def test_optional_contact_normalization_and_tenant(client, db, users):
     assert client.patch(f"{root}/{foreign.id}", json={"phone": "123"}).status_code == 404
     assert client.post(f"{root}/{foreign.id}/archive").status_code == 404
     assert client.post(f"{root}/{guardian['id']}/archive").json()["status"] == "archived"
-    assert client.get(root).json()["items"] == []
+    remaining = client.get(root).json()["items"]
+    assert len(remaining) == 1 and remaining[0]["id"] == duplicate.json()["id"]
     assert client.post(f"{root}/{guardian['id']}/restore").json()["status"] == "active"
 
 
