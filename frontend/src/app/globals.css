@@ -80,3 +80,8 @@ h2 { font-size: 21px; }
 .record-link:hover { border-color: var(--green); }
 .empty-state { padding: 26px; background: white; border: 1px dashed #b5c9be; border-radius: 9px; color: var(--muted); }
 @media (max-width: 460px) { .section-card { padding: 18px; } .record-link { flex-direction: column; } }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0 26px; }
+.filter-row label { min-width: min(180px, 100%); font-weight: 650; }
+.filter-row .input { margin-top: 6px; display: block; }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } .filter-row label { width: 100%; } }
