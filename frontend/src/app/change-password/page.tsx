@@ -43,7 +43,7 @@ function PasswordForm() {
         router.replace("/login");
         return;
       }
-      router.replace("/dashboard");
+      router.replace(current.user.role === "PARENT" ? "/parent" : "/dashboard");
     } catch (reason) {
       setError(userMessage(reason, "Не удалось изменить пароль. Попробуйте ещё раз."));
     } finally {

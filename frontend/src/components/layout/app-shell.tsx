@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  if (!current) return null;
+  if (!current || current.user.role === "PARENT") return null;
 
   async function logout() {
     if (busy) return;
