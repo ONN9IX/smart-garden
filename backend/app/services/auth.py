@@ -21,10 +21,22 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.models.auth_session import AuthSession
+from app.models.guardian import Guardian
 from app.models.user import User
 
 COOKIE_NAME = "smart_garden_session"
 session_cookie = APIKeyCookie(name=COOKIE_NAME, auto_error=False, description="HttpOnly server-side session cookie")
+
+
+def _parent_guardian_active(db: Session, user: User) -> None:
+    if user.role != "PARENT":
+        return
+    guardian = db.scalar(select(Guardian).where(
+        Guardian.user_id == user.id, Guardian.organization_id == user.organization_id,
+        Guardian.status == "active",
+    ))
+    if guardian is None:
+        raise AppError(403, "FORBIDDEN")
 
 
 def utc_now() -> datetime:
@@ -51,8 +63,9 @@ def authenticate_credentials(db: Session, username: str, password: str) -> User:
         raise AppError(403, "USER_BLOCKED")
     if user.organization.status != "active":
         raise AppError(403, "ORGANIZATION_BLOCKED")
-    if user.role not in {"DIRECTOR", "ADMIN"}:
+    if user.role not in {"DIRECTOR", "ADMIN", "PARENT"}:
         raise AppError(403, "FORBIDDEN")
+    _parent_guardian_active(db, user)
     return user
 
 
@@ -81,8 +94,9 @@ def current_identity(
         raise AppError(403, "USER_BLOCKED")
     if user.organization.status != "active":
         raise AppError(403, "ORGANIZATION_BLOCKED")
-    if user.role not in {"DIRECTOR", "ADMIN"}:
+    if user.role not in {"DIRECTOR", "ADMIN", "PARENT"}:
         raise AppError(403, "FORBIDDEN")
+    _parent_guardian_active(db, user)
     return user
 
 

@@ -14,8 +14,10 @@ from app.schemas.guardian import (
     GuardianList,
     GuardianPatch,
     GuardianResponse,
+    ParentAccountSummary,
 )
-from app.services import guardians
+from app.schemas.parent_account import TemporaryCredentials
+from app.services import guardians, parent_accounts
 
 router = APIRouter(prefix="/guardians", tags=["Представители"])
 Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
@@ -50,3 +52,23 @@ def archive_guardian(guardian_id: UUID, user: Manager, db: Database) -> Guardian
 @router.post("/{guardian_id}/restore", response_model=GuardianResponse)
 def restore_guardian(guardian_id: UUID, user: Manager, db: Database) -> GuardianResponse:
     return guardians.restore_guardian(db, user, guardian_id)
+
+
+@router.post("/{guardian_id}/account", response_model=TemporaryCredentials, status_code=201)
+def create_parent_account(guardian_id: UUID, user: Manager, db: Database) -> TemporaryCredentials:
+    return parent_accounts.create(db, user, guardian_id)
+
+
+@router.post("/{guardian_id}/account/reset-password", response_model=TemporaryCredentials)
+def reset_parent_password(guardian_id: UUID, user: Manager, db: Database) -> TemporaryCredentials:
+    return parent_accounts.reset_password(db, user, guardian_id)
+
+
+@router.post("/{guardian_id}/account/block", response_model=ParentAccountSummary)
+def block_parent_account(guardian_id: UUID, user: Manager, db: Database) -> ParentAccountSummary:
+    return parent_accounts.block(db, user, guardian_id)
+
+
+@router.post("/{guardian_id}/account/unblock", response_model=ParentAccountSummary)
+def unblock_parent_account(guardian_id: UUID, user: Manager, db: Database) -> ParentAccountSummary:
+    return parent_accounts.unblock(db, user, guardian_id)
