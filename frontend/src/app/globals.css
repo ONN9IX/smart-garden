@@ -85,3 +85,5 @@ h2 { font-size: 21px; }
 .filter-row label { min-width: min(180px, 100%); font-weight: 650; }
 .filter-row .input { margin-top: 6px; display: block; }
 @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } .filter-row label { width: 100%; } }
+.credential-card { margin: 14px 0; border-color: var(--green); }
+.credential-value { overflow-wrap: anywhere; user-select: all; }
