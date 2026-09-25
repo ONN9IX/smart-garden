@@ -12,6 +12,7 @@ from app.models.child_guardian import ChildGuardian
 from app.models.guardian import Guardian
 from app.models.user import User
 from app.schemas.guardian import (
+    GuardianChildRelation,
     GuardianCreate,
     GuardianListItem,
     GuardianPatch,
@@ -46,9 +47,18 @@ def summary(guardian: Guardian) -> GuardianListItem:
 
 
 def detail(guardian: Guardian) -> GuardianResponse:
-    # Child relation projection is added with BACK2-05.
+    from app.services.children import summary as child_summary
+
+    links = [
+        GuardianChildRelation(
+            relation_id=link.id, relation_type=link.relation_type,
+            relation_status=link.status, child=child_summary(link.child),
+        )
+        for link in guardian.child_links
+        if link.organization_id == guardian.organization_id and link.child.organization_id == guardian.organization_id
+    ]
     return GuardianResponse(
-        **summary(guardian).model_dump(), children=[], archived_at=guardian.archived_at,
+        **summary(guardian).model_dump(), children=links, archived_at=guardian.archived_at,
         created_at=guardian.created_at, updated_at=guardian.updated_at,
     )
 
