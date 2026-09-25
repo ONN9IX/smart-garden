@@ -11,7 +11,7 @@ import { ROLE_LABELS } from "@/types/auth";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
-const futureSections = ["Родители", "Сотрудники", "Посещаемость", "Объявления", "Настройки"];
+const futureSections = ["Сотрудники", "Посещаемость", "Объявления", "Настройки"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { current, clear } = useAuth();
@@ -52,6 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/dashboard" className={`nav-item ${pathname === "/dashboard" ? "active" : ""}`} aria-current={pathname === "/dashboard" ? "page" : undefined}>Главная</Link>
           <Link href="/children" className={`nav-item ${pathname.startsWith("/children") ? "active" : ""}`} aria-current={pathname.startsWith("/children") ? "page" : undefined}>Дети</Link>
           <Link href="/groups" className={`nav-item ${pathname.startsWith("/groups") ? "active" : ""}`} aria-current={pathname.startsWith("/groups") ? "page" : undefined}>Группы</Link>
+          <Link href="/guardians" className={`nav-item ${pathname.startsWith("/guardians") ? "active" : ""}`} aria-current={pathname.startsWith("/guardians") ? "page" : undefined}>Родители</Link>
           {futureSections.map((section) => <span key={section} className="nav-item disabled" aria-disabled="true" title="Раздел будет реализован на следующем этапе">{section}</span>)}
         </nav>
         <p className="sidebar-note">Другие разделы появятся на следующих этапах.</p>
