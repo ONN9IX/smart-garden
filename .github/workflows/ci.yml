@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend:
-    name: Backend checks
+    name: Backend quality
     runs-on: ubuntu-latest
     outputs:
       present: ${{ steps.backend.outputs.present }}
@@ -84,7 +84,7 @@ jobs:
         run: echo "Backend scaffold is not present yet; Backend checks skipped."
 
   frontend:
-    name: Frontend checks
+    name: Frontend quality
     runs-on: ubuntu-latest
     outputs:
       present: ${{ steps.frontend.outputs.present }}
@@ -235,3 +235,20 @@ jobs:
       - name: Stop preview
         if: always()
         run: docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.preview.yml down
+
+
+  required-backend:
+    name: Backend checks
+    needs: [backend, frontend, integration, preview]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stage 1 required Backend gate
+        run: echo "Backend, Frontend, browser integration and local preview passed."
+
+  required-frontend:
+    name: Frontend checks
+    needs: [backend, frontend, integration, preview]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stage 1 required Frontend gate
+        run: echo "Backend, Frontend, browser integration and local preview passed."
