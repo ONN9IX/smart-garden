@@ -36,3 +36,12 @@ export const ROLE_LABELS: Record<Role, string> = {
   [ROLES.DIRECTOR]: "Директор",
   [ROLES.ADMIN]: "Администратор",
 };
+
+
+/**
+ * Centralized frontend role check for role-aware rendering.
+ * Security: this only controls UI visibility; Backend remains the authorization source of truth.
+ */
+export function hasRole(role: Role, allowedRoles: readonly Role[]): boolean {
+  return allowedRoles.includes(role);
+}
