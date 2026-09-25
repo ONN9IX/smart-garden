@@ -236,7 +236,9 @@ updated_at        timestamptz
 - Guardian нельзя архивировать, если у него есть активные связи с активными детьми.
 - В таком случае: HTTP 409 `GUARDIAN_HAS_ACTIVE_CHILDREN`.
 - Перед архивированием Guardian пользователь должен явно убрать соответствующие связи.
-- Архивация Guardian не выполняет скрытый cascade-delete.
+- Архивация Guardian не выполняет скрытый cascade-delete бизнес-связей.
+- Если у Guardian есть PARENT account, успешная архивация Guardian в той же transaction блокирует связанный User и отзывает его активные sessions.
+- Восстановление Guardian **не** разблокирует PARENT account автоматически: DIRECTOR/ADMIN делает это отдельным явным действием.
 
 ---
 
@@ -382,6 +384,7 @@ Stage 2 включает блокировку и разблокировку PARE
 - DIRECTOR/ADMIN может блокировать только PARENT пользователя своей организации через Guardian workflow.
 - Stage 2 не даёт ADMIN возможности блокировать/изменять DIRECTOR.
 - Blocked PARENT не может войти даже при наличии старой session.
+- PARENT, связанный с archived Guardian, не должен сохранять действующий доступ: archive Guardian блокирует account и отзывает sessions.
 
 ---
 
