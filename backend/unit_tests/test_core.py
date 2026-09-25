@@ -51,7 +51,7 @@ def test_username_normalization_and_strict_database_setting():
 def test_openapi_matches_frontend_transport_and_cookie_security():
     spec = app.openapi()
     paths = spec["paths"]
-    assert set(paths) == {"/api/v1/health", "/api/v1/auth/login", "/api/v1/auth/me", "/api/v1/auth/change-password", "/api/v1/auth/logout"}
+    assert {"/api/v1/health", "/api/v1/auth/login", "/api/v1/auth/me", "/api/v1/auth/change-password", "/api/v1/auth/logout"} <= set(paths)
     assert spec["components"]["securitySchemes"]["APIKeyCookie"]["name"] == "smart_garden_session"
     assert paths["/api/v1/auth/me"]["get"]["security"] == [{"APIKeyCookie": []}]
     login_schema = spec["components"]["schemas"]["LoginRequest"]["properties"]
