@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
+from app.api.groups import router as groups_router
 from app.api.health import router as health_router
 from app.core.config import get_settings
 from app.core.errors import (
@@ -27,7 +28,7 @@ app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)
 app.add_middleware(
     CORSMiddleware, allow_origins=settings.allowed_origins, allow_credentials=True,
-    allow_methods=["GET", "POST"], allow_headers=["Content-Type"],
+    allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type"],
 )
 
 
@@ -49,3 +50,4 @@ async def unexpected_error(request: Request, error: Exception) -> JSONResponse:
 
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(groups_router, prefix="/api/v1")
