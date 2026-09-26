@@ -9,6 +9,7 @@ from app.main import app
 from app.models.attendance import Attendance
 from app.models.child import Child
 from app.models.group import Group
+from app.models.guardian import Guardian
 from app.models.user import User
 from tests.conftest import TEST_PASSWORD
 
@@ -97,6 +98,9 @@ def test_tenant_and_role_boundaries(client, db, users):
     parent = User(organization_id=users[0].id, username="attendance-parent",
                   password_hash=hash_password(TEST_PASSWORD), role="PARENT", status="active", must_change_password=False)
     db.add(parent)
+    db.flush()
+    db.add(Guardian(organization_id=users[0].id, user_id=parent.id,
+                    first_name="Тестовая", last_name="Родитель", status="active"))
     db.flush()
     with TestClient(app) as parent_client:
         assert parent_client.post("/api/v1/auth/login", json={"username": parent.username, "password": TEST_PASSWORD}).status_code == 200
