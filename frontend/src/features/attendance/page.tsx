@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+/** Attendance day view: filter choices come from the current date/group/status rows. */
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -26,15 +28,24 @@ function AttendanceContent() {
   const [groupId, setGroupId] = useState(""); const [status, setStatus] = useState<AttendanceStatus | "all">("all"); const [childId, setChildId] = useState("");
   const [groups, setGroups] = useState<Group[]>([]); const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const request = useRef(0);
+  function invalidate() { request.current += 1; setRows([]); setLoading(true); setError(""); }
   const load = useCallback(async () => {
+    const currentRequest = ++request.current;
     setLoading(true); setError("");
-    try { const [result, groupList] = await Promise.all([attendanceApi.list(day, groupId, status, childId), groupsApi.list("all")]); setRows(result.items); setGroups(groupList.items); }
-    catch (reason) { setError(userMessage(reason)); } finally { setLoading(false); }
-  }, [day, groupId, status, childId]);
+    try {
+      // Fetch the eligible set before applying the child selector, so it never traps the choice.
+      const [result, groupList] = await Promise.all([attendanceApi.list(day, groupId, status), groupsApi.list("all")]);
+      if (currentRequest !== request.current) return;
+      setRows(result.items); setGroups(groupList.items);
+    } catch (reason) { if (currentRequest === request.current) setError(userMessage(reason)); }
+    finally { if (currentRequest === request.current) setLoading(false); }
+  }, [day, groupId, status]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  const visible = childId ? rows.filter((row) => row.child.id === childId) : rows;
   return <AppShell><div className="page-heading"><span className="eyebrow">Учёт</span><h1>Посещаемость</h1><p>Ручные отметки детей за выбранный день.</p></div>
-    <div className="filter-row"><label>Дата <Input type="date" value={day} max={localDate()} onChange={(event) => setDay(event.target.value)} /></label><label>Группа <select className="input" value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><label>Статус <select className="input" value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="all">Все</option><option value="present">Присутствует</option><option value="absent">Отсутствует</option><option value="unknown">Без отметки</option></select></label><label>Ребёнок <select className="input" value={childId} onChange={(event) => setChildId(event.target.value)}><option value="">Все дети</option>{rows.map((row) => <option key={row.child.id} value={row.child.id}>{row.child.last_name} {row.child.first_name}</option>)}</select></label></div>
-    {error && <Alert>{error}</Alert>}{loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : rows.length === 0 ? <p className="empty-state">На эту дату дети не найдены.</p> : <div className="attendance-list">{rows.map((row) => <AttendanceItem key={row.child.id} row={row} refresh={load} />)}</div>}
+    <div className="filter-row"><label>Дата <Input type="date" value={day} max={localDate()} onChange={(event) => { invalidate(); setDay(event.target.value); setGroupId(""); setStatus("all"); setChildId(""); }} /></label><label>Группа <select className="input" value={groupId} onChange={(event) => { invalidate(); setGroupId(event.target.value); setChildId(""); }}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><label>Статус <select className="input" value={status} onChange={(event) => { invalidate(); setStatus(event.target.value as typeof status); setChildId(""); }}><option value="all">Все</option><option value="present">Присутствует</option><option value="absent">Отсутствует</option><option value="unknown">Без отметки</option></select></label><label>Ребёнок <select className="input" value={childId} onChange={(event) => setChildId(event.target.value)}><option value="">Все дети</option>{rows.map((row) => <option key={row.child.id} value={row.child.id}>{row.child.last_name} {row.child.first_name}</option>)}</select></label></div>
+    {error && <Alert>{error}</Alert>}{loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : visible.length === 0 ? <p className="empty-state">На эту дату дети не найдены.</p> : <div className="attendance-list">{visible.map((row) => <AttendanceItem key={`${row.date}:${row.child.id}`} row={row} refresh={load} />)}</div>}
   </AppShell>;
 }
 
