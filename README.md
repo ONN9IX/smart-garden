@@ -61,6 +61,10 @@
 - `docs/13-stage-2-backend.md` и `docs/14-stage-2-frontend.md` — задания Stage 2.
 - `docs/15-api-contract-stage-2.md` — API Stage 2.
 - `docs/16-stage-2-acceptance.md` — проверенный сквозной сценарий и границы приёмки.
+- `docs/17-stage-3-data-model-and-decisions.md` — решения по сотрудникам, посещаемости и ПДн.
+- `docs/18-stage-3-backend.md` и `docs/19-stage-3-frontend.md` — задания Stage 3.
+- `docs/20-api-contract-stage-3.md` — общий API Contract Stage 3.
+- `docs/21-stage-3-delivery-plan.md` — порядок вертикальных срезов и проверок.
 - `CONTRIBUTING.md` — короткие правила ежедневной разработки и PR.
 
 ## Единая архитектура
