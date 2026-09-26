@@ -11,15 +11,18 @@ from app.core.permissions import require_role
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.employee import (
+    EmployeeAccountSummary,
     EmployeeCreate,
     EmployeeList,
     EmployeePatch,
     EmployeeResponse,
+    EmployeeTemporaryCredentials,
 )
-from app.services import employees
+from app.services import employee_accounts, employees
 
 router = APIRouter(prefix="/employees", tags=["Сотрудники"], responses=MANAGEMENT_ERRORS)
 Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
+Director = Annotated[User, Depends(require_role("DIRECTOR"))]
 Database = Annotated[Session, Depends(get_db)]
 
 
@@ -55,3 +58,23 @@ def archive_employee(employee_id: UUID, user: Manager, db: Database) -> Employee
 @router.post("/{employee_id}/restore", response_model=EmployeeResponse)
 def restore_employee(employee_id: UUID, user: Manager, db: Database) -> EmployeeResponse:
     return employees.restore_employee(db, user, employee_id)
+
+
+@router.post("/{employee_id}/account", response_model=EmployeeTemporaryCredentials, status_code=201)
+def create_account(employee_id: UUID, user: Director, db: Database) -> EmployeeTemporaryCredentials:
+    return employee_accounts.create(db, user, employee_id)
+
+
+@router.post("/{employee_id}/account/reset-password", response_model=EmployeeTemporaryCredentials)
+def reset_account_password(employee_id: UUID, user: Director, db: Database) -> EmployeeTemporaryCredentials:
+    return employee_accounts.reset_password(db, user, employee_id)
+
+
+@router.post("/{employee_id}/account/block", response_model=EmployeeAccountSummary)
+def block_account(employee_id: UUID, user: Director, db: Database) -> EmployeeAccountSummary:
+    return employee_accounts.block(db, user, employee_id)
+
+
+@router.post("/{employee_id}/account/unblock", response_model=EmployeeAccountSummary)
+def unblock_account(employee_id: UUID, user: Director, db: Database) -> EmployeeAccountSummary:
+    return employee_accounts.unblock(db, user, employee_id)
