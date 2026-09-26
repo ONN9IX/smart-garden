@@ -51,6 +51,6 @@ test("employee restore requires explicit confirmation and cancel sends no reques
   });
   await page.getByRole("button", { name: "Восстановить" }).click();
   await expect(page.getByText("Карточка восстановлена. Доступ остаётся заблокированным, если был выдан.")).toBeVisible();
-  await expect(page.getByText("Заблокирован", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Разблокировать" })).toBeVisible();
   expect(restorePosts).toBe(1);
 });
