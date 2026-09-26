@@ -125,6 +125,8 @@ def upsert(db: Session, actor: User, payload: AttendanceCreate) -> tuple[Attenda
     ).returning(Attendance.id)
     record_id = db.scalar(statement)
     db.commit()
+    # Core upsert bypasses the ORM identity map; reload the saved values.
+    db.expire_all()
     record = _record(db, actor, record_id)
     return detail(record), existing is None
 
