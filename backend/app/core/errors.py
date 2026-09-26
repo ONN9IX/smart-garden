@@ -28,6 +28,9 @@ MESSAGES = {
     "PARENT_ACCOUNT_ALREADY_EXISTS": "Учётная запись уже создана.",
     "PARENT_ACCOUNT_NOT_FOUND": "Учётная запись не найдена.",
     "PARENT_ACCOUNT_BLOCKED": "Учётная запись заблокирована.",
+    "EMPLOYEE_ARCHIVED": "Карточка сотрудника в архиве.",
+    "EMPLOYEE_ACCOUNT_ALREADY_EXISTS": "Учётная запись уже создана.",
+    "EMPLOYEE_ACCOUNT_NOT_FOUND": "Учётная запись не найдена.",
 }
 
 
