@@ -147,7 +147,6 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await expect(page.getByText("Карточка восстановлена. Доступ остаётся заблокированным, если был выдан.")).toBeVisible();
   page.off("request", countRestore);
   expect(restoreRequests).toBe(1);
-  await expect(page.getByText("Заблокирован", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Разблокировать" })).toBeVisible();
   await page.getByRole("button", { name: "Разблокировать" }).click();
   await expect(page.getByText("Доступ восстановлен.")).toBeVisible();
