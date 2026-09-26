@@ -1,5 +1,7 @@
 "use client";
 
+/** Employee screens: editable values and one-time credentials stay in component memory only. */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -66,19 +68,40 @@ function Detail({ id }: { id: string }) {
   const [editing, setEditing] = useState(false); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [message, setMessage] = useState("");
   const load = useCallback(async () => { setLoading(true); setError(""); try { setItem(await employeesApi.get(id)); } catch (reason) { setError(userMessage(reason)); } finally { setLoading(false); } }, [id]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
-  async function change(operation: () => Promise<Employee>, success: string) { setBusy(true); setError(""); setMessage(""); try { setItem(await operation()); setMessage(success); } catch (reason) { setError(userMessage(reason)); } finally { setBusy(false); } }
-  async function account(operation: () => Promise<TemporaryCredentials | unknown>, success: string, reveal = false) { setBusy(true); setError(""); setMessage(""); setCredentials(null); try { const result = await operation(); if (reveal) setCredentials(result as TemporaryCredentials); setItem(await employeesApi.get(id)); setMessage(success); } catch (reason) { setError(userMessage(reason)); } finally { setBusy(false); } }
+  async function change(operation: () => Promise<Employee>, success: string): Promise<boolean> {
+    setBusy(true); setError(""); setMessage("");
+    try { setItem(await operation()); setMessage(success); return true; }
+    catch (reason) { setError(userMessage(reason)); return false; }
+    finally { setBusy(false); }
+  }
+  async function revealAccount(operation: () => Promise<TemporaryCredentials>, success: string) {
+    setBusy(true); setError(""); setMessage(""); setCredentials(null);
+    try {
+      const result = await operation();
+      // The POST response is the sole source of the one-time password. No follow-up GET can recover it.
+      setItem((current) => current && { ...current, account: result.account });
+      setCredentials(result);
+      setMessage(success);
+    } catch (reason) { setError(userMessage(reason)); }
+    finally { setBusy(false); }
+  }
+  async function updateAccount(operation: () => Promise<NonNullable<Employee["account"]>>, success: string) {
+    setBusy(true); setError(""); setMessage(""); setCredentials(null);
+    try { const result = await operation(); setItem((current) => current && { ...current, account: result }); setMessage(success); }
+    catch (reason) { setError(userMessage(reason)); }
+    finally { setBusy(false); }
+  }
   return <AppShell><Link className="text-link" href="/employees">← К сотрудникам</Link>{loading ? <Loading /> : !item ? <div className="section-space"><Alert>{error || "Запись не найдена."}</Alert><Button variant="secondary" onClick={() => void load()}>Повторить</Button></div> : <>
     <div className="page-heading section-space"><span className="eyebrow">Сотрудник · {item.status === "active" ? "Активен" : "Архив"}</span><h1>{name(item)}</h1><p>{item.position}</p></div>
     {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
-    {editing ? <Form initial={item} busy={busy} submit={async (fields) => { await change(() => employeesApi.update(id, fields), "Карточка сохранена."); setEditing(false); }} cancel={() => setEditing(false)} /> : <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить</Button>{(director || !item.account) && <Button variant="secondary" disabled={busy} onClick={() => {
+    {editing ? <Form initial={item} busy={busy} submit={async (fields) => { if (await change(() => employeesApi.update(id, fields), "Карточка сохранена.")) setEditing(false); }} cancel={() => setEditing(false)} /> : <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить</Button>{(director || !item.account) && <Button variant="secondary" disabled={busy} onClick={() => {
       if (item.status === "active" && !window.confirm(item.account ? "Архивировать сотрудника и заблокировать его доступ?" : "Архивировать сотрудника?")) return;
       void change(() => item.status === "active" ? employeesApi.archive(id) : employeesApi.restore(id), item.status === "active" ? "Карточка архивирована." : "Карточка восстановлена. Доступ остаётся заблокированным, если был выдан.");
     }}>{item.status === "active" ? "Архивировать" : "Восстановить"}</Button>}</div>}
     {item.account && <section className="card section-card section-space"><h2>Доступ администратора</h2><p>Логин: <strong>{item.account.username}</strong> · {item.account.status === "active" ? "Активен" : "Заблокирован"}{item.account.must_change_password ? " · Требуется смена пароля" : ""}</p>
-      {director && <div className="action-row"><Button variant="secondary" disabled={busy} onClick={() => void account(() => employeesApi.resetPassword(id), "Временный пароль обновлён. Действующие сессии завершены.", true)}>Сбросить пароль</Button><Button variant="secondary" disabled={busy} onClick={() => void account(() => item.account?.status === "active" ? employeesApi.block(id) : employeesApi.unblock(id), item.account?.status === "active" ? "Доступ заблокирован." : "Доступ восстановлен.")}>{item.account.status === "active" ? "Заблокировать" : "Разблокировать"}</Button></div>}
+      {director && <div className="action-row"><Button variant="secondary" disabled={busy} onClick={() => void revealAccount(() => employeesApi.resetPassword(id), "Временный пароль обновлён. Действующие сессии завершены.")}>Сбросить пароль</Button><Button variant="secondary" disabled={busy} onClick={() => void updateAccount(() => item.account?.status === "active" ? employeesApi.block(id) : employeesApi.unblock(id), item.account?.status === "active" ? "Доступ заблокирован." : "Доступ восстановлен.")}>{item.account.status === "active" ? "Заблокировать" : "Разблокировать"}</Button></div>}
     </section>}
-    {director && !item.account && item.status === "active" && <div className="section-space"><Button disabled={busy} onClick={() => void account(() => employeesApi.createAccount(id), "Доступ выдан. Сохраните реквизиты сейчас.", true)}>Выдать доступ администратора</Button></div>}
+    {director && !item.account && item.status === "active" && <div className="section-space"><Button disabled={busy} onClick={() => void revealAccount(() => employeesApi.createAccount(id), "Доступ выдан. Сохраните реквизиты сейчас.")}>Выдать доступ администратора</Button></div>}
     {credentials && <section className="card section-card section-space" aria-label="Одноразовые реквизиты"><h2>Временные реквизиты</h2><p>Логин: <strong>{credentials.account.username}</strong></p><p>Временный пароль: <strong>{credentials.temporary_password}</strong></p><p>Пароль появится только сейчас. Передайте его сотруднику безопасным способом.</p><Button variant="secondary" onClick={() => setCredentials(null)}>Закрыть и скрыть пароль</Button></section>}
   </>}</AppShell>;
 }
