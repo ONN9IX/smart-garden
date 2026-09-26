@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
 from app.api.children import router as children_router
+from app.api.employees import router as employees_router
 from app.api.groups import router as groups_router
 from app.api.guardians import router as guardians_router
 from app.api.health import router as health_router
@@ -55,3 +56,4 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(groups_router, prefix="/api/v1")
 app.include_router(children_router, prefix="/api/v1")
 app.include_router(guardians_router, prefix="/api/v1")
+app.include_router(employees_router, prefix="/api/v1")
