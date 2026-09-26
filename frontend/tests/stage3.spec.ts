@@ -178,14 +178,14 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await page.goto("/attendance");
   await page.getByLabel("Дата").fill(attendanceDay);
   let row = page.locator(".attendance-list form").filter({ hasText: childLabel });
-  await expect(row).toContainText("Без отметки");
+  await expect(row.locator("p").first()).toContainText("Без отметки");
   await row.getByLabel("Отметка").selectOption("present");
   await row.getByLabel("Приход").fill("08:30");
   await row.getByRole("button", { name: "Сохранить отметку" }).click();
-  await expect(row).toContainText("Присутствует");
+  await expect(row.locator("p").first()).toContainText("Присутствует");
   await row.getByLabel("Отметка").selectOption("absent");
   await row.getByRole("button", { name: "Сохранить отметку" }).click();
-  await expect(row).toContainText("Отсутствует");
+  await expect(row.locator("p").first()).toContainText("Отсутствует");
 
   await page.getByLabel("Группа").selectOption(groupAId);
   await expect(row).toBeVisible();
@@ -206,8 +206,8 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await expect(page.getByLabel("Статус")).toHaveValue("all");
   await expect(page.getByLabel("Ребёнок")).toHaveValue("");
   row = page.locator(".attendance-list form").filter({ hasText: childLabel });
-  await expect(row).toContainText("Без отметки");
-  await expect(row).not.toContainText("08:30");
+  await expect(row.locator("p").first()).toContainText("Без отметки");
+  await expect(row.locator("p").first()).not.toContainText("08:30");
 
   await page.getByLabel("Дата").fill(attendanceDay);
   await expectSuccess(await page.request.patch(`${apiBase}/children/${childId}`, { data: { group_id: groupBId } }));
