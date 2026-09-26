@@ -113,6 +113,22 @@ def main() -> None:
         db.flush()
         seed_stage2(db, organization)
         seed_stage3(db, organization)
+
+        other_organization = db.scalar(select(Organization).where(
+            Organization.name == "Синтетический сад другого tenant",
+        ))
+        if other_organization is None:
+            other_organization = Organization(name="Синтетический сад другого tenant", status="active")
+            db.add(other_organization)
+            db.flush()
+        other_username = "stage3-other-director-demo"
+        if db.scalar(select(User).where(User.username == other_username)) is None:
+            temporary_password = generate_temporary_password()
+            db.add(User(
+                organization_id=other_organization.id, username=other_username, role="DIRECTOR", status="active",
+                password_hash=hash_password(temporary_password), must_change_password=True,
+            ))
+            issued.append((other_username, temporary_password))
         db.commit()
         for username, password in issued:
             print(f"{username}: temporary password (displayed once): {password}")
