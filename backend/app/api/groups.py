@@ -6,13 +6,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.api.error_responses import MANAGEMENT_ERRORS
 from app.core.permissions import require_role
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.group import GroupList, GroupResponse, GroupWrite
 from app.services import groups
 
-router = APIRouter(prefix="/groups", tags=["Группы"])
+router = APIRouter(prefix="/groups", tags=["Группы"], responses=MANAGEMENT_ERRORS)
 Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
 Database = Annotated[Session, Depends(get_db)]
 

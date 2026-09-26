@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.api.error_responses import MANAGEMENT_ERRORS
 from app.core.permissions import require_role
 from app.db.session import get_db
 from app.models.user import User
@@ -19,7 +20,7 @@ from app.schemas.guardian import (
 from app.schemas.parent_account import TemporaryCredentials
 from app.services import guardians, parent_accounts
 
-router = APIRouter(prefix="/guardians", tags=["Представители"])
+router = APIRouter(prefix="/guardians", tags=["Представители"], responses=MANAGEMENT_ERRORS)
 Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
 Database = Annotated[Session, Depends(get_db)]
 

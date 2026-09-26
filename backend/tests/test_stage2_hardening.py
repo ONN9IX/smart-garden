@@ -20,6 +20,7 @@ def test_stage2_seed_is_idempotent_and_minimal(db, users):
         assert db.scalar(select(func.count()).select_from(model).where(model.organization_id == organization.id)) == 1
         assert db.scalar(select(func.count()).select_from(model).where(model.organization_id == other.id)) == 0
     guardian = db.scalar(select(Guardian).where(Guardian.organization_id == organization.id))
+    assert db.scalar(select(Group).where(Group.organization_id == organization.id)).name == "Ромашка"
     assert guardian.phone is None and guardian.email is None and guardian.user_id is None
 
 
@@ -49,7 +50,14 @@ def test_openapi_stage2_endpoints_and_parent_role(client):
     }
     for path, methods in expected.items():
         assert methods <= spec["paths"][path].keys()
+        for method in methods:
+            operation = spec["paths"][path][method]
+            for status in ("400", "401", "403", "404", "409", "500"):
+                assert operation["responses"][status]["content"]["application/json"]["schema"]["$ref"].endswith("/ErrorResponse")
     assert "PARENT" in spec["components"]["schemas"]["UserResponse"]["properties"]["role"]["enum"]
+    assert "temporary_password" in spec["components"]["schemas"]["TemporaryCredentials"]["properties"]
+    for name in ("GroupWrite", "ChildCreate", "ChildPatch", "GuardianCreate", "GuardianPatch"):
+        assert "organization_id" not in spec["components"]["schemas"][name]["properties"]
     for path in spec["paths"]:
         assert "temporary_password" not in path
 

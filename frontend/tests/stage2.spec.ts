@@ -37,6 +37,7 @@ test("director creates records; parent changes password and cannot manage them",
 
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/children/new");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByLabel("Фамилия").fill("Тестовый");
   await page.getByLabel("Имя").fill(childName);
   await page.getByLabel("Дата рождения").fill("2020-01-01");
@@ -61,6 +62,11 @@ test("director creates records; parent changes password and cannot manage them",
   await expect(credentials).toBeVisible();
   const username = await credentials.getByText("Логин:").locator("strong").innerText();
   const temporary = await credentials.locator(".credential-value").innerText();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const cardBounds = await credentials.boundingBox();
+  expect(cardBounds).not.toBeNull();
+  expect(cardBounds!.x + cardBounds!.width).toBeLessThanOrEqual(390);
   await page.getByRole("button", { name: "Закрыть и скрыть пароль" }).click();
   await page.reload();
   await expect(page.locator(".credential-value")).toHaveCount(0);
@@ -75,6 +81,7 @@ test("director creates records; parent changes password and cannot manage them",
     await expect(parentPage).toHaveURL(/\/parent$/);
     await expect(parentPage.getByRole("heading", { name: "Кабинет родителя" })).toBeVisible();
     await parentPage.setViewportSize({ width: 390, height: 844 });
+    expect(await parentPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await parentPage.goto("/children");
     await expect(parentPage).toHaveURL(/\/parent$/);
     expect((await parentPage.request.get("http://localhost:8000/api/v1/children")).status()).toBe(403);
