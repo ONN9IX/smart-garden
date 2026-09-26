@@ -418,7 +418,7 @@ GET /api/v1/health
 Запуск из `backend/`:
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --no-access-log
 ```
 
 Проверить:

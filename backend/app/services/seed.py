@@ -22,9 +22,9 @@ from app.models.user import User
 
 def seed_stage2(db: Session, organization: Organization) -> None:
     """Add plainly synthetic records once; never overwrite edited demo records."""
-    group = db.scalar(select(Group).where(Group.organization_id == organization.id, Group.name == "Демо-группа"))
+    group = db.scalar(select(Group).where(Group.organization_id == organization.id, Group.name == "Ромашка"))
     if group is None:
-        group = Group(organization_id=organization.id, name="Демо-группа", status="active")
+        group = Group(organization_id=organization.id, name="Ромашка", status="active")
         db.add(group)
         db.flush()
 
