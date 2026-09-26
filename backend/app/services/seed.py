@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.organization_time import DEFAULT_ORGANIZATION_TIMEZONE
 from app.core.security import generate_temporary_password, hash_password
 from app.db.session import SessionLocal
 from app.models.attendance import Attendance
@@ -96,9 +97,14 @@ def main() -> None:
     with SessionLocal() as db:
         organization = db.scalar(select(Organization).where(Organization.name == "Детский сад «Солнышко»"))
         if organization is None:
-            organization = Organization(name="Детский сад «Солнышко»", status="active")
+            organization = Organization(
+                name="Детский сад «Солнышко»", status="active",
+                timezone=DEFAULT_ORGANIZATION_TIMEZONE,
+            )
             db.add(organization)
             db.flush()
+        else:
+            organization.timezone = DEFAULT_ORGANIZATION_TIMEZONE
 
         issued: list[tuple[str, str]] = []
         for username, role in (("director-demo", "DIRECTOR"), ("admin-demo", "ADMIN"), ("stage2-director-demo", "DIRECTOR"), ("stage3-director-demo", "DIRECTOR")):
@@ -118,9 +124,14 @@ def main() -> None:
             Organization.name == "Синтетический сад другого tenant",
         ))
         if other_organization is None:
-            other_organization = Organization(name="Синтетический сад другого tenant", status="active")
+            other_organization = Organization(
+                name="Синтетический сад другого tenant", status="active",
+                timezone=DEFAULT_ORGANIZATION_TIMEZONE,
+            )
             db.add(other_organization)
             db.flush()
+        else:
+            other_organization.timezone = DEFAULT_ORGANIZATION_TIMEZONE
         other_username = "stage3-other-director-demo"
         if db.scalar(select(User).where(User.username == other_username)) is None:
             temporary_password = generate_temporary_password()

@@ -1,6 +1,6 @@
 # API Contract Stage 3 — Employees / Attendance
 
-**Base:** `/api/v1`. JSON `snake_case`, UUID strings, dates `YYYY-MM-DD`, times `HH:MM` local wall time. Сессия `smart_garden_session` HttpOnly; tenant только из authenticated User. Stage 1/2 API не меняется. Все ошибки:
+**Base:** `/api/v1`. JSON `snake_case`, UUID strings, dates `YYYY-MM-DD`, times `HH:MM` local wall time. Attendance date — календарная дата сада; «сегодня» определяется Backend по IANA timezone authenticated User Organization. Клиент не передаёт и не выбирает timezone. Сессия `smart_garden_session` HttpOnly; tenant только из authenticated User. Stage 1/2 API не меняется. Все ошибки:
 
 ```json
 {"error":{"code":"NOT_FOUND","message":"Запись не найдена.","field":null}}
@@ -83,7 +83,7 @@ POST body:
 {"child_id":"uuid","date":"2026-09-26","status":"present","arrival_time":"08:30","departure_time":null}
 ```
 
-Повтор POST для той же пары child/date обновляет строку, не создаёт вторую. `created_by` сохраняется, `updated_by` меняется. `group_id` фиксируется при первой записи. PATCH принимает непустое подмножество `status`, `arrival_time`, `departure_time`; immutable child/date/group/actor/tenant запрещены. Для absent/unknown времена обязаны быть null; при смене статуса на них сервис очищает прежние времена. Для present оба времени optional, но departure без arrival или раньше arrival → 400 `INVALID_ATTENDANCE_TIME`. Дата в будущем → 400 `INVALID_ATTENDANCE_DATE`; чужой Child/Group → 404; archived Child → 409 `CHILD_ARCHIVED`; archived Group при новой отметке → 409 `GROUP_ARCHIVED`. Нет comment/reason/medical fields и DELETE.
+Повтор POST для той же пары child/date обновляет строку, не создаёт вторую. `created_by` сохраняется, `updated_by` меняется. `group_id` фиксируется при первой записи. PATCH принимает непустое подмножество `status`, `arrival_time`, `departure_time`; immutable child/date/group/actor/tenant запрещены. Для absent/unknown времена обязаны быть null; при смене статуса на них сервис очищает прежние времена. Для present оба времени optional, но departure без arrival или раньше arrival → 400 `INVALID_ATTENDANCE_TIME`. Дата позже календарного today в `Organization.timezone` текущего tenant → 400 `INVALID_ATTENDANCE_DATE`; timezone отсутствует в body/query/response. Чужой Child/Group → 404; archived Child → 409 `CHILD_ARCHIVED`; archived Group при новой отметке → 409 `GROUP_ARCHIVED`. Attendance продолжает хранить SQL `DATE` и local wall `TIME` без UTC conversion. Нет comment/reason/medical fields и DELETE.
 
 ## 6. Security и acceptance
 

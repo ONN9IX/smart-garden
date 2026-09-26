@@ -1,6 +1,6 @@
 """PostgreSQL attendance contract: unknown, upsert, history and tenant boundaries."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 
 from fastapi.testclient import TestClient
 
@@ -54,7 +54,7 @@ def test_day_upsert_patch_and_group_snapshot(client, db, users):
     assert client.patch(f"{ROOT}/{record_id}", json={"status": "absent"}).json()["departure_time"] is None
     assert client.patch(f"{ROOT}/{record_id}", json={"departure_time": "10:00"}).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
     assert client.post(ROOT, json={**payload, "departure_time": "07:00"}).status_code == 400
-    assert client.post(ROOT, json={**payload, "date": str(datetime.now(UTC).date() + timedelta(days=2))}).json()["error"]["code"] == "INVALID_ATTENDANCE_DATE"
+    assert client.post(ROOT, json={**payload, "date": "2999-01-01"}).json()["error"]["code"] == "INVALID_ATTENDANCE_DATE"
     assert client.patch(f"{ROOT}/{record_id}", json={"child_id": child}).status_code == 400
     assert client.post(ROOT, json={**payload, "arrival_time": "08:30+03:00"}).status_code == 400
     assert client.patch(f"{ROOT}/{record_id}", json={"arrival_time": "08:30+03:00"}).status_code == 400
