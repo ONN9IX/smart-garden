@@ -78,6 +78,10 @@ test("director creates records; parent changes password and cannot manage them",
     await parentPage.goto("/children");
     await expect(parentPage).toHaveURL(/\/parent$/);
     expect((await parentPage.request.get("http://localhost:8000/api/v1/children")).status()).toBe(403);
+    await parentPage.getByRole("button", { name: "Выйти" }).click();
+    await expect(parentPage).toHaveURL(/\/login$/);
+    await login(parentPage, username, parentPassword);
+    await expect(parentPage).toHaveURL(/\/parent$/);
 
     await page.goto(groupUrl);
     page.once("dialog", (dialog) => void dialog.accept());
