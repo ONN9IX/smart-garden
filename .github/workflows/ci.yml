@@ -200,7 +200,7 @@ jobs:
           npx playwright install chromium
       - name: Run browser integration
         run: |
-          python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 > /tmp/smart-garden-backend.log 2>&1 &
+          python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --no-access-log > /tmp/smart-garden-backend.log 2>&1 &
           backend_pid=$!
           npm --prefix frontend run start -- -H 127.0.0.1 -p 3000 > /tmp/smart-garden-frontend.log 2>&1 &
           frontend_pid=$!

@@ -18,8 +18,10 @@ cp .env.example .env
 # Замените SECRET_KEY в локальном .env на своё случайное значение. .env не добавляйте в Git.
 alembic upgrade head
 python -m app.services.seed
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --no-access-log
 ```
+
+`--no-access-log` нужен, чтобы поисковые строки в URL (`q`) не попадали в журнал запросов. При настройке reverse proxy для реальных данных применяйте то же правило к его журналам.
 
 `GET http://localhost:8000/api/v1/health` отвечает `{"status":"ok"}` только при доступном PostgreSQL. OpenAPI — `http://localhost:8000/docs`. У seed-команды синтетические `director-demo` и `admin-demo`; временный пароль каждого нового пользователя выводится один раз локально. Повторный seed не меняет пароли существующих пользователей. Все прикладные таблицы создаются **только** Alembic.
 

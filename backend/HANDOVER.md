@@ -56,7 +56,7 @@ cp .env.example .env
 ```bash
 alembic upgrade head
 python -m app.services.seed
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
 Проверки: `http://localhost:8000/api/v1/health` и `http://localhost:8000/docs`. `seed` покажет временные пароли `director-demo` и `admin-demo` один раз. Не публикуйте их; повторный запуск `seed` не сбрасывает уже созданные пароли. Если Python установлен только как `py`, команды создания окружения можно выполнить через `py -3.12 -m venv .venv`.
