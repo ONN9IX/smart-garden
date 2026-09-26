@@ -4,9 +4,12 @@ from datetime import UTC, date, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
+from app.core.security import hash_password
 from app.main import app
+from app.models.attendance import Attendance
 from app.models.child import Child
 from app.models.group import Group
+from app.models.user import User
 from tests.conftest import TEST_PASSWORD
 
 ROOT = "/api/v1/attendance"
@@ -52,6 +55,8 @@ def test_day_upsert_patch_and_group_snapshot(client, db, users):
     assert client.post(ROOT, json={**payload, "departure_time": "07:00"}).status_code == 400
     assert client.post(ROOT, json={**payload, "date": str(datetime.now(UTC).date() + timedelta(days=2))}).json()["error"]["code"] == "INVALID_ATTENDANCE_DATE"
     assert client.patch(f"{ROOT}/{record_id}", json={"child_id": child}).status_code == 400
+    assert client.post(ROOT, json={**payload, "arrival_time": "08:30+03:00"}).status_code == 400
+    assert client.patch(f"{ROOT}/{record_id}", json={"arrival_time": "08:30+03:00"}).status_code == 400
 
     assert client.patch(f"/api/v1/children/{child}", json={"group_id": second}).status_code == 200
     assert client.get(ROOT, params={"date": DAY, "group_id": first}).json()["items"][0]["record_id"] == record_id
@@ -77,6 +82,43 @@ def test_tenant_and_role_boundaries(client, db, users):
     assert client.get(ROOT, params={"date": DAY, "group_id": str(foreign_group.id)}).status_code == 404
     assert client.get(ROOT, params={"date": DAY, "child_id": str(foreign_child.id)}).status_code == 404
     assert client.post(ROOT, json={"child_id": str(foreign_child.id), "date": DAY, "status": "absent"}).status_code == 404
+    foreign_author = User(organization_id=other.id, username="foreign-attendance-author",
+                          password_hash=hash_password(TEST_PASSWORD), role="ADMIN", status="active", must_change_password=False)
+    db.add(foreign_author)
+    db.flush()
+    foreign_record = Attendance(organization_id=other.id, child_id=foreign_child.id,
+                                group_id=foreign_group.id, date=date(2025, 9, 20), status="absent",
+                                created_by=foreign_author.id, updated_by=foreign_author.id)
+    db.add(foreign_record)
+    db.flush()
+    assert client.get(f"{ROOT}/{foreign_record.id}").status_code == 404
+    assert client.patch(f"{ROOT}/{foreign_record.id}", json={"status": "present"}).status_code == 404
     assert client.get(f"{ROOT}/{record_id}").status_code == 200
+    parent = User(organization_id=users[0].id, username="attendance-parent",
+                  password_hash=hash_password(TEST_PASSWORD), role="PARENT", status="active", must_change_password=False)
+    db.add(parent)
+    db.flush()
+    with TestClient(app) as parent_client:
+        assert parent_client.post("/api/v1/auth/login", json={"username": parent.username, "password": TEST_PASSWORD}).status_code == 200
+        assert parent_client.get(ROOT, params={"date": DAY}).status_code == 403
+        assert parent_client.post(ROOT, json={"child_id": child_id, "date": DAY, "status": "present"}).status_code == 403
+        assert parent_client.get(f"{ROOT}/{record_id}").status_code == 403
+        assert parent_client.patch(f"{ROOT}/{record_id}", json={"status": "absent"}).status_code == 403
     with TestClient(app) as anonymous:
         assert anonymous.get(ROOT, params={"date": DAY}).status_code == 401
+
+
+def test_archived_group_prevents_new_mark_but_keeps_history(client, db, users):
+    _login(client)
+    group = _group(client, "Прошлая")
+    child = _child(client, group)
+    day = client.post(ROOT, json={"child_id": child, "date": DAY, "status": "present"})
+    assert day.status_code == 201
+    assert client.post(f"/api/v1/children/{child}/archive").status_code == 200
+    assert client.post(f"/api/v1/groups/{group}/archive").status_code == 200
+    assert client.get(ROOT, params={"date": DAY, "group_id": group}).json()["items"][0]["record_id"] == day.json()["record_id"]
+    # A legacy inconsistent active child in an archived group still cannot get a new mark.
+    saved_child = db.get(Child, child)
+    saved_child.status = "active"
+    db.flush()
+    assert client.post(ROOT, json={"child_id": child, "date": "2025-09-22", "status": "absent"}).json()["error"]["code"] == "GROUP_ARCHIVED"

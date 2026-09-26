@@ -4,12 +4,21 @@ from datetime import date, datetime, time
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 AttendanceStatus = Literal["present", "absent", "unknown"]
 
 
-class AttendanceCreate(BaseModel):
+class LocalTimes(BaseModel):
+    @field_validator("arrival_time", "departure_time", check_fields=False)
+    @classmethod
+    def no_timezone(cls, value: time | None) -> time | None:
+        if value is not None and value.tzinfo is not None:
+            raise ValueError("A local wall time without timezone is required")
+        return value
+
+
+class AttendanceCreate(LocalTimes):
     model_config = ConfigDict(extra="forbid")
     child_id: UUID
     date: date
@@ -18,7 +27,7 @@ class AttendanceCreate(BaseModel):
     departure_time: time | None = None
 
 
-class AttendancePatch(BaseModel):
+class AttendancePatch(LocalTimes):
     model_config = ConfigDict(extra="forbid")
     status: AttendanceStatus | None = None
     arrival_time: time | None = None
