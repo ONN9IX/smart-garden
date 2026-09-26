@@ -4,7 +4,7 @@
 
 ## С чего начинать разработчику
 
-**Проверка первого этапа в браузере:** [PREVIEW.md](PREVIEW.md) — запуск Frontend, Backend и PostgreSQL одной командой с синтетическими аккаунтами.
+**Проверка Stage 2 в браузере:** [PREVIEW.md](PREVIEW.md) — запуск Frontend, Backend и PostgreSQL одной командой с синтетическими аккаунтами; [акт интеграции](docs/16-stage-2-acceptance.md).
 
 **Главный рабочий документ команды: `docs/00-development-guide.md`.**
 
@@ -57,6 +57,10 @@
 - `docs/08-team-access-and-environments.md` — смена ролей разработчиков, доступы, локальные окружения и правила хранения секретов.
 - `docs/09-code-and-error-standards.md` — обязательные комментарии, обработка ошибок, logging и проверки перед PR.
 - `docs/10-pre-development-audit.md` — контрольная проверка синхронизации перед Stage 1.
+- `docs/12-stage-2-data-model-and-decisions.md` — решения по данным и границам Stage 2.
+- `docs/13-stage-2-backend.md` и `docs/14-stage-2-frontend.md` — задания Stage 2.
+- `docs/15-api-contract-stage-2.md` — API Stage 2.
+- `docs/16-stage-2-acceptance.md` — проверенный сквозной сценарий и границы приёмки.
 - `CONTRIBUTING.md` — короткие правила ежедневной разработки и PR.
 
 ## Единая архитектура
@@ -82,4 +86,4 @@ Frontend не создаёт и не использует собственную
 
 ## Статус готовности
 
-Перед началом кода выполнен pre-development audit. Архитектура Stage 1 синхронизирована: PostgreSQL, API, server-side session + HttpOnly cookie, UUID, HTTP 400 validation policy, Git/PR workflow и правила передачи между разработчиками зафиксированы в документации.
+Stage 1 и Stage 2 реализованы в `main`. Frontend Next.js работает с FastAPI и PostgreSQL без mock бизнес-данных. Автоматический браузерный сценарий проверяет создание группы, ребёнка, представителя и связи, PARENT аккаунт, смену и сброс пароля, запрет управления для PARENT и правила архивации. Для просмотра используйте [PREVIEW.md](PREVIEW.md).
