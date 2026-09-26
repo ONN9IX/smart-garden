@@ -31,6 +31,8 @@ MESSAGES = {
     "EMPLOYEE_ARCHIVED": "Карточка сотрудника в архиве.",
     "EMPLOYEE_ACCOUNT_ALREADY_EXISTS": "Учётная запись уже создана.",
     "EMPLOYEE_ACCOUNT_NOT_FOUND": "Учётная запись не найдена.",
+    "INVALID_ATTENDANCE_DATE": "Дата посещаемости не может быть в будущем.",
+    "INVALID_ATTENDANCE_TIME": "Проверьте время прихода и ухода.",
 }
 
 
