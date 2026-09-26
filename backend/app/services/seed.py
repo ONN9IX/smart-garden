@@ -74,7 +74,7 @@ def main() -> None:
             db.flush()
 
         issued: list[tuple[str, str]] = []
-        for username, role in (("director-demo", "DIRECTOR"), ("admin-demo", "ADMIN"), ("stage2-director-demo", "DIRECTOR")):
+        for username, role in (("director-demo", "DIRECTOR"), ("admin-demo", "ADMIN"), ("stage2-director-demo", "DIRECTOR"), ("stage3-director-demo", "DIRECTOR")):
             if db.scalar(select(User).where(User.username == username)) is not None:
                 continue
             temporary_password = generate_temporary_password()

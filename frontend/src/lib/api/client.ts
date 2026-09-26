@@ -28,7 +28,12 @@ type ApiErrorCode =
   | "RELATION_NOT_FOUND"
   | "PARENT_ACCOUNT_ALREADY_EXISTS"
   | "PARENT_ACCOUNT_NOT_FOUND"
-  | "PARENT_ACCOUNT_BLOCKED";
+  | "PARENT_ACCOUNT_BLOCKED"
+  | "EMPLOYEE_ARCHIVED"
+  | "EMPLOYEE_ACCOUNT_ALREADY_EXISTS"
+  | "EMPLOYEE_ACCOUNT_NOT_FOUND"
+  | "INVALID_ATTENDANCE_DATE"
+  | "INVALID_ATTENDANCE_TIME";
 
 const errorMessages: Partial<Record<ApiErrorCode, string>> = {
   INVALID_CREDENTIALS: "Неверный логин или пароль",
@@ -53,6 +58,11 @@ const errorMessages: Partial<Record<ApiErrorCode, string>> = {
   PARENT_ACCOUNT_ALREADY_EXISTS: "Учётная запись родителя уже создана.",
   PARENT_ACCOUNT_NOT_FOUND: "Учётная запись родителя не найдена.",
   PARENT_ACCOUNT_BLOCKED: "Учётная запись родителя заблокирована.",
+  EMPLOYEE_ARCHIVED: "Карточка сотрудника в архиве.",
+  EMPLOYEE_ACCOUNT_ALREADY_EXISTS: "Доступ уже выдан.",
+  EMPLOYEE_ACCOUNT_NOT_FOUND: "Учётная запись сотрудника не найдена.",
+  INVALID_ATTENDANCE_DATE: "Дата не может быть в будущем.",
+  INVALID_ATTENDANCE_TIME: "Проверьте время прихода и ухода.",
 };
 
 export class ApiError extends Error {
