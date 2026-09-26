@@ -192,6 +192,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await page.getByLabel("Группа").selectOption(groupBId);
   await expect(page.locator(".attendance-list form").filter({ hasText: childLabel })).toHaveCount(0);
   await page.getByLabel("Группа").selectOption("");
+  await expect(page.locator(".attendance-list form").filter({ hasText: childLabel })).toBeVisible();
   await page.getByLabel("Статус").selectOption("absent");
   await expect(page.locator(".attendance-list form").filter({ hasText: childLabel })).toBeVisible();
   await page.getByLabel("Статус").selectOption("present");
