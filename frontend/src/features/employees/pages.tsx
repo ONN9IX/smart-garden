@@ -95,7 +95,10 @@ function Detail({ id }: { id: string }) {
     <div className="page-heading section-space"><span className="eyebrow">Сотрудник · {item.status === "active" ? "Активен" : "Архив"}</span><h1>{name(item)}</h1><p>{item.position}</p></div>
     {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
     {editing ? <Form initial={item} busy={busy} submit={async (fields) => { if (await change(() => employeesApi.update(id, fields), "Карточка сохранена.")) setEditing(false); }} cancel={() => setEditing(false)} /> : <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить</Button>{(director || !item.account) && <Button variant="secondary" disabled={busy} onClick={() => {
-      if (item.status === "active" && !window.confirm(item.account ? "Архивировать сотрудника и заблокировать его доступ?" : "Архивировать сотрудника?")) return;
+      const confirmation = item.status === "active"
+        ? (item.account ? "Архивировать сотрудника и заблокировать его доступ?" : "Архивировать сотрудника?")
+        : "Восстановить карточку сотрудника? Восстановление карточки Employee не разблокирует связанного User автоматически.";
+      if (!window.confirm(confirmation)) return;
       void change(() => item.status === "active" ? employeesApi.archive(id) : employeesApi.restore(id), item.status === "active" ? "Карточка архивирована." : "Карточка восстановлена. Доступ остаётся заблокированным, если был выдан.");
     }}>{item.status === "active" ? "Архивировать" : "Восстановить"}</Button>}</div>}
     {item.account && <section className="card section-card section-space"><h2>Доступ администратора</h2><p>Логин: <strong>{item.account.username}</strong> · {item.account.status === "active" ? "Активен" : "Заблокирован"}{item.account.must_change_password ? " · Требуется смена пароля" : ""}</p>
