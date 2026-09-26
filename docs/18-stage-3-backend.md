@@ -10,6 +10,7 @@ DIRECTOR/ADMIN ведут карточки Employee и ручную посеща
 
 - `0007_employees`: таблица Employee по документу 17; FK на Organization и nullable unique FK на User; индекс `(organization_id, status)`; checks статуса и непустых имён/должности после trim. Один User не может быть привязан к двум Employee. Downgrade удаляет только новую таблицу.
 - `0008_attendance`: поля по документу 17; FK на Organization, Child, Group, created_by/updated_by User; unique `(child_id, date)`; checks status и комбинаций времени; индексы по tenant/date/group и tenant/date/status. Downgrade удаляет таблицу. Проверять tenant consistency на сервисном уровне; SQL checks не заменяют эти проверки.
+- `0009_organization_timezone`: `organizations.timezone` — IANA timezone string до 64 символов, backfill `Europe/Moscow`, затем NOT NULL и DB default для новых организаций. Downgrade удаляет только это поле. ORM и единый backend helper валидируют значение через stdlib `ZoneInfo`; invalid configuration не получает silent UTC fallback.
 - Добавить модели в metadata для Alembic. Не менять записи или ограничения Stage 2 ради новой схемы. Время — SQL `TIME` без часового пояса, дата — SQL `DATE`; не сохранять произвольный text comment.
 
 ## 3. Employee service
@@ -21,6 +22,8 @@ Create account: только DIRECTOR, активная карточка без 
 ## 4. Attendance service
 
 `GET /attendance` получает date, optional group/status/child filters. Список дня включает активных детей текущих активных групп и архивных детей, у которых уже есть Attendance на выбранную дату. Для активного ребёнка без строки Attendance возвращать вычисленный `unknown`, `record_id=null`, без записи в БД. Для сохранённой строки использовать `group_id` снимка, а не текущую группу ребёнка. Хранить дату и времена строго как date/time, не как UTC datetime. Фильтр status применяется после вычисления unknown. Сортировка group/name/UUID стабильна.
+
+Future-date validation для GET day и POST/upsert сравнивает date с календарной датой текущего сада: authenticated User → joined Organization → `ZoneInfo(Organization.timezone)` → local date. Browser/server timezone, UTC date, фиксированный offset и timezone из request не используются. Timezone определяется один раз на service operation без запросов на каждую строку.
 
 `POST /attendance` атомарно создаёт или обновляет пару `(child_id,date)`; group_id фиксируется при первой записи, created_by не меняется, updated_by и updated_at меняются. При гонке unique constraint повторно прочитать/обновить запись внутри корректной транзакции, не возвращать 500. Можно обновить `present` на `unknown` для исправления, строку не удалять. Для archived Child запись запрещена; для active Child с archived Group новая запись также запрещена. `GET /attendance/{id}` и `PATCH /attendance/{id}` доступны лишь в своём tenant; PATCH меняет status/times, но не child/date/group/created_by. Любой запрос с чужим UUID скрывается 404.
 

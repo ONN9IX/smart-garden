@@ -56,8 +56,8 @@ def client(db):
 
 @pytest.fixture
 def users(db):
-    organization = Organization(name="Детский сад «Тестовый»", status="active")
-    other = Organization(name="Детский сад «Другой»", status="active")
+    organization = Organization(name="Детский сад «Тестовый»", status="active", timezone="Europe/Moscow")
+    other = Organization(name="Детский сад «Другой»", status="active", timezone="America/Los_Angeles")
     db.add_all([organization, other])
     db.flush()
     director = User(organization_id=organization.id, username="director-test", password_hash=hash_password(TEST_PASSWORD), role="DIRECTOR", status="active", must_change_password=True)

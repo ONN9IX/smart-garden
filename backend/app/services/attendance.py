@@ -1,6 +1,6 @@
 """Tenant-scoped manual attendance with stable group snapshots."""
 
-from datetime import UTC, date, datetime, time
+from datetime import date, time
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.organization_time import organization_today
 from app.models.attendance import Attendance
 from app.models.child import Child
 from app.models.group import Group
@@ -22,8 +23,8 @@ from app.schemas.attendance import (
 )
 
 
-def _validate_day(day: date) -> None:
-    if day > datetime.now(UTC).date():
+def _validate_day(day: date, actor: User) -> None:
+    if day > organization_today(actor.organization):
         raise AppError(400, "INVALID_ATTENDANCE_DATE", "date")
 
 
@@ -76,7 +77,7 @@ def detail(record: Attendance) -> AttendanceDetail:
 
 def list_day(db: Session, actor: User, day: date, group_id: UUID | None,
              status: str, child_id: UUID | None) -> list[AttendanceRow]:
-    _validate_day(day)
+    _validate_day(day, actor)
     if group_id is not None and db.scalar(select(Group.id).where(
         Group.id == group_id, Group.organization_id == actor.organization_id,
     )) is None:
@@ -103,7 +104,7 @@ def list_day(db: Session, actor: User, day: date, group_id: UUID | None,
 
 
 def upsert(db: Session, actor: User, payload: AttendanceCreate) -> tuple[AttendanceDetail, bool]:
-    _validate_day(payload.date)
+    _validate_day(payload.date, actor)
     _validate_times(payload.status, payload.arrival_time, payload.departure_time)
     child = _child(db, actor, payload.child_id, lock=True)
     if child.status != "active":
