@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.attendance import router as attendance_router
+from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.children import router as children_router
 from app.api.employees import router as employees_router
@@ -59,3 +60,4 @@ app.include_router(children_router, prefix="/api/v1")
 app.include_router(guardians_router, prefix="/api/v1")
 app.include_router(employees_router, prefix="/api/v1")
 app.include_router(attendance_router, prefix="/api/v1")
+app.include_router(audit_router, prefix="/api/v1")

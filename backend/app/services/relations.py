@@ -13,6 +13,7 @@ from app.models.guardian import Guardian
 from app.models.user import User
 from app.schemas.child import ChildGuardianResponse, GuardianSummary
 from app.schemas.relation import RelationType
+from app.services import audit
 from app.services.auth import utc_now
 
 
@@ -83,6 +84,10 @@ def link(db: Session, user: User, child_id: UUID, guardian_id: UUID, relation_ty
         )
         db.add(record)
     try:
+        db.flush()
+        audit.write(db, user, "child_guardian.create" if created else "child_guardian.restore", "child_guardian", record.id, {
+            "child_id": str(child.id), "guardian_id": str(guardian.id), "relation_type": relation_type,
+        })
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -98,6 +103,9 @@ def update_relation(db: Session, user: User, child_id: UUID, guardian_id: UUID, 
     if record.status != "active":
         raise AppError(404, "RELATION_NOT_FOUND")
     record.relation_type = relation_type
+    audit.write(db, user, "child_guardian.update", "child_guardian", record.id, {
+        "changed_fields": ["relation_type"], "relation_type": relation_type,
+    })
     db.commit()
     db.refresh(record)
     return response(record)
@@ -108,6 +116,9 @@ def archive_relation(db: Session, user: User, child_id: UUID, guardian_id: UUID)
     if record.status == "active":
         record.status = "archived"
         record.archived_at = utc_now()
+        audit.write(db, user, "child_guardian.archive", "child_guardian", record.id, {
+            "status_before": "active", "status_after": "archived",
+        })
         db.commit()
         db.refresh(record)
     return response(record)
@@ -120,6 +131,9 @@ def restore_relation(db: Session, user: User, child_id: UUID, guardian_id: UUID)
     if record.status == "archived":
         record.status = "active"
         record.archived_at = None
+        audit.write(db, user, "child_guardian.restore", "child_guardian", record.id, {
+            "status_before": "archived", "status_after": "active",
+        })
         db.commit()
         db.refresh(record)
     return response(record)

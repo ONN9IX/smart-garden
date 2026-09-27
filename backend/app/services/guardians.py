@@ -19,6 +19,7 @@ from app.schemas.guardian import (
     GuardianResponse,
     ParentAccountSummary,
 )
+from app.services import audit
 from app.services.auth import utc_now
 
 
@@ -80,6 +81,8 @@ def list_guardians(db: Session, user: User, status: str, q: str | None) -> list[
 def create_guardian(db: Session, user: User, payload: GuardianCreate) -> GuardianResponse:
     guardian = Guardian(organization_id=user.organization_id, **payload.model_dump(), status="active")
     db.add(guardian)
+    db.flush()
+    audit.write(db, user, "guardian.create", "guardian", guardian.id)
     db.commit()
     db.refresh(guardian)
     return detail(guardian)
@@ -87,8 +90,10 @@ def create_guardian(db: Session, user: User, payload: GuardianCreate) -> Guardia
 
 def update_guardian(db: Session, user: User, guardian_id: UUID, payload: GuardianPatch) -> GuardianResponse:
     guardian = get_guardian(db, user, guardian_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    for field, value in data.items():
         setattr(guardian, field, value)
+    audit.write(db, user, "guardian.update", "guardian", guardian.id, {"changed_fields": sorted(data)})
     db.commit()
     db.refresh(guardian)
     return detail(guardian)
@@ -105,15 +110,25 @@ def archive_guardian(db: Session, user: User, guardian_id: UUID) -> GuardianResp
     )
     if active_link:
         raise AppError(409, "GUARDIAN_HAS_ACTIVE_CHILDREN")
-    if guardian.status != "archived":
+    archived = guardian.status != "archived"
+    if archived:
         guardian.status = "archived"
         guardian.archived_at = utc_now()
     if guardian.user_id:
         parent = guardian.user
         if parent is None or parent.organization_id != user.organization_id or parent.role != "PARENT":
             raise AppError(409, "FORBIDDEN")
+        account_was_active = parent.status == "active"
         parent.status = "blocked"
         db.execute(update(AuthSession).where(AuthSession.user_id == parent.id, AuthSession.revoked_at.is_(None)).values(revoked_at=utc_now()))
+        if account_was_active:
+            audit.write(db, user, "account.block", "user_account", parent.id, {
+                "account_role": "PARENT", "status_before": "active", "status_after": "blocked",
+            })
+    if archived:
+        audit.write(db, user, "guardian.archive", "guardian", guardian.id, {
+            "status_before": "active", "status_after": "archived",
+        })
     db.commit()
     db.refresh(guardian)
     return detail(guardian)
@@ -124,6 +139,9 @@ def restore_guardian(db: Session, user: User, guardian_id: UUID) -> GuardianResp
     if guardian.status == "archived":
         guardian.status = "active"
         guardian.archived_at = None
+        audit.write(db, user, "guardian.restore", "guardian", guardian.id, {
+            "status_before": "archived", "status_after": "active",
+        })
         db.commit()
         db.refresh(guardian)
     return detail(guardian)

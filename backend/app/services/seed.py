@@ -107,7 +107,13 @@ def main() -> None:
             organization.timezone = DEFAULT_ORGANIZATION_TIMEZONE
 
         issued: list[tuple[str, str]] = []
-        for username, role in (("director-demo", "DIRECTOR"), ("admin-demo", "ADMIN"), ("stage2-director-demo", "DIRECTOR"), ("stage3-director-demo", "DIRECTOR")):
+        for username, role in (
+            ("director-demo", "DIRECTOR"),
+            ("admin-demo", "ADMIN"),
+            ("stage2-director-demo", "DIRECTOR"),
+            ("stage3-director-demo", "DIRECTOR"),
+            ("stage4-director-demo", "DIRECTOR"),
+        ):
             if db.scalar(select(User).where(User.username == username)) is not None:
                 continue
             temporary_password = generate_temporary_password()
@@ -140,6 +146,14 @@ def main() -> None:
                 password_hash=hash_password(temporary_password), must_change_password=True,
             ))
             issued.append((other_username, temporary_password))
+        stage4_other_username = "stage4-other-director-demo"
+        if db.scalar(select(User).where(User.username == stage4_other_username)) is None:
+            temporary_password = generate_temporary_password()
+            db.add(User(
+                organization_id=other_organization.id, username=stage4_other_username, role="DIRECTOR", status="active",
+                password_hash=hash_password(temporary_password), must_change_password=True,
+            ))
+            issued.append((stage4_other_username, temporary_password))
         db.commit()
         for username, password in issued:
             print(f"{username}: temporary password (displayed once): {password}")

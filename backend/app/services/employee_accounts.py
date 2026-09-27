@@ -14,6 +14,7 @@ from app.models.auth_session import AuthSession
 from app.models.employee import Employee
 from app.models.user import User
 from app.schemas.employee import EmployeeAccountSummary, EmployeeTemporaryCredentials
+from app.services import audit
 from app.services.auth import utc_now
 from app.services.employees import get_employee
 
@@ -74,6 +75,7 @@ def create(db: Session, actor: User, employee_id: UUID) -> EmployeeTemporaryCred
     if account is None:
         raise AppError(409, "USERNAME_ALREADY_EXISTS")
     employee.user_id = account.id
+    audit.write(db, actor, "account.create", "user_account", account.id, {"account_role": "ADMIN"})
     db.commit()
     db.expire(employee, ["user"])
     return EmployeeTemporaryCredentials(account=_summary(account), temporary_password=temporary)
@@ -86,6 +88,7 @@ def reset_password(db: Session, actor: User, employee_id: UUID) -> EmployeeTempo
     account.password_hash = hash_password(temporary)
     account.must_change_password = True
     _revoke(db, account)
+    audit.write(db, actor, "account.reset_password", "user_account", account.id, {"account_role": "ADMIN"})
     db.commit()
     return EmployeeTemporaryCredentials(account=_summary(account), temporary_password=temporary)
 
@@ -93,8 +96,12 @@ def reset_password(db: Session, actor: User, employee_id: UUID) -> EmployeeTempo
 def block(db: Session, actor: User, employee_id: UUID) -> EmployeeAccountSummary:
     employee = get_employee(db, actor, employee_id, lock=True)
     account = _account(db, employee, actor)
-    account.status = "blocked"
-    _revoke(db, account)
+    if account.status != "blocked":
+        account.status = "blocked"
+        _revoke(db, account)
+        audit.write(db, actor, "account.block", "user_account", account.id, {
+            "account_role": "ADMIN", "status_before": "active", "status_after": "blocked",
+        })
     db.commit()
     return _summary(account)
 
@@ -104,6 +111,10 @@ def unblock(db: Session, actor: User, employee_id: UUID) -> EmployeeAccountSumma
     if employee.status != "active":
         raise AppError(409, "EMPLOYEE_ARCHIVED")
     account = _account(db, employee, actor)
-    account.status = "active"
+    if account.status != "active":
+        account.status = "active"
+        audit.write(db, actor, "account.unblock", "user_account", account.id, {
+            "account_role": "ADMIN", "status_before": "blocked", "status_after": "active",
+        })
     db.commit()
     return _summary(account)

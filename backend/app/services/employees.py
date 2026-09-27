@@ -16,6 +16,7 @@ from app.schemas.employee import (
     EmployeePatch,
     EmployeeResponse,
 )
+from app.services import audit
 from app.services.auth import utc_now
 
 
@@ -71,6 +72,8 @@ def list_employees(db: Session, actor: User, status: str, q: str | None) -> list
 def create_employee(db: Session, actor: User, payload: EmployeeCreate) -> EmployeeResponse:
     employee = Employee(organization_id=actor.organization_id, **payload.model_dump(), status="active")
     db.add(employee)
+    db.flush()
+    audit.write(db, actor, "employee.create", "employee", employee.id)
     db.commit()
     db.refresh(employee)
     return detail(employee)
@@ -78,8 +81,10 @@ def create_employee(db: Session, actor: User, payload: EmployeeCreate) -> Employ
 
 def update_employee(db: Session, actor: User, employee_id: UUID, payload: EmployeePatch) -> EmployeeResponse:
     employee = get_employee(db, actor, employee_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    for field, value in data.items():
         setattr(employee, field, value)
+    audit.write(db, actor, "employee.update", "employee", employee.id, {"changed_fields": sorted(data)})
     db.commit()
     db.refresh(employee)
     return detail(employee)
@@ -93,13 +98,22 @@ def archive_employee(db: Session, actor: User, employee_id: UUID) -> EmployeeRes
         linked = employee.user
         if linked is None or linked.organization_id != actor.organization_id or linked.role != "ADMIN":
             raise AppError(403, "FORBIDDEN")
+        account_was_active = linked.status == "active"
         linked.status = "blocked"
         db.execute(update(AuthSession).where(
             AuthSession.user_id == linked.id, AuthSession.revoked_at.is_(None),
         ).values(revoked_at=utc_now()))
-    if employee.status != "archived":
+        if account_was_active:
+            audit.write(db, actor, "account.block", "user_account", linked.id, {
+                "account_role": "ADMIN", "status_before": "active", "status_after": "blocked",
+            })
+    archived = employee.status != "archived"
+    if archived:
         employee.status = "archived"
         employee.archived_at = utc_now()
+        audit.write(db, actor, "employee.archive", "employee", employee.id, {
+            "status_before": "active", "status_after": "archived",
+        })
     db.commit()
     db.refresh(employee)
     return detail(employee)
@@ -110,6 +124,9 @@ def restore_employee(db: Session, actor: User, employee_id: UUID) -> EmployeeRes
     if employee.status == "archived":
         employee.status = "active"
         employee.archived_at = None
+        audit.write(db, actor, "employee.restore", "employee", employee.id, {
+            "status_before": "archived", "status_after": "active",
+        })
         db.commit()
         db.refresh(employee)
     return detail(employee)

@@ -15,6 +15,7 @@ from app.models.guardian import Guardian
 from app.models.user import User
 from app.schemas.guardian import ParentAccountSummary
 from app.schemas.parent_account import TemporaryCredentials
+from app.services import audit
 from app.services.auth import utc_now
 
 ALPHABET = string.ascii_lowercase + string.digits
@@ -82,6 +83,7 @@ def create(db: Session, actor: User, guardian_id: UUID) -> TemporaryCredentials:
     if parent is None:
         raise AppError(409, "USERNAME_ALREADY_EXISTS")
     guardian.user_id = parent.id
+    audit.write(db, actor, "account.create", "user_account", parent.id, {"account_role": "PARENT"})
     db.commit()
     db.expire(guardian, ["user"])
     return TemporaryCredentials(account=_summary(parent), temporary_password=temporary)
@@ -94,6 +96,7 @@ def reset_password(db: Session, actor: User, guardian_id: UUID) -> TemporaryCred
     parent.password_hash = hash_password(temporary)
     parent.must_change_password = True
     _revoke(db, parent)
+    audit.write(db, actor, "account.reset_password", "user_account", parent.id, {"account_role": "PARENT"})
     db.commit()
     return TemporaryCredentials(account=_summary(parent), temporary_password=temporary)
 
@@ -101,8 +104,12 @@ def reset_password(db: Session, actor: User, guardian_id: UUID) -> TemporaryCred
 def block(db: Session, actor: User, guardian_id: UUID) -> ParentAccountSummary:
     guardian = _guardian(db, actor, guardian_id)
     parent = _parent(db, guardian, actor)
-    parent.status = "blocked"
-    _revoke(db, parent)
+    if parent.status != "blocked":
+        parent.status = "blocked"
+        _revoke(db, parent)
+        audit.write(db, actor, "account.block", "user_account", parent.id, {
+            "account_role": "PARENT", "status_before": "active", "status_after": "blocked",
+        })
     db.commit()
     return _summary(parent)
 
@@ -112,6 +119,10 @@ def unblock(db: Session, actor: User, guardian_id: UUID) -> ParentAccountSummary
     if guardian.status != "active":
         raise AppError(409, "GUARDIAN_ARCHIVED")
     parent = _parent(db, guardian, actor)
-    parent.status = "active"
+    if parent.status != "active":
+        parent.status = "active"
+        audit.write(db, actor, "account.unblock", "user_account", parent.id, {
+            "account_role": "PARENT", "status_before": "blocked", "status_after": "active",
+        })
     db.commit()
     return _summary(parent)
