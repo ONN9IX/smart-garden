@@ -33,7 +33,8 @@ type ApiErrorCode =
   | "EMPLOYEE_ACCOUNT_ALREADY_EXISTS"
   | "EMPLOYEE_ACCOUNT_NOT_FOUND"
   | "INVALID_ATTENDANCE_DATE"
-  | "INVALID_ATTENDANCE_TIME";
+  | "INVALID_ATTENDANCE_TIME"
+  | "ANNOUNCEMENT_ARCHIVED";
 
 const errorMessages: Partial<Record<ApiErrorCode, string>> = {
   INVALID_CREDENTIALS: "Неверный логин или пароль",
@@ -63,6 +64,7 @@ const errorMessages: Partial<Record<ApiErrorCode, string>> = {
   EMPLOYEE_ACCOUNT_NOT_FOUND: "Учётная запись сотрудника не найдена.",
   INVALID_ATTENDANCE_DATE: "Дата не может быть в будущем.",
   INVALID_ATTENDANCE_TIME: "Проверьте время прихода и ухода.",
+  ANNOUNCEMENT_ARCHIVED: "Объявление находится в архиве и доступно только для чтения.",
 };
 
 export class ApiError extends Error {

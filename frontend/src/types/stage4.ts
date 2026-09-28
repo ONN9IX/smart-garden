@@ -24,3 +24,48 @@ export type AuditFilters = {
   limit: number;
   offset: number;
 };
+
+export type AnnouncementTarget = "all" | "group";
+export type AnnouncementStatus = "active" | "archived";
+export type AnnouncementStatusFilter = AnnouncementStatus | "all";
+
+export type Announcement = {
+  id: string;
+  target_type: AnnouncementTarget;
+  group: { id: string; name: string } | null;
+  title: string;
+  body: string;
+  status: AnnouncementStatus;
+  created_by: string;
+  updated_by: string;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AnnouncementFields = {
+  target_type: AnnouncementTarget;
+  group_id: string | null;
+  title: string;
+  body: string;
+};
+
+export type DashboardGroup = {
+  id: string;
+  name: string;
+  active_children: number;
+  present: number;
+  absent: number;
+  unknown: number;
+};
+
+export type DashboardSummary = {
+  date: string;
+  active_children: number;
+  present: number;
+  absent: number;
+  unknown: number;
+  active_groups: number;
+  active_employees: number;
+  groups: DashboardGroup[];
+};

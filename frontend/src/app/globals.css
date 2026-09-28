@@ -99,3 +99,26 @@ h2 { font-size: 21px; }
 .audit-details dd { margin: 0; overflow-wrap: anywhere; }
 .audit-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 14px; margin-top: 20px; }
 @media (max-width: 600px) { .audit-pagination { justify-content: space-between; } }
+.dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 14px; }
+.metric-card { padding: 22px; display: flex; flex-direction: column; gap: 7px; }
+.metric-card span { color: var(--muted); }
+.metric-card strong { color: var(--green-dark); font-size: 32px; line-height: 1; }
+.dashboard-groups, .announcement-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.dashboard-groups { grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr)); }
+.group-summary { padding: 22px; }
+.group-summary h3 { margin-top: 0; }
+.group-summary dl { margin: 0; }
+.group-summary dl div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid var(--line); }
+.group-summary dd { margin: 0; font-weight: 700; }
+.action-heading { display: flex; justify-content: space-between; align-items: end; gap: 20px; flex-wrap: wrap; }
+.action-heading > div > p { margin-bottom: 0; }
+.announcement-card { display: flex; justify-content: space-between; gap: 20px; padding: 20px 22px; }
+.announcement-card:hover { border-color: var(--green); }
+.announcement-card > div { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.announcement-card strong { overflow-wrap: anywhere; }
+.announcement-card span, .announcement-card time { color: var(--muted); }
+.announcement-meta { text-align: right; white-space: nowrap; }
+.announcement-form { max-width: 760px; }
+.announcement-body { display: block; min-height: 190px; resize: vertical; }
+.privacy-notice { color: var(--muted); padding: 12px 14px; background: #f2f7f3; border-left: 4px solid var(--green); border-radius: 6px; }
+@media (max-width: 600px) { .announcement-card { flex-direction: column; } .announcement-meta { text-align: left; white-space: normal; } }

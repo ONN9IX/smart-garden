@@ -11,7 +11,7 @@ import { auditApi } from "@/lib/api/audit";
 import { userMessage } from "@/lib/api/client";
 import type { AuditEvent } from "@/types/stage4";
 
-const entityTypes = ["group", "child", "guardian", "child_guardian", "employee", "user_account", "attendance"];
+const entityTypes = ["group", "child", "guardian", "child_guardian", "employee", "user_account", "attendance", "announcement"];
 const actions = [
   "group.create", "group.update", "group.archive", "group.restore",
   "child.create", "child.update", "child.archive", "child.restore",
@@ -20,11 +20,13 @@ const actions = [
   "employee.create", "employee.update", "employee.archive", "employee.restore",
   "account.create", "account.reset_password", "account.block", "account.unblock",
   "attendance.create", "attendance.update",
+  "announcement.create", "announcement.update", "announcement.archive",
 ];
 const detailLabels: Record<string, string> = {
   changed_fields: "Изменённые поля", status_before: "Статус до", status_after: "Статус после",
   account_role: "Роль аккаунта", relation_type: "Тип связи", child_id: "ID ребёнка",
   guardian_id: "ID представителя", before: "До", after: "После",
+  target_type: "Цель", group_id: "ID группы",
 };
 const actorRole = { DIRECTOR: "Директор", ADMIN: "Администратор", PARENT: "Родитель" };
 
