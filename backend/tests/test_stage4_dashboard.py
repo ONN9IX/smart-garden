@@ -13,6 +13,7 @@ from app.models.audit_event import AuditEvent
 from app.models.child import Child
 from app.models.employee import Employee
 from app.models.group import Group
+from app.models.guardian import Guardian
 from app.models.user import User
 from app.services import dashboard
 from tests.conftest import TEST_PASSWORD
@@ -133,6 +134,11 @@ def test_dashboard_fixed_query_count_timezone_and_access(client, db, users, monk
         role="PARENT", status="active", must_change_password=False,
     )
     db.add(parent)
+    db.flush()
+    db.add(Guardian(
+        organization_id=organization.id, user_id=parent.id,
+        first_name="Синтетический", last_name="Родитель", status="active",
+    ))
     db.commit()
     _login(client, parent.username)
     assert client.get(ROOT).status_code == 403

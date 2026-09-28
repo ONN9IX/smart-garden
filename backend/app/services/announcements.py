@@ -26,7 +26,9 @@ def _announcement(db: Session, actor: User, announcement_id: UUID, *, lock: bool
         Announcement.organization_id == actor.organization_id,
     )
     if lock:
-        query = query.with_for_update()
+        # The optional group is eager-loaded with a LEFT JOIN; lock only the
+        # announcement row so PostgreSQL never tries to lock the nullable side.
+        query = query.with_for_update(of=Announcement)
     item = db.scalar(query)
     if item is None:
         raise AppError(404, "NOT_FOUND")
