@@ -7,7 +7,7 @@ Operational snapshot for final Stage 4 acceptance.
 - **Completed Stage 4 deliveries:** Issue #94 / PR #96 (Audit) and Issue #95 / PR #97 (Announcements and Dashboard).
 - **Completed corrective:** Issue #99 / PR #100, deterministic Attendance Audit test without production contract changes.
 - **Current implementation Issue:** none; Issue #98 records final acceptance in `docs/26-stage-4-acceptance.md`.
-- **Next checkpoint:** review and merge the Stage 4 acceptance PR; Stage 5 has not started.
+- **Next checkpoint:** Stage 4 is FROZEN; Stage 5 has not started; a separate Stage 5 design/planning gate may begin only after a Master Chat decision.
 
 ## Technical baseline
 
