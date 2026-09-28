@@ -1,4 +1,6 @@
-# Передача Backend Stage 1 разработчику 2
+# Historical reference — передача Backend Stage 1 разработчику 2
+
+> **Статус документа:** historical Stage 1 handover. Он сохраняется как история первоначальной передачи и не является текущим source of truth. Для актуальной работы используйте `../AGENTS.md` → `../docs/CURRENT_STATE.md` → контракт текущего Stage → текущую Issue. Stage 1–4 FROZEN; Stage 5 NOT STARTED.
 
 **Рабочая ветка:** `backend/BACK-01-init`.
 **Текущий результат:** Backend Stage 1 реализован и проверен в интеграционном PR [#31](https://github.com/ONN9IX/smart-garden/pull/31). Эта ветка содержит тот же каталог `backend/`, чтобы F1zname мог изучить код и продолжить работу. История коммитов показывает фактического автора переноса; назначение роли Backend описано в `docs/08-team-access-and-environments.md`.
