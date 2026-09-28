@@ -1,13 +1,13 @@
 # Current State
 
-Operational snapshot for final Stage 4 acceptance.
+Operational snapshot after completed Stage 4 acceptance and freeze.
 
-- **Acceptance baseline:** `74712c293b83d1470d7f4445e9f6f299216e1ee2` (fresh `main` after corrective PR #100).
-- **Stage status after acceptance PR merge:** Stage 1 — FROZEN; Stage 2 — FROZEN; Stage 3 — FROZEN; Stage 4 — FROZEN.
+- **Frozen main baseline:** `69291f1a0c99df80c76e899c146ea9d6c3bd341f` (Stage 4 acceptance PR #101 merged).
+- **Stage status:** Stage 1 — FROZEN; Stage 2 — FROZEN; Stage 3 — FROZEN; Stage 4 — FROZEN; Stage 5 — NOT STARTED.
 - **Completed Stage 4 deliveries:** Issue #94 / PR #96 (Audit) and Issue #95 / PR #97 (Announcements and Dashboard).
 - **Completed corrective:** Issue #99 / PR #100, deterministic Attendance Audit test without production contract changes.
 - **Current implementation Issue:** none; Issue #98 records final acceptance in `docs/26-stage-4-acceptance.md`.
-- **Next checkpoint:** Stage 4 is FROZEN; Stage 5 has not started; a separate Stage 5 design/planning gate may begin only after a Master Chat decision.
+- **Next checkpoint:** Stage 4 is FROZEN; Stage 5 is NOT STARTED; a separate Stage 5 design/planning gate may begin only after a Master Chat decision.
 
 ## Technical baseline
 
