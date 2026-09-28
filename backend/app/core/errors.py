@@ -33,6 +33,7 @@ MESSAGES = {
     "EMPLOYEE_ACCOUNT_NOT_FOUND": "Учётная запись не найдена.",
     "INVALID_ATTENDANCE_DATE": "Дата посещаемости не может быть в будущем.",
     "INVALID_ATTENDANCE_TIME": "Проверьте время прихода и ухода.",
+    "ANNOUNCEMENT_ARCHIVED": "Объявление находится в архиве.",
 }
 
 
