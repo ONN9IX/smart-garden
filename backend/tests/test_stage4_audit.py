@@ -214,7 +214,9 @@ def test_audit_failure_rolls_back_business_mutation(client, db, users, monkeypat
         raise RuntimeError("synthetic audit failure")
 
     monkeypatch.setattr(audit, "write", fail_writer)
-    response = client.post("/api/v1/groups", json={"name": name})
+    with TestClient(app, raise_server_exceptions=False) as failure_client:
+        _login(failure_client, users[2].username)
+        response = failure_client.post("/api/v1/groups", json={"name": name})
     assert response.status_code == 500
     db.rollback()
     from app.models.group import Group
