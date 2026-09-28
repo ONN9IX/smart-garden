@@ -119,8 +119,17 @@ def test_all_stage4_audit_actions_and_privacy(client, db, users):
         "password_hash", "temporary_password", "session_token",
     ]
     assert all(value not in rendered for value in forbidden)
-    attendance_events = [event for event in events if event["entity_type"] == "attendance"]
-    assert attendance_events and {"before", "after", "changed_fields"} <= set(attendance_events[0]["details"])
+    attendance_creates = [event for event in events if event["action"] == "attendance.create"]
+    attendance_updates = [event for event in events if event["action"] == "attendance.update"]
+    assert len(attendance_creates) == 1
+    assert attendance_creates[0]["details"] == {
+        "after": {"status": "present", "arrival_time": "08:30", "departure_time": None},
+    }
+    assert attendance_updates
+    for event in attendance_updates:
+        assert set(event["details"]) == {"before", "after", "changed_fields"}
+        assert set(event["details"]["before"]) == {"status", "arrival_time", "departure_time"}
+        assert set(event["details"]["after"]) == {"status", "arrival_time", "departure_time"}
 
 
 def test_director_filters_pagination_tenant_and_append_only(client, db, users):
