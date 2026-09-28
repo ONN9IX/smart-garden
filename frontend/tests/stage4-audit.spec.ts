@@ -64,7 +64,7 @@ test("immutable Audit UI, RBAC, privacy and tenant isolation", async ({ page, br
 
   await page.goto("/audit");
   await expect(page.getByRole("heading", { name: "Журнал аудита" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "group.create", exact: true })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "group.create", exact: true }).first()).toBeVisible();
   await expect(page.getByRole("cell", { name: "account.create", exact: true }).first()).toBeVisible();
   const auditText = await page.locator("main").innerText();
   expect(auditText).not.toContain(groupName);
