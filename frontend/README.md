@@ -1,6 +1,6 @@
-# Умный сад — Frontend, этап 1
+# Умный сад — Frontend, Stage 1–4 FROZEN
 
-Next.js + TypeScript. Реализованы `/login`, `/change-password`, `/dashboard`, `/403`, `/404`, единый API-клиент, проверка сессии через `/auth/me` и выход. Разделы детей, групп, родителей и прочие бизнес-разделы пока выключены согласно `docs/02-stage-1-frontend.md`.
+Next.js + TypeScript. Реализованы и заморожены Stage 1–4: auth/session flow, role-aware navigation, группы, дети, представители, сотрудники, посещаемость, Dashboard, Announcements, Audit и технический PARENT screen. Перед задачей читайте [`../AGENTS.md`](../AGENTS.md), затем [`../docs/CURRENT_STATE.md`](../docs/CURRENT_STATE.md), контракт текущего Stage и Issue.
 
 ## Запуск
 
@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-На Windows в Git Bash `cp` работает. Откройте `http://localhost:3000/login`. Значение `NEXT_PUBLIC_API_BASE_URL` по умолчанию — `http://localhost:8000/api/v1`. Для рабочего входа запустите Backend Stage 1 с PostgreSQL и разрешённым CORS origin `http://localhost:3000`; тестовых паролей во Frontend нет. Учетные записи `director-demo` и `admin-demo` создаются Backend seed-командой.
+На Windows в Git Bash `cp` работает. Откройте `http://localhost:3000/login`. Значение `NEXT_PUBLIC_API_BASE_URL` по умолчанию — `http://localhost:8000/api/v1`. Для рабочего входа запустите Backend с PostgreSQL и разрешённым CORS origin `http://localhost:3000`; тестовых паролей во Frontend нет. Синтетические demo-аккаунты создаются Backend seed-командой.
 
 ## Проверки
 
@@ -22,13 +22,13 @@ npm run lint
 npm run build
 ```
 
-Проверьте вручную сценарии 1–8 из `docs/02-stage-1-frontend.md` после запуска Backend. Ветка Frontend сама по себе не подменяет backend-сессию локальным mock: end-to-end проверка проходит на интеграционном этапе `Frontend → Backend → PostgreSQL`.
+Для ручной проверки Stage 1–4 используйте [`../PREVIEW.md`](../PREVIEW.md). Frontend не подменяет backend-сессию локальным mock: end-to-end проверка проходит по цепочке `Frontend → Backend → PostgreSQL`.
 
 Автоматический сценарий `npm run test:e2e` использует реальный Backend, PostgreSQL и Chromium. Для локального запуска создайте синтетических пользователей через Backend seed, задайте их временные пароли только в переменных окружения `CI_DIRECTOR_PASSWORD` и `CI_ADMIN_PASSWORD`, запустите оба сервера и установите браузер командой `npx playwright install chromium`. В Pull Request эти действия выполняет интеграционный job GitHub Actions.
 
 ## API и данные
 
-Контракт: `docs/03-api-contract-v0.1.md`. Все вызовы идут из `src/lib/api/` с `credentials: "include"`. Браузер отправляет HttpOnly cookie `smart_garden_session`; приложение не читает её, не сохраняет пароли или токены в web storage. Организация и роль приходят от `/auth/me`. Сообщения об ошибках строятся из фиксированных безопасных строк, серверный traceback не показывается.
+Frozen контракты: `../docs/03-api-contract-v0.1.md`, `../docs/15-api-contract-stage-2.md`, `../docs/20-api-contract-stage-3.md` и `../docs/25-api-contract-stage-4.md`. Все вызовы идут из `src/lib/api/` с `credentials: "include"`. Браузер отправляет HttpOnly cookie `smart_garden_session`; приложение не читает её, не сохраняет пароли, токены или данные форм объявлений в web storage. Организация и роль приходят от `/auth/me`. Сообщения об ошибках строятся из фиксированных безопасных строк, серверный traceback не показывается.
 
 ## Персональные данные (обязательно)
 
