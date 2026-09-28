@@ -1,5 +1,6 @@
 """Import all tables so Alembic receives complete metadata."""
 
+from app.models.announcement import Announcement
 from app.models.attendance import Attendance
 from app.models.audit_event import AuditEvent
 from app.models.auth_session import AuthSession
@@ -11,4 +12,4 @@ from app.models.guardian import Guardian
 from app.models.organization import Organization
 from app.models.user import User
 
-__all__ = ["Attendance", "AuditEvent", "AuthSession", "Child", "ChildGuardian", "Employee", "Group", "Guardian", "Organization", "User"]
+__all__ = ["Announcement", "Attendance", "AuditEvent", "AuthSession", "Child", "ChildGuardian", "Employee", "Group", "Guardian", "Organization", "User"]

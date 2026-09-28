@@ -2,7 +2,7 @@
 
 Operational snapshot after the Stage 4 Audit delivery.
 
-- **Delivery baseline:** `7f240be022a9e79a45d50510e869a1aeeb2c9601` (fresh `main` after Stage 4 Design PR #93).
+- **Delivery baseline:** `e100aa106e1baae2ba120d3bf365f095bf2d1f17` (fresh `main` after Stage 4 Audit PR #96).
 - **Stage status:** Stage 1 — FROZEN; Stage 2 — FROZEN; Stage 3 — FROZEN; Stage 4 Design — FROZEN; Stage 4 implementation is not yet accepted/frozen.
 - **Latest implemented delivery:** Issue #94, immutable business Audit vertical slice.
 - **Current implementation Issue:** none after merge of this delivery.

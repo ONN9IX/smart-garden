@@ -22,6 +22,8 @@ _ALLOWED_DETAIL_KEYS = {
     "guardian_id",
     "before",
     "after",
+    "target_type",
+    "group_id",
 }
 _ALLOWED_ACTIONS = {
     "group": {"group.create", "group.update", "group.archive", "group.restore"},
@@ -33,15 +35,18 @@ _ALLOWED_ACTIONS = {
     "employee": {"employee.create", "employee.update", "employee.archive", "employee.restore"},
     "user_account": {"account.create", "account.reset_password", "account.block", "account.unblock"},
     "attendance": {"attendance.create", "attendance.update"},
+    "announcement": {"announcement.create", "announcement.update", "announcement.archive"},
 }
 _ALLOWED_CHANGED_FIELDS = {
     "name", "group_id", "first_name", "last_name", "middle_name", "birth_date",
     "phone", "email", "position", "relation_type", "status", "arrival_time", "departure_time",
+    "target_type",
 }
 _ALLOWED_STATUSES = {"active", "archived", "blocked"}
 _ALLOWED_RELATIONS = {"mother", "father", "legal_guardian", "other"}
 _ALLOWED_ACCOUNT_ROLES = {"ADMIN", "PARENT"}
 _ALLOWED_ATTENDANCE_STATUSES = {"present", "absent", "unknown"}
+_ALLOWED_ANNOUNCEMENT_TARGETS = {"all", "group"}
 
 
 def _validate_details(details: dict[str, Any]) -> None:
@@ -63,6 +68,10 @@ def _validate_details(details: dict[str, Any]) -> None:
     for key in ("child_id", "guardian_id"):
         if key in details:
             UUID(str(details[key]))
+    if "target_type" in details and details["target_type"] not in _ALLOWED_ANNOUNCEMENT_TARGETS:
+        raise ValueError("Audit announcement target is invalid")
+    if "group_id" in details and details["group_id"] is not None:
+        UUID(str(details["group_id"]))
     for key in ("before", "after"):
         if key not in details:
             continue

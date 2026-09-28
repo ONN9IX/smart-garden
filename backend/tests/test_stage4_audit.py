@@ -202,8 +202,10 @@ def test_writer_rejects_non_whitelisted_or_sensitive_details(db, users):
         audit.write(db, actor, "attendance.update", "attendance", None, {
             "before": {"status": "present", "arrival_time": "08:30", "departure_time": None, "child_name": "Нет"},
         })
+    with pytest.raises(ValueError, match="non-whitelisted"):
+        audit.write(db, actor, "announcement.create", "announcement", None, {"title": "Запрещённое значение"})
     with pytest.raises(ValueError, match="action/entity"):
-        audit.write(db, actor, "announcement.create", "announcement", None)
+        audit.write(db, actor, "unknown.create", "unknown", None)
 
 
 def test_audit_failure_rolls_back_business_mutation(client, db, users, monkeypatch):
