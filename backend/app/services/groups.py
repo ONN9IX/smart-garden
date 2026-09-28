@@ -11,6 +11,7 @@ from app.models.child import Child
 from app.models.group import Group
 from app.models.user import User
 from app.schemas.group import GroupList, GroupResponse, GroupWrite
+from app.services import audit
 from app.services.auth import utc_now
 
 
@@ -33,9 +34,17 @@ def _name_available(db: Session, user: User, name: str, excluding: UUID | None =
         raise AppError(409, "GROUP_NAME_CONFLICT", "name")
 
 
-def _save(db: Session, group: Group) -> GroupResponse:
+def _save(
+    db: Session,
+    actor: User,
+    group: Group,
+    action: str,
+    details: dict | None = None,
+) -> GroupResponse:
     try:
         db.add(group)
+        db.flush()
+        audit.write(db, actor, action, "group", group.id, details)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -53,7 +62,10 @@ def list_groups(db: Session, user: User, status: str) -> GroupList:
 
 def create_group(db: Session, user: User, payload: GroupWrite) -> GroupResponse:
     _name_available(db, user, payload.name)
-    return _save(db, Group(organization_id=user.organization_id, name=payload.name, status="active"))
+    return _save(
+        db, user, Group(organization_id=user.organization_id, name=payload.name, status="active"),
+        "group.create",
+    )
 
 
 def get_group(db: Session, user: User, group_id: UUID) -> GroupResponse:
@@ -65,7 +77,7 @@ def update_group(db: Session, user: User, group_id: UUID, payload: GroupWrite) -
     if group.status == "active":
         _name_available(db, user, payload.name, group.id)
     group.name = payload.name
-    return _save(db, group)
+    return _save(db, user, group, "group.update", {"changed_fields": ["name"]})
 
 
 def archive_group(db: Session, user: User, group_id: UUID) -> GroupResponse:
@@ -77,7 +89,10 @@ def archive_group(db: Session, user: User, group_id: UUID) -> GroupResponse:
             raise AppError(409, "GROUP_NOT_EMPTY")
         group.status = "archived"
         group.archived_at = utc_now()
-    return _save(db, group)
+        return _save(db, user, group, "group.archive", {
+            "status_before": "active", "status_after": "archived",
+        })
+    return GroupResponse.model_validate(group)
 
 
 def restore_group(db: Session, user: User, group_id: UUID) -> GroupResponse:
@@ -86,4 +101,7 @@ def restore_group(db: Session, user: User, group_id: UUID) -> GroupResponse:
         _name_available(db, user, group.name, group.id)
         group.status = "active"
         group.archived_at = None
-    return _save(db, group)
+        return _save(db, user, group, "group.restore", {
+            "status_before": "archived", "status_after": "active",
+        })
+    return GroupResponse.model_validate(group)

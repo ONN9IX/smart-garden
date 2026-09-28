@@ -21,6 +21,7 @@ from app.schemas.attendance import (
     AttendancePatch,
     AttendanceRow,
 )
+from app.services import audit
 
 
 def _validate_day(day: date, actor: User) -> None:
@@ -75,6 +76,14 @@ def detail(record: Attendance) -> AttendanceDetail:
     )
 
 
+def _audit_state(status: str, arrival: time | None, departure: time | None) -> dict[str, str | None]:
+    return {
+        "status": status,
+        "arrival_time": arrival.isoformat(timespec="minutes") if arrival else None,
+        "departure_time": departure.isoformat(timespec="minutes") if departure else None,
+    }
+
+
 def list_day(db: Session, actor: User, day: date, group_id: UUID | None,
              status: str, child_id: UUID | None) -> list[AttendanceRow]:
     _validate_day(day, actor)
@@ -110,6 +119,7 @@ def upsert(db: Session, actor: User, payload: AttendanceCreate) -> tuple[Attenda
     if child.status != "active":
         raise AppError(409, "CHILD_ARCHIVED")
     existing = db.scalar(select(Attendance).where(Attendance.child_id == child.id, Attendance.date == payload.date))
+    before = _audit_state(existing.status, existing.arrival_time, existing.departure_time) if existing else None
     if existing is None and child.group.status != "active":
         raise AppError(409, "GROUP_ARCHIVED")
     values = {
@@ -125,6 +135,15 @@ def upsert(db: Session, actor: User, payload: AttendanceCreate) -> tuple[Attenda
               "updated_at": func.now()},
     ).returning(Attendance.id)
     record_id = db.scalar(statement)
+    after = _audit_state(payload.status, payload.arrival_time, payload.departure_time)
+    details: dict = {"after": after}
+    if before is not None:
+        details["before"] = before
+        details["changed_fields"] = audit.changed_fields(before, after)
+    audit.write(
+        db, actor, "attendance.create" if existing is None else "attendance.update",
+        "attendance", record_id, details,
+    )
     db.commit()
     # Core upsert bypasses the ORM identity map; reload the saved values.
     db.expire_all()
@@ -134,6 +153,7 @@ def upsert(db: Session, actor: User, payload: AttendanceCreate) -> tuple[Attenda
 
 def update(db: Session, actor: User, record_id: UUID, payload: AttendancePatch) -> AttendanceDetail:
     record = _record(db, actor, record_id, lock=True)
+    before = _audit_state(record.status, record.arrival_time, record.departure_time)
     status = payload.status if payload.status is not None else record.status
     if status != "present":
         arrival = departure = None
@@ -145,6 +165,10 @@ def update(db: Session, actor: User, record_id: UUID, payload: AttendancePatch) 
     _validate_times(status, arrival, departure)
     record.status, record.arrival_time, record.departure_time = status, arrival, departure
     record.updated_by = actor.id
+    after = _audit_state(status, arrival, departure)
+    audit.write(db, actor, "attendance.update", "attendance", record.id, {
+        "before": before, "after": after, "changed_fields": audit.changed_fields(before, after),
+    })
     db.commit()
     db.refresh(record)
     return detail(record)

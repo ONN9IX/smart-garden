@@ -17,6 +17,7 @@ from app.schemas.child import (
     ChildSummary,
     GroupSummary,
 )
+from app.services import audit
 from app.services.auth import utc_now
 
 
@@ -92,6 +93,8 @@ def create_child(db: Session, user: User, payload: ChildCreate) -> ChildResponse
     group = active_group(db, user, payload.group_id)
     child = Child(organization_id=user.organization_id, group_id=group.id, **payload.model_dump(exclude={"group_id"}), status="active")
     db.add(child)
+    db.flush()
+    audit.write(db, user, "child.create", "child", child.id)
     db.commit()
     db.refresh(child)
     return detail(child)
@@ -106,6 +109,7 @@ def update_child(db: Session, user: User, child_id: UUID, payload: ChildPatch) -
         active_group(db, user, data["group_id"])
     for field, value in data.items():
         setattr(child, field, value)
+    audit.write(db, user, "child.update", "child", child.id, {"changed_fields": sorted(data)})
     db.commit()
     db.refresh(child)
     return detail(child)
@@ -117,6 +121,9 @@ def archive_child(db: Session, user: User, child_id: UUID) -> ChildResponse:
     if child.status != "archived":
         child.status = "archived"
         child.archived_at = utc_now()
+        audit.write(db, user, "child.archive", "child", child.id, {
+            "status_before": "active", "status_after": "archived",
+        })
         db.commit()
         db.refresh(child)
     return detail(child)
@@ -128,6 +135,9 @@ def restore_child(db: Session, user: User, child_id: UUID) -> ChildResponse:
         active_group(db, user, child.group_id)
         child.status = "active"
         child.archived_at = None
+        audit.write(db, user, "child.restore", "child", child.id, {
+            "status_before": "archived", "status_after": "active",
+        })
         db.commit()
         db.refresh(child)
     return detail(child)
