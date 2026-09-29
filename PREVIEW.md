@@ -1,6 +1,8 @@
-# Проверить Stage 4 в браузере
+# Проверить принятый MVP в браузере
 
 Нужен установленный и запущенный Docker Desktop с Docker Compose, а также Git Bash. Данные в preview синтетические.
+
+Это browser preview принятых Stage 1–4 business flows на Stage 5 hardened baseline. Stage 5 не добавляет новый пользовательский экран: его production/security, recovery, supply-chain и operations evidence проверяется прежде всего required CI и runbooks.
 
 В Git Bash из папки `smart-garden`:
 
@@ -35,4 +37,4 @@ docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.p
 docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.preview.yml down
 ```
 
-Не вводите реальные персональные данные или другой реальный business free text в локальную preview версию. Родительский экран пока технический: данные детей ему не показываются.
+Не вводите реальные персональные данные или другой реальный business free text в локальную preview версию. Существующий `/api/v1/health` остаётся availability check для API и PostgreSQL. Preview не является production deployment instruction или разрешением реального pilot. Родительский экран пока технический: данные детей ему не показываются.
