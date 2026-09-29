@@ -5,15 +5,16 @@ Operational snapshot after Stage 5 technical acceptance.
 - **Stage 5 design-freeze baseline:** `3ba76177d27c4ae62092e85acfefb456daf510f4` (Issue #103 / PR #105 completed and merged; post-merge CI run #108 succeeded 6/6).
 - **Stage 5 Wave 1 baseline:** `0b036829fee56b3aedc4185fb20b7dee406d9954` (Issues #106 and #107 / PRs #110 and #111 completed and merged; post-merge CI run #118 succeeded 7/7).
 - **Stage 5 implementation baseline:** `762ee9f2fce45372e4b771c788fd054fbb2272ce` (Track D Issue #115 / PR #116 completed and merged; post-merge CI run #123 succeeded 8/8).
+- **Stage 5 final frozen baseline:** `b4f0c764b17b6df40464d3d8d344cea3f1ed3e1b` (Issue #117 / PR #118 completed and merged; acceptance PR CI run #124 rerun attempt 2 succeeded 8/8; post-merge CI run #125 succeeded 8/8).
 - **Stage 4 frozen baseline:** `69291f1a0c99df80c76e899c146ea9d6c3bd341f` (acceptance PR #101); later documentation and Stage 5 design commits do not change that frozen Stage 4 contract.
-- **Stage status:** Stage 1 — FROZEN; Stage 2 — FROZEN; Stage 3 — FROZEN; Stage 4 — FROZEN; Stage 5 Design — FROZEN; Stage 5 Implementation — COMPLETE; Stage 5 technical acceptance — ACCEPTED / FROZEN by Issue #117 acceptance PR.
+- **Stage status:** Stage 1 — FROZEN; Stage 2 — FROZEN; Stage 3 — FROZEN; Stage 4 — FROZEN; Stage 5 Design — FROZEN; Stage 5 Implementation — COMPLETE; Stage 5 technical acceptance — ACCEPTED / FROZEN by Issue #117 / PR #118.
 - **Completed Stage 4 deliveries:** Issue #94 / PR #96 (Audit) and Issue #95 / PR #97 (Announcements and Dashboard).
 - **Completed corrective:** Issue #99 / PR #100, deterministic Attendance Audit test without production contract changes.
-- **Completed Stage 5 design gate:** Issue #103 / PR #105; Issue #102 remains the coordination contract.
+- **Completed Stage 5 design gate:** Issue #103 / PR #105; Stage 5 coordination Issue #102 was closed by acceptance PR #118.
 - **Completed Stage 5 Wave 1:** Issue #106 / PR #110 (Production & Security) and Issue #107 / PR #111 (Backup & Recovery).
 - **Completed Stage 5 Track C:** Issue #112 / PR #113 (CI, toolchain and supply-chain hardening); Issue #32 was absorbed and closed. Track C fresh-main baseline is `bfa2ccd287c3dbe35a968aee24ad6bba64c5d63f`, and post-merge CI run #120 succeeded 8/8.
 - **Completed Stage 5 Track D:** Issue #115 / PR #116 (operations, session cleanup and pilot runbooks), merged at the Stage 5 implementation baseline above.
-- **Final Stage 5 gate:** Issue #117 acceptance PR records the acceptance matrix, final regression and freeze; Issue #102 is configured to close only when that PR merges.
+- **Completed Stage 5 acceptance gate:** Issue #117 / PR #118 recorded the acceptance matrix, final regression and freeze; both Issue #117 and coordination Issue #102 closed with the acceptance merge.
 - **Next sequencing constraint:** No future implementation Stage is authorized until Master Chat explicitly designs and freezes it. Do not invent a future Stage number or scope.
 
 ## Technical baseline
