@@ -1,6 +1,6 @@
 # Stage 5 — Design and Decisions
 
-Status: **DESIGN GATE IN PROGRESS** under Issue #103. This document becomes frozen only after the design PR is reviewed and merged by Master Chat.
+Status: **FROZEN** by Issue #103 / PR #105 at design baseline `3ba76177d27c4ae62092e85acfefb456daf510f4`. Any future design change requires a new explicit Master Chat decision.
 
 ## Goal
 
@@ -66,7 +66,7 @@ Every Stage 5 decision and implementation must review PII necessity, data minimi
 
 ## Acceptance concept
 
-Stage 5 can be accepted only after the design gate is merged and all Master Chat-assigned delivery waves are complete. Acceptance evidence must include:
+Stage 5 can be accepted only after all Master Chat-assigned delivery waves are complete. Acceptance evidence must include:
 
 1. fail-closed shared-environment configuration and documented, testable login-abuse protection;
 2. verified PostgreSQL backup/restore against a disposable synthetic environment;

@@ -1,6 +1,6 @@
 # Stage 5 — Delivery Plan
 
-Status: **DESIGN GATE IN PROGRESS**. No implementation Track may begin until Issue #103 is reviewed, merged and frozen and Master Chat creates its exact-baseline delivery Issue.
+Status: **FROZEN** by Issue #103 / PR #105 at design baseline `3ba76177d27c4ae62092e85acfefb456daf510f4`. Any future design change requires a new explicit Master Chat decision. Wave 1 Issues #106 and #107 must not start until the Issue #108 reconciliation PR is merged and Master Chat refreshes their exact common baseline.
 
 ## Issue contract
 

@@ -1,6 +1,6 @@
 # Stage 5 — Operations and Pilot Design
 
-Status: **DESIGN GATE IN PROGRESS**. This document defines later operational deliverables and pilot gates.
+Status: **FROZEN** by Issue #103 / PR #105 at design baseline `3ba76177d27c4ae62092e85acfefb456daf510f4`. This document defines later operational deliverables and pilot gates. Any future design change requires a new explicit Master Chat decision.
 
 ## Backup and restore
 
