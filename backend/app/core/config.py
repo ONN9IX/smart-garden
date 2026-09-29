@@ -5,10 +5,68 @@ Security: staging/production must provide a non-placeholder SECRET_KEY.
 """
 
 from functools import lru_cache
+from ipaddress import ip_address
 from typing import Literal
+from unicodedata import category
+from urllib.parse import urlsplit
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+SHARED_ENVIRONMENTS = {"staging", "production"}
+UNSAFE_SECRET_MARKERS = (
+    "change_me",
+    "changeme",
+    "example",
+    "placeholder",
+    "replace-me",
+    "replace_me",
+)
+
+
+def is_unsafe_shared_secret(value: str) -> bool:
+    """Reject predictable values without exposing the submitted secret."""
+
+    normalized = value.strip().lower()
+    return (
+        len(value) < 32
+        or len(set(value)) < 4
+        or any(marker in normalized for marker in UNSAFE_SECRET_MARKERS)
+    )
+
+
+def is_unsafe_shared_origin(origin: str) -> bool:
+    """Identify malformed, localhost, loopback and development bind origins."""
+
+    if any(character.isspace() or category(character) == "Cc" for character in origin):
+        return True
+
+    try:
+        parsed = urlsplit(origin)
+        _ = parsed.port
+    except ValueError:
+        return True
+
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        return True
+
+    hostname = parsed.hostname.rstrip(".").lower()
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        return True
+
+    try:
+        address = ip_address(hostname)
+    except ValueError:
+        return False
+    return address.is_loopback or address.is_unspecified
 
 
 class Settings(BaseSettings):
@@ -36,12 +94,17 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_shared_environment(self):
-        if self.app_env in {"staging", "production"} and (
-            self.secret_key == "CHANGE_ME_LOCAL" or len(self.secret_key) < 32
-        ):
-            raise ValueError("Shared environments require a strong SECRET_KEY")
-        if "*" in self.allowed_origins:
+        if any("*" in origin for origin in self.allowed_origins):
             raise ValueError("Wildcard CORS origin is incompatible with cookies")
+        if self.app_env in SHARED_ENVIRONMENTS:
+            if is_unsafe_shared_secret(self.secret_key):
+                raise ValueError("Shared environments require a strong SECRET_KEY")
+            if not self.allowed_origins:
+                raise ValueError("Shared environments require explicit CORS_ORIGINS")
+            if any(is_unsafe_shared_origin(origin) for origin in self.allowed_origins):
+                raise ValueError(
+                    "Shared environments require explicit non-development CORS origins"
+                )
         return self
 
     @property
