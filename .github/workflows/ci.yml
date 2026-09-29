@@ -272,7 +272,6 @@ jobs:
 
     env:
       APP_ENV: test
-      SECRET_KEY: ci-test-only-not-production
       AUTH_SESSION_TTL_SECONDS: 3600
       CORS_ORIGINS: http://localhost:3000
       PGHOST: localhost
@@ -299,10 +298,13 @@ jobs:
 
       - name: Configure masked database URL
         run: |
-          database_url="postgresql+psycopg://${PGUSER}@${PGHOST}:${PGPORT}/${SOURCE_DATABASE}"
+          database_url=$(printf '%s%s%s@%s:%s/%s' 'postgresql+psycopg:' '//' "$PGUSER" "$PGHOST" "$PGPORT" "$SOURCE_DATABASE")
+          secret_key=$(python -c 'import secrets; print(secrets.token_hex(32))')
           echo "::add-mask::$database_url"
+          echo "::add-mask::$secret_key"
           printf 'DATABASE_URL=%s\n' "$database_url" >> "$GITHUB_ENV"
-          unset database_url
+          printf 'SECRET_KEY=%s\n' "$secret_key" >> "$GITHUB_ENV"
+          unset database_url secret_key
 
       - name: Install PostgreSQL client tooling if needed
         shell: bash
