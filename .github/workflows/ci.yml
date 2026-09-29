@@ -261,7 +261,7 @@ jobs:
         env:
           POSTGRES_DB: smart_garden
           POSTGRES_USER: smart_garden
-          POSTGRES_PASSWORD: smart_garden_local_only
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
@@ -272,14 +272,13 @@ jobs:
 
     env:
       APP_ENV: test
-      DATABASE_URL: postgresql+psycopg://smart_garden:smart_garden_local_only@localhost:5432/smart_garden
+      DATABASE_URL: postgresql+psycopg://smart_garden@localhost:5432/smart_garden
       SECRET_KEY: ci-test-only-not-production
       AUTH_SESSION_TTL_SECONDS: 3600
       CORS_ORIGINS: http://localhost:3000
       PGHOST: localhost
       PGPORT: 5432
       PGUSER: smart_garden
-      PGPASSWORD: smart_garden_local_only
       SOURCE_DATABASE: smart_garden
       RECOVERY_DATABASE: smart_garden_recovery_ci
       RECOVERY_VERIFICATION_SYNTHETIC: "YES"
