@@ -19,7 +19,7 @@
 
 ## Текущий фокус
 
-Stage 1–4 реализованы, приняты и FROZEN. Stage 5 NOT STARTED и может начаться только с отдельного design/planning gate после решения Master Chat. СКУД/планшет на входе, платежи, AI, фото и сложные интеграции пока не входят в разработку.
+Stage 1–4 реализованы, приняты и FROZEN. Stage 5 находится на design gate (Issue #103); implementation ещё не начат и не может стартовать до merge/freeze design gate решением Master Chat. СКУД/планшет на входе, платежи, AI, фото и сложные интеграции пока не входят в разработку.
 
 ### Этап 1 — фундамент (FROZEN)
 - Backend: организация, пользователи, роли, авторизация по логину/паролю, временный пароль, смена пароля, изоляция данных организаций.
@@ -69,6 +69,10 @@ Stage 1–4 реализованы, приняты и FROZEN. Stage 5 NOT STARTE
 - `docs/23-stage-4-backend.md` и `docs/24-stage-4-frontend.md` — frozen задания Stage 4.
 - `docs/25-api-contract-stage-4.md` — frozen API Contract Stage 4.
 - `docs/26-stage-4-acceptance.md` — финальная приёмка и freeze Stage 4.
+- `docs/27-stage-5-design-and-decisions.md` — границы и frozen-архитектура Stage 5.
+- `docs/28-stage-5-security-and-production.md` — production/security design Stage 5.
+- `docs/29-stage-5-operations-and-pilot.md` — backup, operations, retention и pilot checklist.
+- `docs/30-stage-5-delivery-plan.md` — двухразработчиковый delivery plan и правила координации.
 - `CONTRIBUTING.md` — короткие правила ежедневной разработки и PR.
 
 ## Единая архитектура
