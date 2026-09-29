@@ -53,4 +53,4 @@ Operational snapshot during Stage 5 implementation.
 - `docs/33-stage-5-ci-toolchain-supply-chain.md`
 - `docs/34-stage-5-operations-session-cleanup.md`
 
-Documents 27–30 were frozen by Issue #103 / PR #105 at `3ba76177d27c4ae62092e85acfefb456daf510f4`. Documents 31–33 record the corresponding Stage 5 implementation. They do not change the frozen Stage 1–4 product contract; future design changes require a new explicit Master Chat decision.
+Documents 27–30 were frozen by Issue #103 / PR #105 at `3ba76177d27c4ae62092e85acfefb456daf510f4`. Documents 31–34 record the corresponding Stage 5 implementation. They do not change the frozen Stage 1–4 product contract; future design changes require a new explicit Master Chat decision.
