@@ -28,6 +28,14 @@
 - Fix ordinary defects found before merge in the same delivery branch.
 - Create a separate corrective Issue only for an independent architecture, API, DB, auth, RBAC, tenant, security, privacy or cross-stage finding.
 
+## Stage 5 coordination
+
+- Master Chat is the single coordination authority. Stage 1–4 remain FROZEN.
+- Every Issue has one owner, an exact baseline, an explicit write-set and one branch/PR. Work outside the write-set requires STOP and handoff to Master Chat.
+- Parallel work is allowed only when Master Chat marks every participating Issue `PARALLEL-SAFE: YES` and their write-sets do not overlap.
+- Shared/high-conflict files are serialized by default: CI workflow, dependency/lock files, shared backend entry/config/model files, Alembic migration head, `AGENTS.md`, `docs/CURRENT_STATE.md`, root `README.md` and shared operating docs.
+- A developer does not merge a Stage 5 PR without an explicit Master Chat decision.
+
 ## Context economy
 
 Read in this order: current Issue, current Stage contract, `docs/CURRENT_STATE.md`, this file, changed files/diff, relevant tests and CI. Do not scan frozen stages without a demonstrated reason.
