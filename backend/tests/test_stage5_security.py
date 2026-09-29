@@ -76,6 +76,27 @@ def test_shared_environment_rejects_local_or_loopback_origin(app_env, origin):
 
 
 @pytest.mark.parametrize("app_env", ["staging", "production"])
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://example.test:notaport",
+        "https://example.test:70000",
+        "https://example .test",
+        "https://example.test\t.attacker.test",
+        "https://example.test\r\n.attacker.test",
+        "https://example.test\x00.attacker.test",
+    ],
+)
+def test_shared_environment_rejects_malformed_origin(app_env, origin):
+    with pytest.raises(ValidationError, match="non-development CORS origins"):
+        settings(
+            app_env=app_env,
+            secret_key=STRONG_TEST_SECRET,
+            cors_origins=origin,
+        )
+
+
+@pytest.mark.parametrize("app_env", ["staging", "production"])
 def test_valid_explicit_shared_environment_config_is_accepted(app_env):
     configured = settings(
         app_env=app_env,

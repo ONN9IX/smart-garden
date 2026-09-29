@@ -7,6 +7,7 @@ Security: staging/production must provide a non-placeholder SECRET_KEY.
 from functools import lru_cache
 from ipaddress import ip_address
 from typing import Literal
+from unicodedata import category
 from urllib.parse import urlsplit
 
 from pydantic import field_validator, model_validator
@@ -37,7 +38,15 @@ def is_unsafe_shared_secret(value: str) -> bool:
 def is_unsafe_shared_origin(origin: str) -> bool:
     """Identify malformed, localhost, loopback and development bind origins."""
 
-    parsed = urlsplit(origin)
+    if any(character.isspace() or category(character) == "Cc" for character in origin):
+        return True
+
+    try:
+        parsed = urlsplit(origin)
+        _ = parsed.port
+    except ValueError:
+        return True
+
     if (
         parsed.scheme not in {"http", "https"}
         or not parsed.hostname
