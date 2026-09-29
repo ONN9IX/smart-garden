@@ -19,7 +19,9 @@
 
 ## Текущий фокус
 
-Stage 1–4 реализованы, приняты и FROZEN. Stage 5 Design FROZEN; следующий implementation gate — Wave 1. Для актуальной работы разработчики используют `AGENTS.md` → `docs/CURRENT_STATE.md` → текущую Issue. СКУД/планшет на входе, платежи, AI, фото и сложные интеграции пока не входят в разработку.
+Stage 1–5 technical scope принят и FROZEN. Stage 1–4 содержат бизнес-функции MVP; Stage 5 добавляет production/security hardening, проверяемое резервное копирование и восстановление PostgreSQL, supply-chain CI, очистку истёкших auth sessions и операционные runbooks. Следующий implementation Stage не утверждён. Для актуальной работы разработчики используют `AGENTS.md` → `docs/CURRENT_STATE.md` → текущую Issue. СКУД/планшет на входе, платежи, AI, фото и сложные интеграции пока не входят в разработку.
+
+Техническая приёмка Stage 5 не разрешает реальный pilot или реальные персональные данные. До пилота необходимо отдельно закрыть legal/privacy/infrastructure checklist, включая роли участников обработки, hosting/data location, subprocessors/data flows, business retention, backup policy, access administration и deployment-level login-abuse verification. Dev/test/preview/recovery используют только синтетические данные.
 
 ### Этап 1 — фундамент (FROZEN)
 - Backend: организация, пользователи, роли, авторизация по логину/паролю, временный пароль, смена пароля, изоляция данных организаций.
@@ -73,6 +75,11 @@ Stage 1–4 реализованы, приняты и FROZEN. Stage 5 Design FRO
 - `docs/28-stage-5-security-and-production.md` — production/security design Stage 5.
 - `docs/29-stage-5-operations-and-pilot.md` — backup, operations, retention и pilot checklist.
 - `docs/30-stage-5-delivery-plan.md` — двухразработчиковый delivery plan и правила координации.
+- `docs/31-stage-5-production-security-implementation.md` — production configuration и security hardening.
+- `docs/32-stage-5-backup-and-recovery.md` — PostgreSQL backup, guarded restore и recovery verification.
+- `docs/33-stage-5-ci-toolchain-supply-chain.md` — required CI, toolchain и dependency security.
+- `docs/34-stage-5-operations-session-cleanup.md` — session cleanup и pilot operations runbooks.
+- `docs/35-stage-5-acceptance.md` — финальная техническая приёмка и freeze Stage 5.
 - `CONTRIBUTING.md` — короткие правила ежедневной разработки и PR.
 
 ## Единая архитектура
@@ -98,4 +105,4 @@ Frontend не создаёт и не использует собственную
 
 ## Статус готовности
 
-Stage 1–4 доступны в общей preview версии: Frontend Next.js работает с FastAPI и PostgreSQL без mock бизнес-данных. Помимо авторизации, групп, детей, представителей, сотрудников и посещаемости реализованы Audit, Announcements и Dashboard. Проверка основных браузерных сценариев описана в [PREVIEW.md](PREVIEW.md). Dev/test/preview используют только синтетические данные. Production/pilot требует отдельного legal/privacy/retention/infrastructure review; технический freeze не является заявлением о юридическом соответствии.
+Stage 1–4 business capabilities доступны в общей preview версии на Stage 5 hardened baseline: Frontend Next.js работает с FastAPI и PostgreSQL без mock business paths. Помимо авторизации, групп, детей, представителей, сотрудников и посещаемости реализованы Audit, Announcements и Dashboard. Проверка основных браузерных сценариев описана в [PREVIEW.md](PREVIEW.md). Dev/test/preview используют только синтетические данные. Реальный pilot требует отдельного legal/privacy/retention/infrastructure review; технический freeze не является заявлением о юридическом соответствии или разрешением использовать реальные ПДн.
