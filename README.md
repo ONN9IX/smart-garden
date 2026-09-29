@@ -4,49 +4,49 @@
 
 ## С чего начинать разработчику
 
-**Проверка Stage 3 в браузере:** [PREVIEW.md](PREVIEW.md) — запуск Frontend, Backend и PostgreSQL одной командой с синтетическими аккаунтами. [Акт интеграции Stage 2](docs/16-stage-2-acceptance.md) относится только к Stage 2.
+Перед любой задачей читайте источники в таком порядке:
 
-**Главный рабочий документ команды: `docs/00-development-guide.md`.**
+1. [`AGENTS.md`](AGENTS.md) — обязательные правила репозитория и Fast Flow.
+2. [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) — фактический frozen baseline и текущий gate.
+3. Контракт текущего Stage.
+4. Текущую GitHub Issue.
 
-Он фиксирует единый стек, структуру репозитория, Git-процесс, порядок Backend/Frontend задач и интеграцию. Frontend и Backend не являются отдельными продуктами: Frontend работает только через Backend API, а единственная БД MVP — PostgreSQL на Backend.
+**Проверка Stage 4 в браузере:** [PREVIEW.md](PREVIEW.md) — запуск Frontend, Backend и PostgreSQL одной командой с синтетическими аккаунтами.
 
-Распределение **Stage 1**:
-- **ONN9IX — Frontend**
-- **F1zname — Backend**
+[`docs/00-development-guide.md`](docs/00-development-guide.md) сохраняет общую архитектуру, Git-процесс и исторические bootstrap-инструкции Stage 1. Frontend и Backend не являются отдельными продуктами: Frontend работает только через Backend API, а единственная БД MVP — PostgreSQL на Backend.
 
-Роли не постоянные: на следующих этапах разработчики могут меняться Frontend/Backend. Локальная среда и доступы должны быть воспроизводимыми без передачи личных паролей.
-
-Перед первой задачей оба разработчика обязаны прочитать `docs/00-development-guide.md`, `docs/03-api-contract-v0.1.md`, `docs/08-team-access-and-environments.md` и `docs/09-code-and-error-standards.md`.
+Локальная среда и доступы должны быть воспроизводимыми без передачи личных паролей.
 
 ## Текущий фокус
 
-Первая версия строится последовательно. СКУД/планшет на входе, платежи, AI, фото и сложные интеграции пока не входят в разработку.
+Stage 1–4 реализованы, приняты и FROZEN. Stage 5 NOT STARTED и может начаться только с отдельного design/planning gate после решения Master Chat. СКУД/планшет на входе, платежи, AI, фото и сложные интеграции пока не входят в разработку.
 
-### Этап 1 — фундамент
+### Этап 1 — фундамент (FROZEN)
 - Backend: организация, пользователи, роли, авторизация по логину/паролю, временный пароль, смена пароля, изоляция данных организаций.
 - Frontend: каркас приложения, login, обязательная смена временного пароля, защищённые маршруты, базовый layout, role-aware UI.
 - Общий результат: DIRECTOR и ADMIN могут безопасно войти в систему и попасть в интерфейс своего сада.
 
-### Этап 2
+### Этап 2 (FROZEN)
 - Группы
 - Дети
 - Родители / законные представители
 - Создание PARENT-аккаунта
 - Связь одного родителя с несколькими детьми
 
-### Этап 3
+### Этап 3 (FROZEN)
 - Сотрудники
 - Посещаемость
 
-### Этап 4
-- Объявления
-- Dashboard
-- Audit Log
-- стабилизация MVP
+### Этап 4 (FROZEN)
+- Audit Log с privacy-safe структурированными details
+- Объявления с публикацией для всего сада или группы и archive-only lifecycle
+- Операционный Dashboard с garden-local датой и агрегацией по активным группам
+- Стабилизация и финальная приёмка Stage 4
 
 ## Документы
 
-- `docs/00-development-guide.md` — единая пошаговая инструкция команды; начинать отсюда.
+- `AGENTS.md` и `docs/CURRENT_STATE.md` — первые источники для любой новой задачи.
+- `docs/00-development-guide.md` — общая инструкция команды; Stage 1 bootstrap sections являются historical reference.
 - `docs/01-stage-1-backend.md` — подробное ТЗ первого этапа для Backend-разработчика.
 - `docs/02-stage-1-frontend.md` — подробное ТЗ первого этапа для Frontend-разработчика.
 - `docs/03-api-contract-v0.1.md` — общий контракт первого этапа.
@@ -65,6 +65,10 @@
 - `docs/18-stage-3-backend.md` и `docs/19-stage-3-frontend.md` — задания Stage 3.
 - `docs/20-api-contract-stage-3.md` — общий API Contract Stage 3.
 - `docs/21-stage-3-delivery-plan.md` — порядок вертикальных срезов и проверок.
+- `docs/22-stage-4-data-model-and-decisions.md` — frozen решения по данным и границам Stage 4.
+- `docs/23-stage-4-backend.md` и `docs/24-stage-4-frontend.md` — frozen задания Stage 4.
+- `docs/25-api-contract-stage-4.md` — frozen API Contract Stage 4.
+- `docs/26-stage-4-acceptance.md` — финальная приёмка и freeze Stage 4.
 - `CONTRIBUTING.md` — короткие правила ежедневной разработки и PR.
 
 ## Единая архитектура
@@ -90,4 +94,4 @@ Frontend не создаёт и не использует собственную
 
 ## Статус готовности
 
-Stage 1/2/3 доступны в общей preview версии: Frontend Next.js работает с FastAPI и PostgreSQL без mock бизнес-данных. Сотрудники и ручная посещаемость описаны в [PREVIEW.md](PREVIEW.md). Браузерные проверки покрывают сквозной сценарий Stage 3 и адресные исправления QA3-02 (состояние форм, одноразовые реквизиты, фильтры и смену даты). Dev/test/preview используют только синтетические данные.
+Stage 1–4 доступны в общей preview версии: Frontend Next.js работает с FastAPI и PostgreSQL без mock бизнес-данных. Помимо авторизации, групп, детей, представителей, сотрудников и посещаемости реализованы Audit, Announcements и Dashboard. Проверка основных браузерных сценариев описана в [PREVIEW.md](PREVIEW.md). Dev/test/preview используют только синтетические данные. Production/pilot требует отдельного legal/privacy/retention/infrastructure review; технический freeze не является заявлением о юридическом соответствии.

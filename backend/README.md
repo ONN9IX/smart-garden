@@ -1,8 +1,8 @@
-# Умный сад — Backend, этап 1
+# Умный сад — Backend, Stage 1–4 FROZEN
 
-FastAPI + PostgreSQL + SQLAlchemy + Alembic. HTTP-контракт: `../docs/03-api-contract-v0.1.md`.
+FastAPI + PostgreSQL + SQLAlchemy + Alembic. Реализованы и заморожены Stage 1–4, включая Audit, Announcements и Dashboard. Текущий статус и порядок источников: [`../AGENTS.md`](../AGENTS.md) → [`../docs/CURRENT_STATE.md`](../docs/CURRENT_STATE.md) → контракт текущего Stage → Issue. Frozen HTTP-контракты находятся в `../docs/03-api-contract-v0.1.md`, `../docs/15-api-contract-stage-2.md`, `../docs/20-api-contract-stage-3.md` и `../docs/25-api-contract-stage-4.md`.
 
-Новому разработчику: начните с [HANDOVER.md](HANDOVER.md) — там карта файлов, сценарий входа и порядок проверки.
+[`HANDOVER.md`](HANDOVER.md) — historical Stage 1 handover, а не текущий source of truth.
 
 ## Локальный запуск
 
@@ -23,7 +23,7 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --no-access-log
 
 `--no-access-log` нужен, чтобы поисковые строки в URL (`q`) не попадали в журнал запросов. При настройке reverse proxy для реальных данных применяйте то же правило к его журналам.
 
-`GET http://localhost:8000/api/v1/health` отвечает `{"status":"ok"}` только при доступном PostgreSQL. OpenAPI — `http://localhost:8000/docs`. У seed-команды синтетические `director-demo` и `admin-demo`; временный пароль каждого нового пользователя выводится один раз локально. Повторный seed не меняет пароли существующих пользователей. Все прикладные таблицы создаются **только** Alembic.
+`GET http://localhost:8000/api/v1/health` отвечает `{"status":"ok"}` только при доступном PostgreSQL. OpenAPI — `http://localhost:8000/docs`. Seed-команда создаёт только синтетические demo-аккаунты для Stage 1–4; временный пароль каждого нового пользователя выводится один раз локально. Повторный seed не меняет пароли существующих пользователей. Все прикладные таблицы создаются **только** Alembic.
 
 ## Проверки
 
@@ -40,4 +40,4 @@ alembic upgrade head
 
 ## Персональные данные
 
-Для разработки используйте только синтетические данные. Пароли хешируются Argon2id; случайные session tokens хранятся в базе только как SHA-256 digest и выдаются браузеру исключительно в `HttpOnly` cookie. Входные данные, cookies и SQL-параметры не логируются; публичные ошибки фиксированного формата. Роль и организация каждого запроса берутся из серверной сессии. Проверки доступа к будущим сущностям используют `require_role` и `require_tenant`. До пилота нужно выполнить задачи из `../docs/05-personal-data-baseline.md`, включая юридическую проверку и требования к размещению.
+Для разработки используйте только синтетические данные. Пароли хешируются Argon2id; случайные session tokens хранятся в базе только как SHA-256 digest и выдаются браузеру исключительно в `HttpOnly` cookie. Входные данные, cookies и SQL-параметры не логируются; публичные ошибки фиксированного формата. Роль и организация каждого запроса берутся из серверной сессии. Проверки доступа к бизнес-сущностям выполняются на Backend через `require_role`, tenant-scoped queries и действующий API contract. До пилота нужно выполнить задачи из `../docs/05-personal-data-baseline.md`, включая юридическую проверку и требования к размещению.
