@@ -1,6 +1,6 @@
 # Stage 5 — Security and Production Design
 
-Status: **DESIGN GATE IN PROGRESS**. This is the production/security contract for later Stage 5 implementation Issues; it does not itself authorize implementation.
+Status: **FROZEN** by Issue #103 / PR #105 at design baseline `3ba76177d27c4ae62092e85acfefb456daf510f4`. This is the production/security contract for later Stage 5 implementation Issues; it does not itself authorize implementation. Any future design change requires a new explicit Master Chat decision.
 
 ## Production configuration
 

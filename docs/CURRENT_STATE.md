@@ -1,14 +1,14 @@
 # Current State
 
-Operational snapshot during the Stage 5 design gate.
+Operational snapshot after the Stage 5 design freeze.
 
-- **Current design baseline:** `ea8de68545b96a5f7339cf5ab32e3f471e86d606`.
-- **Stage 4 frozen baseline:** `69291f1a0c99df80c76e899c146ea9d6c3bd341f` (acceptance PR #101); the current design baseline additionally includes the post-Stage-4 docs cleanup.
-- **Stage status:** Stage 1 — FROZEN; Stage 2 — FROZEN; Stage 3 — FROZEN; Stage 4 — FROZEN; Stage 5 Design Gate — IN PROGRESS; Stage 5 implementation — NOT STARTED.
+- **Stage 5 design-freeze baseline:** `3ba76177d27c4ae62092e85acfefb456daf510f4` (Issue #103 / PR #105 completed and merged; post-merge CI run #108 succeeded 6/6).
+- **Stage 4 frozen baseline:** `69291f1a0c99df80c76e899c146ea9d6c3bd341f` (acceptance PR #101); later documentation and Stage 5 design commits do not change that frozen Stage 4 contract.
+- **Stage status:** Stage 1 — FROZEN; Stage 2 — FROZEN; Stage 3 — FROZEN; Stage 4 — FROZEN; Stage 5 Design — FROZEN.
 - **Completed Stage 4 deliveries:** Issue #94 / PR #96 (Audit) and Issue #95 / PR #97 (Announcements and Dashboard).
 - **Completed corrective:** Issue #99 / PR #100, deterministic Attendance Audit test without production contract changes.
-- **Current Issue:** #103 — Stage 5 design-freeze gate. Issue #102 is its coordination contract.
-- **Next checkpoint:** review and merge the Issue #103 docs-only PR. No Stage 5 implementation Issue may start before that design is merged and frozen by Master Chat.
+- **Completed Stage 5 design gate:** Issue #103 / PR #105; Issue #102 remains the coordination contract.
+- **Next implementation gate:** Wave 1 Issues #106 (ONN9IX — Production & Security) and #107 (F1zname — Backup & Recovery). They remain blocked until Issue #108 is merged and Master Chat refreshes their exact common baseline. Live execution status and exact implementation baselines are tracked in those Issues and Master Chat coordination.
 
 ## Technical baseline
 
@@ -45,4 +45,4 @@ Operational snapshot during the Stage 5 design gate.
 - `docs/29-stage-5-operations-and-pilot.md`
 - `docs/30-stage-5-delivery-plan.md`
 
-These documents are IN PROGRESS until Issue #103 is reviewed and merged. They do not authorize implementation by themselves.
+These documents were frozen by Issue #103 / PR #105 at `3ba76177d27c4ae62092e85acfefb456daf510f4`. They do not authorize implementation by themselves; future design changes require a new explicit Master Chat decision.
