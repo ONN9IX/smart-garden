@@ -96,7 +96,7 @@ def archive_employee(db: Session, actor: User, employee_id: UUID) -> EmployeeRes
         if actor.role != "DIRECTOR":
             raise AppError(403, "FORBIDDEN")
         linked = employee.user
-        if linked is None or linked.organization_id != actor.organization_id or linked.role != "ADMIN":
+        if linked is None or linked.organization_id != actor.organization_id or linked.role not in {"ADMIN", "TEACHER"}:
             raise AppError(403, "FORBIDDEN")
         account_was_active = linked.status == "active"
         linked.status = "blocked"
@@ -104,9 +104,14 @@ def archive_employee(db: Session, actor: User, employee_id: UUID) -> EmployeeRes
             AuthSession.user_id == linked.id, AuthSession.revoked_at.is_(None),
         ).values(revoked_at=utc_now()))
         if account_was_active:
-            audit.write(db, actor, "account.block", "user_account", linked.id, {
-                "account_role": "ADMIN", "status_before": "active", "status_after": "blocked",
-            })
+            if linked.role == "ADMIN":
+                audit.write(db, actor, "account.block", "user_account", linked.id, {
+                    "account_role": "ADMIN", "status_before": "active", "status_after": "blocked",
+                })
+            else:
+                audit.write(db, actor, "teacher_account.block", "user_account", linked.id, {
+                    "account_role": "TEACHER", "status_before": "active", "status_after": "blocked",
+                })
     archived = employee.status != "archived"
     if archived:
         employee.status = "archived"

@@ -4,6 +4,7 @@ Run after migrations. Generated temporary passwords are printed once locally;
 neither passwords nor their plaintext equivalents are persisted or committed.
 """
 
+import os
 from datetime import date
 
 from sqlalchemy import select
@@ -20,6 +21,7 @@ from app.models.employee import Employee
 from app.models.group import Group
 from app.models.guardian import Guardian
 from app.models.organization import Organization
+from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.user import User
 
 
@@ -90,6 +92,46 @@ def seed_stage3(db: Session, organization: Organization) -> None:
                 date=day, status=status, created_by=author.id, updated_by=author.id,
             ))
 
+
+def seed_stage6_foundation(db: Session, organization: Organization) -> None:
+    """Add one synthetic TEACHER identity and assignment without disclosing its secret."""
+    teacher = db.scalar(select(User).where(User.username == "stage6-teacher-demo"))
+    if teacher is None:
+        temporary_password = generate_temporary_password()
+        teacher = User(
+            organization_id=organization.id, username="stage6-teacher-demo", role="TEACHER",
+            status="active", password_hash=hash_password(temporary_password), must_change_password=True,
+        )
+        db.add(teacher)
+        db.flush()
+
+    employee = db.scalar(select(Employee).where(
+        Employee.organization_id == organization.id, Employee.user_id == teacher.id,
+    ))
+    if employee is None:
+        employee = Employee(
+            organization_id=organization.id, user_id=teacher.id, first_name="Тестовая",
+            last_name="Воспитательница", position="Воспитатель", status="active",
+        )
+        db.add(employee)
+        db.flush()
+
+    group = db.scalar(select(Group).where(
+        Group.organization_id == organization.id, Group.name == "Ромашка",
+    ))
+    director = db.scalar(select(User).where(User.username == "stage3-director-demo"))
+    if group is None or director is None:
+        raise RuntimeError("Synthetic Group and Director must exist before the Stage 6 seed")
+    assignment = db.scalar(select(TeacherGroupAssignment).where(
+        TeacherGroupAssignment.employee_id == employee.id,
+        TeacherGroupAssignment.group_id == group.id,
+    ))
+    if assignment is None:
+        db.add(TeacherGroupAssignment(
+            organization_id=organization.id, employee_id=employee.id, group_id=group.id,
+            status="active", assigned_by=director.id,
+        ))
+
 def main() -> None:
     if get_settings().app_env not in {"development", "test"}:
         raise RuntimeError("Synthetic seed can only run in development or test")
@@ -125,6 +167,9 @@ def main() -> None:
         db.flush()
         seed_stage2(db, organization)
         seed_stage3(db, organization)
+        # Keep the frozen Stage 5 backup/recovery fixture byte-for-byte compatible.
+        if os.environ.get("RECOVERY_VERIFICATION_SYNTHETIC") != "YES":
+            seed_stage6_foundation(db, organization)
 
         other_organization = db.scalar(select(Organization).where(
             Organization.name == "Синтетический сад другого tenant",

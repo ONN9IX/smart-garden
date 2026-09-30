@@ -20,6 +20,7 @@ from app.api.employees import router as employees_router
 from app.api.groups import router as groups_router
 from app.api.guardians import router as guardians_router
 from app.api.health import router as health_router
+from app.api.teacher_management import router as teacher_management_router
 from app.core.config import get_settings
 from app.core.errors import (
     AppError,
@@ -65,3 +66,4 @@ app.include_router(attendance_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 app.include_router(announcements_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
+app.include_router(teacher_management_router, prefix="/api/v1")
