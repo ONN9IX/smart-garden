@@ -19,7 +19,7 @@ Stage 6 is **TEACHER Cabinet & Parallel Delivery Foundation**. It designs:
 - polls, incidents, teacher tasks, notifications and document notices;
 - photo-consent state and photo metadata/content-delivery boundary;
 - the minimum DIRECTOR/ADMIN management surfaces needed to operate TEACHER access;
-- one serialized Foundation gate followed by disjoint parallel delivery tracks.
+- one serialized Foundation gate followed by one autonomous full-cabinet TEACHER delivery and explicitly disjoint ONN9IX Track A work.
 
 This document freezes architecture only. It creates no role, route, table, migration, UI, storage integration or production capability.
 
@@ -129,13 +129,15 @@ The TEACHER cabinet is limited to the authenticated teacher context:
 - **Schedule:** read-only for TEACHER; managed by DIRECTOR/ADMIN.
 - **Communication:** current assigned group threads and eligible direct TEACHER↔PARENT threads; participant scope is derived server-side.
 - **Diary:** read/write for currently assigned active children; PARENT reads only linked children.
-- **Announcements:** reuse the existing `Announcement` model; TEACHER is limited to eligible assigned-group announcements and cannot publish `target_type=all`.
+- **Announcements:** reuse the existing `Announcement` model; TEACHER reads and creates only for actively assigned Groups, creates only `target_type=group`, and may update/archive only own announcements while the Group remains actively assigned. PARENT reads active all-garden and eligible active Group announcements.
 - **Polls:** TEACHER creates/closes polls for assigned groups; eligible PARENT users cast one non-anonymous single-option vote.
 - **Incidents:** TEACHER operates incidents for assigned groups; no medical fields and no raw PARENT incident record in Stage 6.
 - **Tasks:** DIRECTOR/ADMIN create and assign; TEACHER changes only the status of an own assigned task.
 - **Notifications:** each user sees only own notifications; rows do not duplicate free-text PII.
-- **Document notices:** metadata and acknowledgement only.
+- **Document notices:** DIRECTOR/ADMIN issue immutable metadata-only notices; the recipient may acknowledge them. No binary document storage is introduced.
 - **Photos:** assigned-group and consent-gated metadata/content access through authenticated Backend delivery only.
+
+DIRECTOR/ADMIN operational APIs for canonical Group messages, incidents, document notices and photo-consent state are additive Stage 6 management surfaces. They do not grant blanket access to direct TEACHER↔PARENT message content. Photo-consent writes record an externally established state; they do not implement or prove the legal consent flow.
 
 ## 8. Photo boundary
 
@@ -186,3 +188,5 @@ Stage 6 teacher document support contains only notice/acknowledgement metadata. 
 12. Production photo upload remains disabled until the external privacy/infrastructure decisions are approved.
 13. Teacher documents remain metadata/acknowledgement only.
 14. Stage 6 implementation is not started by this design freeze.
+15. After Foundation, F1zname receives one major `S6-TEACHER-CABINET` Issue, branch and PR for the complete cabinet; internal modules are not separate Master Chat gates.
+16. Ordinary defects stay in that branch. Early return to Master Chat occurs only for the frozen STOP conditions in Issue #121.

@@ -16,7 +16,7 @@ Operational snapshot after Stage 5 technical acceptance and the Stage 6 design f
 - **Completed Stage 5 Track D:** Issue #115 / PR #116 (operations, session cleanup and pilot runbooks), merged at the Stage 5 implementation baseline above.
 - **Completed Stage 5 acceptance gate:** Issue #117 / PR #118 recorded the acceptance matrix, final regression and freeze; both Issue #117 and coordination Issue #102 closed with the acceptance merge.
 - **Stage 6 pre-design baseline:** `471bdad125f3682c5924ad1e52dd642e75942e23` (Issue #121, design-only TEACHER cabinet and parallel-delivery contract).
-- **Next gate:** `S6-FOUNDATION`, created explicitly by Master Chat from the post-design-merge exact baseline. Parallel ONN9IX/F1zname implementation is forbidden until Foundation merges and post-merge CI is green.
+- **Next gate:** exactly one serialized `S6-FOUNDATION`, created explicitly by Master Chat from the post-design-merge exact baseline. Parallel ONN9IX/F1zname implementation is forbidden until Foundation merges and post-merge CI is green; then F1zname receives one autonomous full-scope `S6-TEACHER-CABINET` Issue/branch/PR while ONN9IX Track A may run only through explicitly disjoint Issues/write-sets.
 
 ## Technical baseline
 
@@ -67,4 +67,4 @@ Documents 27–30 were frozen by Issue #103 / PR #105 at `3ba76177d27c4ae62092e8
 - `docs/38-stage-6-data-model-privacy-and-tests.md`
 - `docs/39-stage-6-parallel-delivery-plan.md`
 
-Documents 36–39 freeze the Stage 6 TEACHER architecture, permission/API contract, complete Foundation schema, privacy/test requirements and serialized-to-parallel delivery plan. They do not implement TEACHER. Stages 1–5 remain frozen, the next gate is `S6-FOUNDATION`, and real-pilot/privacy boundaries remain in force.
+Documents 36–39 freeze the Stage 6 TEACHER architecture, permission/API contract, complete Foundation schema, privacy/test requirements and serialized-to-parallel delivery plan. They do not implement TEACHER. Stages 1–5 remain frozen; the next gate is the single serialized `S6-FOUNDATION`, followed after green post-merge CI by one autonomous `S6-TEACHER-CABINET` delivery without module-level Master Chat gates. Real-pilot/privacy boundaries remain in force.

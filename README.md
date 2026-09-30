@@ -83,7 +83,7 @@ Stage 1–5 technical scope принят и FROZEN. Stage 1–4 содержат
 - `docs/36-stage-6-teacher-design-and-decisions.md` — frozen scope, identity, assignment и privacy boundaries кабинета TEACHER.
 - `docs/37-stage-6-permissions-and-api.md` — frozen permission matrix, server-side access и Stage 6 API.
 - `docs/38-stage-6-data-model-privacy-and-tests.md` — complete Foundation schema, audit/privacy и mandatory negative tests.
-- `docs/39-stage-6-parallel-delivery-plan.md` — Foundation gate, reserved shared files и Track A/Track B coordination.
+- `docs/39-stage-6-parallel-delivery-plan.md` — единый Foundation gate, reserved shared files и одна автономная full-cabinet доставка Track B параллельно только с disjoint Track A Issues.
 - `CONTRIBUTING.md` — короткие правила ежедневной разработки и PR.
 
 ## Единая архитектура

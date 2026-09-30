@@ -17,7 +17,7 @@ Stage 6 Design
 → parallel implementation
 ```
 
-No ONN9IX/F1zname Stage 6 implementation starts before Foundation merges and its post-merge CI is green. Master Chat creates each implementation Issue from the fresh exact baseline and evaluates its write-set and `PARALLEL-SAFE` status.
+No ONN9IX/F1zname Stage 6 implementation starts before Foundation merges and its post-merge CI is green. From that fresh exact baseline, Master Chat creates one major autonomous `S6-TEACHER-CABINET` Issue for F1zname and any explicitly disjoint ONN9IX Track A Issues.
 
 ## 2. Design gate
 
@@ -64,6 +64,8 @@ Foundation implements the shared contract exactly once:
 - add synthetic login/browser Foundation coverage.
 
 Foundation preserves all existing DIRECTOR/ADMIN/PARENT behavior. It must merge and complete post-merge CI before either parallel lane begins.
+
+Foundation is the one and only mandatory intermediate Master Chat implementation checkpoint before autonomous TEACHER cabinet delivery.
 
 ## 4. Reserved after Foundation
 
@@ -134,9 +136,11 @@ Exclusive implementation namespaces are used so Track B avoids Track A and reser
 
 PARENT-facing communication/diary/poll/photo additions may be in Track B only where the exact Issue write-set does not overlap Track A or a reserved file.
 
+Track B is delivered as one major Issue, one branch and one PR for the complete TEACHER cabinet. Groups, Attendance, Communications, Diary, Polls, Incidents, Tasks, Photos and other teacher modules are internal implementation milestones, not separate Master Chat approval gates.
+
 ## 7. Planned implementation Issues
 
-These Issues are planning labels only. They are not created or started by the design gate; Master Chat creates them after the required preceding merge and establishes the exact baseline/write-set.
+No implementation Issue is created or started by this design gate. Master Chat creates the following Issues only after the required preceding merge and establishes the exact baseline/write-set.
 
 ### S6-FOUNDATION
 
@@ -144,31 +148,30 @@ These Issues are planning labels only. They are not created or started by the de
 - `PARALLEL-SAFE: NO`
 - Goal: TEACHER role, Employee lifecycle, complete teacher schema in one migration, assignment access primitive, teacher-management account/assignment backend, shared frontend auth/navigation split, synthetic seed and Foundation tests.
 
-### S6-TEACHER-CORE
+### S6-TEACHER-CABINET — autonomous full delivery
 
 - Owner: F1zname
-- `PARALLEL-SAFE: YES` only with an approved disjoint ONN9IX Track A Issue after Foundation.
-- Goal: assigned groups, roster, guardian communication context, attendance, schedule read, initial teacher shell and core negative tests.
-- No shared model, migration or auth files.
+- `PARALLEL-SAFE: YES` only with explicitly approved, disjoint ONN9IX Track A work after Foundation.
+- Delivery: one major Issue, one branch and one PR.
+- Scope: complete TEACHER cabinet — shell/navigation, Today, assigned Groups/roster/guardian context, Attendance, Schedule read, Group and direct communication, Diary, Group announcements, Polls, Incidents, Tasks, Notifications, document notice acknowledgement, photo-consent behavior, authenticated synthetic photo boundary, mandatory negative/security tests, TEACHER browser E2E and relevant regression.
 
-### S6-TEACHER-COMMS
+F1zname may use as many commits and internal milestones as needed. There is no intermediate Master Chat approval after Groups, Attendance, Communications, Diary, Polls, Incidents, Tasks, Photos or another cabinet module. Ordinary implementation defects are fixed in the same branch.
 
-- Owner: F1zname
-- `PARALLEL-SAFE: YES` only with disjoint Track A.
-- Goal: group/direct communication, PARENT participant endpoints, diary, group announcements, privacy-safe audit and negative tests.
+F1zname returns to Master Chat early only if implementation would require:
 
-### S6-TEACHER-OPS
+- changing a frozen Stage 6 architecture, API or data-model decision;
+- changing auth/session semantics, tenant isolation or the permission/RBAC boundary;
+- changing Stages 1–5 behavior beyond an explicitly additive Stage 6 contract;
+- editing a reserved shared file outside the exact Issue write-set;
+- creating another Alembic migration/head after Foundation;
+- introducing a new database, Backend or auth stack;
+- introducing real PII in dev/test/preview;
+- introducing medical data, biometrics or face recognition;
+- selecting or connecting an external production photo/file provider;
+- resolving an intentionally open legal/privacy/retention/hosting decision;
+- overlapping an active ONN9IX Track A write-set.
 
-- Owner: F1zname
-- `PARALLEL-SAFE: YES` only with disjoint Track A.
-- Goal: polls, incidents, tasks, notifications, document notices/ack and the Today aggregator after its underlying modules exist.
-
-### S6-TEACHER-PHOTOS
-
-- Owner: F1zname
-- `PARALLEL-SAFE: conditional`.
-- Goal: consent registry behavior, photo metadata/linking, authenticated content boundary, synthetic local/ephemeral storage only, production upload fail-closed and privacy/negative tests.
-- If work requires an external production provider, public object URL or unresolved hosting/data-location decision: `STOP`; do not expand scope.
+At completion F1zname returns one full handoff for the complete cabinet. Master Chat performs one full-product review, not module-by-module reviews.
 
 ### ONN9IX DIRECTOR/ADMIN Issues
 
@@ -178,7 +181,7 @@ Created separately by Master Chat from the Foundation post-merge baseline with e
 
 - Owner: chosen by Master Chat after implementation.
 - `PARALLEL-SAFE: NO`.
-- Goal: full DIRECTOR/ADMIN/PARENT regression, TEACHER E2E, all tenant/permission negative tests, preserved Stage 5 CI/security/recovery gates, privacy review, confirmation of no real PII and Stage 6 technical acceptance/freeze.
+- Goal: review the complete TEACHER cabinet as one product, with full DIRECTOR/ADMIN/PARENT regression, TEACHER E2E, all tenant/permission/participant/privacy negative tests, preserved Stage 5 CI/security/recovery gates, privacy review, confirmation of no real PII and Stage 6 technical acceptance/freeze.
 
 ## 8. Migration lane
 
@@ -194,7 +197,7 @@ Parallel work is allowed only when all conditions hold:
 1. Foundation is merged;
 2. Foundation post-merge CI is green;
 3. Master Chat created each active Issue from a fresh exact baseline;
-4. every active Issue is explicitly marked `PARALLEL-SAFE: YES` (or satisfies a stated conditional gate);
+4. every active Issue is explicitly marked `PARALLEL-SAFE: YES`;
 5. write-sets are exact and disjoint;
 6. neither track edits a reserved shared file;
 7. no architecture/API/DB/auth/RBAC/tenant/privacy conflict exists.
@@ -212,16 +215,18 @@ STOP
 - one Issue → one branch → one PR;
 - no developer self-merge;
 - Foundation first;
-- Track A/Track B start only after Foundation post-merge CI is green;
+- Track A and the single S6-TEACHER-CABINET Issue start only after Foundation post-merge CI is green;
 - parallel PRs merge only while their write-sets remain disjoint;
 - after any shared or migration merge, Master Chat establishes a fresh exact main baseline before dependent work;
-- ordinary defects remain in the same delivery branch;
-- architecture/API/DB/auth/RBAC/tenant/privacy conflicts return to Master Chat;
+- F1zname needs no intermediate Master Chat approval between internal TEACHER modules;
+- ordinary TEACHER defects remain in the same S6-TEACHER-CABINET branch;
+- architecture/API/DB/auth/RBAC/tenant/security/privacy/shared-file conflicts trigger the explicit STOP rule and return to Master Chat;
+- the complete cabinet returns once for full-product review unless a STOP condition occurs earlier;
 - every required PR CI must be fully green before review/merge decision.
 
 ## 11. Acceptance gate
 
-`S6-ACCEPTANCE` is serialized and runs only after implementation delivery is complete. Acceptance must verify:
+`S6-ACCEPTANCE` is serialized and runs only after the complete S6-TEACHER-CABINET delivery and required Track A dependencies are merged. It reviews the cabinet as one product, not as internal teacher sub-issues. Acceptance must verify:
 
 - TEACHER end-to-end behavior;
 - all frozen negative tenant, assignment, identity, participant and photo cases;

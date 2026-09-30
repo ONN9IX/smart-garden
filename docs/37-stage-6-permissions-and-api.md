@@ -39,7 +39,7 @@ All routes are under `/api/v1`. Authorization and tenant enforcement are Backend
 | Attendance write | all | all | assigned groups only | NO |
 | Schedule read | all | all | assigned groups only | linked child/group read when exposed |
 | Schedule manage | YES | YES | NO | NO |
-| Group announcements manage | all | all | assigned group only | read eligible |
+| Group announcements manage | all | all | own announcements in assigned Group only | read eligible |
 | All-garden announcement | YES | YES | NO | read eligible |
 | Group chat | operational read/manage | operational read/manage | assigned groups | eligible child group |
 | Direct TEACHER↔PARENT thread | NO blanket content access | NO blanket content access | eligible assigned child/guardian only | own guardian relation only |
@@ -50,7 +50,8 @@ All routes are under `/api/v1`. Authorization and tenant enforcement are Backend
 | Teacher task create/assign | YES | YES | NO | NO |
 | Teacher task status | all | all | own assigned tasks | NO |
 | Notifications | own/admin context | own/admin context | own | own |
-| Document notices | manage/issue per Track A | manage/issue per Track A | own/ack | own if later exposed |
+| Document notices | list/issue | list/issue | own/ack | own if later exposed |
+| Record/withdraw photo-consent state | YES | YES under same-tenant operational rules | NO | NO in Stage 6 |
 | Photos | admin oversight | no broad grant by default | assigned group + consent gate | linked child + consent gate |
 
 Direct-message content is participant-scoped. DIRECTOR and ADMIN do not receive blanket access to it. Audit records message metadata, not message body.
@@ -126,6 +127,13 @@ Existing ADMIN employee-account endpoints keep their Stage 1–5 semantics.
 
 - corresponding `/parent/communications/*` endpoints for an eligible linked-child/group context.
 
+### DIRECTOR/ADMIN canonical Group thread
+
+- `GET /teacher-management/communications/groups/{group_id}/messages`
+- `POST /teacher-management/communications/groups/{group_id}/messages`
+
+These management routes are tenant-scoped and apply only to the one canonical Group thread. DIRECTOR/ADMIN may read and post Group-thread messages for a same-tenant Group, but they still have no blanket access to direct TEACHER↔PARENT thread content.
+
 Direct-thread creation validates server-side:
 
 1. the teacher has an active assignment;
@@ -158,7 +166,20 @@ TEACHER read/write requires a current assignment to the child's active Group. PA
 - `PATCH /teacher/announcements/{announcement_id}`
 - `POST /teacher/announcements/{announcement_id}/archive`
 
-The create payload contains only `group_id`, `title` and `body`. Backend always sets `target_type=group`, tenant and actor. TEACHER cannot publish `target_type=all` and can update/archive only an eligible assigned-group announcement under the frozen Stage 6 author/permission rule.
+The create payload contains only `group_id`, `title` and `body`. Backend always sets `target_type=group`, tenant and `created_by` from the authenticated TEACHER. The Group must be actively assigned on read and create.
+
+TEACHER may PATCH/archive only when both conditions remain true on the current request:
+
+1. `announcement.created_by == authenticated TEACHER User.id`;
+2. the announcement's Group is still actively assigned to that TEACHER.
+
+TEACHER can never publish `target_type=all` or mutate an announcement created by DIRECTOR, ADMIN or another TEACHER. Existing DIRECTOR/ADMIN announcement management remains unchanged.
+
+### Parent
+
+- `GET /parent/announcements`
+
+The PARENT route returns active all-garden announcements plus active Group announcements for Groups of the PARENT's currently active linked children. Results are deduplicated when multiple children make the same announcement eligible. PARENT has no announcement write permission.
 
 The existing `Announcement` table and existing DIRECTOR/ADMIN announcement API remain unchanged.
 
@@ -187,9 +208,12 @@ TEACHER operates assigned-group polls only. PARENT votes only in an eligible Gro
 
 ### Management
 
-- separate DIRECTOR/ADMIN operational read/manage endpoints under `/teacher-management/incidents`.
+- `GET /teacher-management/incidents?group_id=&status=`
+- `GET /teacher-management/incidents/{incident_id}`
+- `POST /teacher-management/incidents`
+- `PATCH /teacher-management/incidents/{incident_id}`
 
-TEACHER access is assigned-group only. The payload accepts no diagnosis, medication, medical document or treatment fields. PARENT does not receive the raw Incident record in Stage 6.
+The management routes are DIRECTOR/ADMIN-only and tenant-scoped. TEACHER access is assigned-group only. No incident payload accepts diagnosis, medication, medical document or treatment fields. PARENT does not receive the raw Incident record in Stage 6.
 
 ## 12. Tasks
 
@@ -216,9 +240,22 @@ TEACHER cannot change assignee, title, description, due date or Group through th
 - `GET /teacher/document-notices`
 - `POST /teacher/document-notices/{id}/ack`
 
-All results are recipient-scoped. Recipient, tenant, issue actor and acknowledgement actor are server-owned. The teacher document endpoints do not upload, store or expose binary documents.
+### Management
+
+- `GET /teacher-management/document-notices`
+- `POST /teacher-management/document-notices`
+
+DIRECTOR/ADMIN may list and issue same-tenant metadata-only notices. Notices are immutable after issue except for recipient acknowledgement. Teacher results are recipient-scoped. Recipient, tenant, issue actor and acknowledgement actor are server-owned. These endpoints do not upload, store or expose binary documents.
 
 ## 14. Photos
+
+### Consent management
+
+- `GET /teacher-management/photo-consents?child_id=&group_id=`
+- `POST /teacher-management/photo-consents` — record/upsert `granted` state for an eligible same-tenant Child
+- `POST /teacher-management/photo-consents/{consent_id}/withdraw`
+
+DIRECTOR and ADMIN under same-tenant operational rules may read, record and withdraw consent state. TEACHER and PARENT cannot write the registry in Stage 6. Every write is audited. The registry records an externally established consent state; legal sufficiency, source and evidence remain a real-pilot decision. No document or evidence blob is accepted.
 
 ### Teacher
 
@@ -280,6 +317,7 @@ Never expose to TEACHER:
 | announcement `target_type` for TEACHER | Backend, always `group` |
 | diary historical/current-at-write `group_id` snapshot | Backend after current access validation |
 | notification recipient | Backend business operation |
+| photo-consent recorder/status transition | Backend from authenticated DIRECTOR/ADMIN operation |
 | photo `storage_key` and content delivery | Backend/storage abstraction; never a public URL |
 
 Unknown or forbidden extra fields are rejected; client-supplied identity fields are ignored only where the frozen endpoint explicitly permits that behavior, otherwise they are forbidden.
@@ -289,6 +327,7 @@ Unknown or forbidden extra fields are rejected; client-supplied identity fields 
 - Foreign tenant, unassigned Group, unauthorized child/guardian/thread/record/photo UUID: non-disclosing denial (`404` where existence must be hidden).
 - TEACHER calling existing `/employees`, Group management writes or `/audit`: `403`.
 - ADMIN attempting TEACHER account or assignment writes: `403`.
+- TEACHER/PARENT attempting photo-consent writes: `403`.
 - Archived/blocked identity or missing active Employee link: access denied according to the auth lifecycle contract.
 - Invalid cross-entity combinations, such as option/poll mismatch or unrelated direct-thread guardian: rejected without leaking foreign resource details.
 - Production photo upload without approved configuration: fail-closed response; no fallback to public or unapproved storage.

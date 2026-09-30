@@ -329,7 +329,7 @@ All security/business writes produce privacy-minimized `AuditEvent` entries. Req
 - `incident.create/update/resolve`
 - `teacher_task.create/update/cancel/status`
 - `notification.read`
-- `document_notice.ack`
+- `document_notice.issue/ack`
 - `photo_consent.record/withdraw`
 - `photo.create/restrict/remove`
 
@@ -400,12 +400,18 @@ These cases are the minimum Stage 6 acceptance set.
 - Former teacher loses thread access after assignment removal.
 - PARENT loses thread access when the active Child relation no longer qualifies.
 - Messages remain immutable.
+- DIRECTOR/ADMIN Group-message routes are limited to the same-tenant canonical Group thread.
+- DIRECTOR/ADMIN have no blanket access to a direct TEACHER↔PARENT thread.
 
 ### 7.8 Announcements
 
 - TEACHER cannot publish an all-garden announcement.
 - TEACHER cannot target an unassigned Group.
-- TEACHER cannot mutate an unauthorized teacher/director announcement.
+- TEACHER cannot mutate a DIRECTOR/ADMIN announcement or another TEACHER's announcement.
+- TEACHER cannot mutate even an own announcement after the Group assignment is removed.
+- PARENT announcement read returns only active all-garden announcements and active Group announcements for currently active linked children.
+- PARENT announcement results are deduplicated when multiple linked children qualify for the same announcement.
+- PARENT has no announcement write permission.
 
 ### 7.9 Polls
 
@@ -419,9 +425,19 @@ These cases are the minimum Stage 6 acceptance set.
 - Teacher cannot read/update a foreign task.
 - Teacher cannot change task assignee/title through the status endpoint.
 - Incident rejects medical-only fields.
+- DIRECTOR/ADMIN incident management is tenant-scoped; foreign Group/Incident access is denied without disclosure.
 
-### 7.11 Photos
+### 7.11 Document notices
 
+- Only DIRECTOR/ADMIN may list/issue management notices.
+- A notice cannot be edited after issue; only the recipient may acknowledge an eligible own notice.
+- Notice management rejects binary document/evidence content.
+
+### 7.12 Photos
+
+- DIRECTOR/ADMIN photo-consent writes require an eligible same-tenant Child and are audited.
+- TEACHER/PARENT cannot record, upsert or withdraw photo-consent state.
+- Consent management accepts no document/evidence blob and makes no claim that the legal consent flow is implemented.
 - Missing consent: upload denied.
 - Withdrawn or expired consent: upload denied.
 - One non-consenting Child in a multi-child photo: entire upload denied.
@@ -431,7 +447,7 @@ These cases are the minimum Stage 6 acceptance set.
 - Production upload fails closed until approved storage configuration exists.
 - EXIF stripping and file type/size validation are tested.
 
-### 7.12 Regression
+### 7.13 Regression
 
 - Existing DIRECTOR paths remain green.
 - Existing ADMIN paths remain green.
