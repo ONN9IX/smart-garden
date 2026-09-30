@@ -69,7 +69,7 @@ function AnnouncementsContent() {
       <label>Получатели <select className="input" value={targetType} onChange={(event) => { const value = event.target.value as AnnouncementTarget | ""; setTargetType(value); if (value !== "group") setGroupId(""); }}>
         <option value="">Все</option><option value="all">Весь детский сад</option><option value="group">Группа</option>
       </select></label>
-      {targetType === "group" && <label>Группа <select className="input" value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
+      {targetType === "group" && <label>Группа <select aria-label="Фильтр по группе" className="input" value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
     </div>
     {error && <Alert>{error}</Alert>}
     {loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button>
