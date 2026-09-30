@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,7 @@ function DashboardContent() {
       </div>
         {summary.groups.length === 0 ? <p className="empty-state">Активных групп пока нет.</p>
           : <ul className="dashboard-groups">{summary.groups.map((group) => <li className="card group-summary" key={group.id}>
-            <h3>{group.name}</h3><dl><div><dt>Дети</dt><dd>{group.active_children}</dd></div><div><dt>Присутствуют</dt><dd>{group.present}</dd></div><div><dt>Отсутствуют</dt><dd>{group.absent}</dd></div><div><dt>Без отметки</dt><dd>{group.unknown}</dd></div></dl>
+            <h3><Link className="text-link" href={`/groups/${group.id}`}>{group.name}</Link></h3><dl><div><dt>Дети</dt><dd>{group.active_children}</dd></div><div><dt>Присутствуют</dt><dd>{group.present}</dd></div><div><dt>Отсутствуют</dt><dd>{group.absent}</dd></div><div><dt>Без отметки</dt><dd>{group.unknown}</dd></div></dl>
           </li>)}</ul>}
       </section>
       <section className="card context-card section-space" aria-labelledby="context-heading"><h2 id="context-heading">Текущий доступ</h2>
