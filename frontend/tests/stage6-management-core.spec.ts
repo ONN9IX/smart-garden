@@ -101,7 +101,7 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
   await expect(page.getByText("Всего", { exact: true })).toBeVisible();
   await expect(page.getByText("2", { exact: true }).first()).toBeVisible();
   await page.getByLabel("Статус").selectOption("unknown");
-  await expect(page.getByRole("heading", { name: /Второй Синтетический/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Синтетический Второй/ })).toBeVisible();
 
   await page.goto("/announcements");
   await page.getByLabel("Получатели").selectOption("group");
