@@ -219,8 +219,6 @@ class IncidentCreate(BaseModel):
 
 class IncidentPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    group_id: UUID | None = None
-    child_id: UUID | None = None
     occurred_at: datetime | None = None
     category: Literal["safety", "behavior", "operational", "other"] | None = None
     description: str | None = Field(default=None, min_length=1, max_length=4000)
