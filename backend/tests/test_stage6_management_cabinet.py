@@ -356,6 +356,8 @@ def test_teacher_and_parent_cannot_use_management_cabinet(client, db, users):
         status="active",
         must_change_password=False,
     )
+    db.add(parent)
+    db.flush()
     guardian = Guardian(
         organization_id=organization.id,
         user_id=parent.id,
@@ -363,7 +365,7 @@ def test_teacher_and_parent_cannot_use_management_cabinet(client, db, users):
         last_name="Родитель",
         status="active",
     )
-    db.add_all([employee, parent, guardian])
+    db.add_all([employee, guardian])
     db.commit()
 
     _login(client, teacher.username)
