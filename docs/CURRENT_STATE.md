@@ -1,13 +1,13 @@
 # Current State
 
-Operational snapshot after Stage 5 technical acceptance.
+Operational snapshot after Stage 5 technical acceptance and the Stage 6 design freeze.
 
 - **Stage 5 design-freeze baseline:** `3ba76177d27c4ae62092e85acfefb456daf510f4` (Issue #103 / PR #105 completed and merged; post-merge CI run #108 succeeded 6/6).
 - **Stage 5 Wave 1 baseline:** `0b036829fee56b3aedc4185fb20b7dee406d9954` (Issues #106 and #107 / PRs #110 and #111 completed and merged; post-merge CI run #118 succeeded 7/7).
 - **Stage 5 implementation baseline:** `762ee9f2fce45372e4b771c788fd054fbb2272ce` (Track D Issue #115 / PR #116 completed and merged; post-merge CI run #123 succeeded 8/8).
 - **Stage 5 final frozen baseline:** `b4f0c764b17b6df40464d3d8d344cea3f1ed3e1b` (Issue #117 / PR #118 completed and merged; acceptance PR CI run #124 rerun attempt 2 succeeded 8/8; post-merge CI run #125 succeeded 8/8).
 - **Stage 4 frozen baseline:** `69291f1a0c99df80c76e899c146ea9d6c3bd341f` (acceptance PR #101); later documentation and Stage 5 design commits do not change that frozen Stage 4 contract.
-- **Stage status:** Stage 1 — FROZEN; Stage 2 — FROZEN; Stage 3 — FROZEN; Stage 4 — FROZEN; Stage 5 Design — FROZEN; Stage 5 Implementation — COMPLETE; Stage 5 technical acceptance — ACCEPTED / FROZEN by Issue #117 / PR #118.
+- **Stage status:** Stages 1–5 — FROZEN; Stage 5 technical acceptance — ACCEPTED / FROZEN by Issue #117 / PR #118; Stage 6 Design — FROZEN by Issue #121 / its design PR; Stage 6 implementation — NOT STARTED.
 - **Completed Stage 4 deliveries:** Issue #94 / PR #96 (Audit) and Issue #95 / PR #97 (Announcements and Dashboard).
 - **Completed corrective:** Issue #99 / PR #100, deterministic Attendance Audit test without production contract changes.
 - **Completed Stage 5 design gate:** Issue #103 / PR #105; Stage 5 coordination Issue #102 was closed by acceptance PR #118.
@@ -15,7 +15,8 @@ Operational snapshot after Stage 5 technical acceptance.
 - **Completed Stage 5 Track C:** Issue #112 / PR #113 (CI, toolchain and supply-chain hardening); Issue #32 was absorbed and closed. Track C fresh-main baseline is `bfa2ccd287c3dbe35a968aee24ad6bba64c5d63f`, and post-merge CI run #120 succeeded 8/8.
 - **Completed Stage 5 Track D:** Issue #115 / PR #116 (operations, session cleanup and pilot runbooks), merged at the Stage 5 implementation baseline above.
 - **Completed Stage 5 acceptance gate:** Issue #117 / PR #118 recorded the acceptance matrix, final regression and freeze; both Issue #117 and coordination Issue #102 closed with the acceptance merge.
-- **Next sequencing constraint:** No future implementation Stage is authorized until Master Chat explicitly designs and freezes it. Do not invent a future Stage number or scope.
+- **Stage 6 pre-design baseline:** `471bdad125f3682c5924ad1e52dd642e75942e23` (Issue #121, design-only TEACHER cabinet and parallel-delivery contract).
+- **Next gate:** exactly one serialized `S6-FOUNDATION`, created explicitly by Master Chat from the post-design-merge exact baseline. Parallel ONN9IX/F1zname implementation is forbidden until Foundation merges and post-merge CI is green; then F1zname receives one autonomous full-scope `S6-TEACHER-CABINET` Issue/branch/PR while ONN9IX Track A may run only through explicitly disjoint Issues/write-sets.
 
 ## Technical baseline
 
@@ -24,7 +25,7 @@ Operational snapshot after Stage 5 technical acceptance.
 - Database: PostgreSQL only.
 - Migrations: `0001` through `0011`; latest is `0011` (`announcements`).
 - API: `/api/v1`, JSON `snake_case`, UUID identifiers.
-- Roles: `DIRECTOR`, `ADMIN`, `PARENT`; `TEACHER` remains future scope.
+- Implemented roles remain `DIRECTOR`, `ADMIN`, `PARENT`. Stage 6 design conceptually freezes `DIRECTOR`, `ADMIN`, `TEACHER`, `PARENT`; `TEACHER` is not implemented or available in production until Stage 6 implementation acceptance.
 - Auth: server-side sessions, HttpOnly cookie, Argon2id, mandatory temporary-password change and server-side session revocation.
 - Tenant: derived only from authenticated User; object access is tenant-scoped and foreign UUIDs follow the active API contract.
 - Calendar date: `Organization.timezone` is a validated IANA timezone; synthetic/default organizations use `Europe/Moscow`.
@@ -58,3 +59,12 @@ Operational snapshot after Stage 5 technical acceptance.
 - `docs/35-stage-5-acceptance.md`
 
 Documents 27–30 were frozen by Issue #103 / PR #105 at `3ba76177d27c4ae62092e85acfefb456daf510f4`. Documents 31–34 record Stage 5 implementation, and document 35 records final technical acceptance. They do not change the frozen Stage 1–4 product contract; future design changes require a new explicit Master Chat decision.
+
+## Stage 6 design documents
+
+- `docs/36-stage-6-teacher-design-and-decisions.md`
+- `docs/37-stage-6-permissions-and-api.md`
+- `docs/38-stage-6-data-model-privacy-and-tests.md`
+- `docs/39-stage-6-parallel-delivery-plan.md`
+
+Documents 36–39 freeze the Stage 6 TEACHER architecture, permission/API contract, complete Foundation schema, privacy/test requirements and serialized-to-parallel delivery plan. They do not implement TEACHER. Stages 1–5 remain frozen; the next gate is the single serialized `S6-FOUNDATION`, followed after green post-merge CI by one autonomous `S6-TEACHER-CABINET` delivery without module-level Master Chat gates. Real-pilot/privacy boundaries remain in force.

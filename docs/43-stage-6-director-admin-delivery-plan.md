@@ -10,22 +10,25 @@ Deliver the complete DIRECTOR/ADMIN operational cabinet while F1zname independen
 
 Use the largest safe self-contained implementation unit to minimize coordination and Work usage.
 
-Preferred flow:
+Current coordination state at reconciliation:
+
+- Stage 6 Design PR #122 is merged and frozen at main baseline `444201e6330ac6c48e8f14a177b24a7e36677a89`;
+- S6-FOUNDATION is Issue #124 and is the current serialized implementation gate;
+- Issue #123 remains docs-only and may finish while Foundation is in progress because its four-file write-set is disjoint;
+- Track A application implementation still cannot start before Foundation merges and post-merge CI is green.
+
+Required flow:
 
 ```text
-Track A Design 40–43
-→ merge/freeze
-→ Stage 6 Design #122 merged
-→ S6-FOUNDATION
-→ merge + post-merge CI green
+Stage 6 Design #122 merged/frozen
+→ Track A Design 40–43 freeze (docs-only; may overlap Foundation)
+→ S6-FOUNDATION #124 merge + post-merge CI green
 → pre-implementation shared integration preflight
 → S6-MANAGEMENT-CABINET
 → full review
 → merge + post-merge CI
 → integrated Stage 6 acceptance
 ```
-
-Track A application implementation does not start before Foundation is merged and green.
 
 ## 2. Design gate
 
@@ -38,9 +41,9 @@ Issue #123 owns only:
 
 No code, migration, tests, CI, dependencies or shared coordination files.
 
-This design may run in parallel with Issue #121 / PR #122 because the write-sets are disjoint.
+This design began in parallel with Issue #121 / PR #122 because the write-sets were disjoint. PR #122 is now merged.
 
-Before Issue #123 may merge, it must be reconciled against the final merged docs/36–39 and refreshed main if #122 merged after the branch began.
+Before Issue #123 may merge, its branch must include the final merged docs/36–39 baseline and this package must be cross-checked against those frozen contracts. This reconciliation is part of Issue #123 and does not authorize Track A application implementation before Foundation.
 
 ## 3. Foundation dependency
 

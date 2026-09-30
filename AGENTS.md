@@ -31,7 +31,9 @@
 ## Frozen stages and coordination
 
 - Master Chat is the single coordination authority. Stages 1–5 are FROZEN.
-- A future Stage must be explicitly designed and frozen by Master Chat before implementation begins; no future Stage is currently authorized.
+- Stage 6 Design is FROZEN by Issue #121 and its design PR. Stage 6 implementation is NOT STARTED; the next gate is the serialized `S6-FOUNDATION` Issue created explicitly by Master Chat.
+- The Stage 6 order is design merge/freeze → Foundation → Foundation merge → post-merge CI green → parallel implementation. No ONN9IX/F1zname implementation starts before that gate is complete.
+- After Foundation and green post-merge CI, ONN9IX owns only explicitly disjoint DIRECTOR/ADMIN Track A Issues and F1zname receives one major autonomous `S6-TEACHER-CABINET` Issue, branch and PR for the complete cabinet. Internal TEACHER modules are not separate Master Chat gates; ordinary defects stay in that branch. Shared auth/models/migrations/AppShell/CI/`AGENTS.md`/`docs/CURRENT_STATE.md`/root `README.md` remain reserved; a frozen-contract, privacy, migration, shared-file or write-set conflict requires STOP → Master Chat → serialize/rebaseline.
 - Every Issue has one owner, an exact baseline, an explicit write-set and one branch/PR. Work outside the write-set requires STOP and handoff to Master Chat.
 - Parallel work is allowed only when Master Chat marks every participating Issue `PARALLEL-SAFE: YES` and their write-sets do not overlap.
 - Shared/high-conflict files are serialized by default: CI workflow, dependency/lock files, shared backend entry/config/model files, Alembic migration head, `AGENTS.md`, `docs/CURRENT_STATE.md`, root `README.md` and shared operating docs.

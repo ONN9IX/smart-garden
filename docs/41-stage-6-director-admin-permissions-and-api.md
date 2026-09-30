@@ -433,14 +433,16 @@ Use:
 
 DIRECTOR/ADMIN.
 
-For this Management Core, recipient must be an active same-tenant TEACHER User.
+For this Management Core, the requested target must resolve to an active same-tenant TEACHER User.
 
-Create:
+Create request identifies the intended target and notice metadata:
 
 - recipient_user_id
 - title
 - kind
 - requires_ack
+
+Backend resolves and validates the target TEACHER and stores the authoritative recipient, tenant and issue actor. A client-supplied recipient identifier is a target selector, not authority to cross tenant or role boundaries.
 
 No binary/file/evidence content accepted.
 
@@ -473,6 +475,7 @@ Backend-owned values include:
 - message sender;
 - incident reporter/resolver;
 - consent recorder;
+- authoritative Document Notice recipient after same-tenant TEACHER resolution;
 - audit actor.
 
 Client-supplied server-owned fields should be forbidden unless an existing frozen endpoint explicitly defines otherwise.
