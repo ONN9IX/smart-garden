@@ -70,6 +70,7 @@ _ALLOWED_ACTIONS = {
     "document_notice": {"document_notice.issue", "document_notice.ack"},
     "photo_consent": {"photo_consent.record", "photo_consent.withdraw"},
     "photo_asset": {"photo.create", "photo.restrict", "photo.remove"},
+    "organization": {"organization.settings_update"},
 }
 _ALLOWED_CHANGED_FIELDS = {
     "name", "group_id", "first_name", "last_name", "middle_name", "birth_date",
@@ -97,15 +98,22 @@ _UUID_DETAIL_KEYS = {
 }
 
 
-def _validate_details(details: dict[str, Any]) -> None:
+def _validate_details(details: dict[str, Any], action: str) -> None:
     if set(details) - _ALLOWED_DETAIL_KEYS:
         raise ValueError("Audit details contain non-whitelisted keys")
     fields = details.get("changed_fields")
+    allowed_changed_fields = _ALLOWED_CHANGED_FIELDS | ({"timezone"} if action == "organization.settings_update" else set())
     if fields is not None and (
         not isinstance(fields, list)
-        or any(not isinstance(field, str) or field not in _ALLOWED_CHANGED_FIELDS for field in fields)
+        or any(not isinstance(field, str) or field not in allowed_changed_fields for field in fields)
     ):
         raise ValueError("Audit changed_fields are invalid")
+    if action == "organization.settings_update" and (
+        set(details) != {"changed_fields"}
+        or not fields
+        or any(field not in {"name", "timezone"} for field in fields)
+    ):
+        raise ValueError("Audit organization settings details are invalid")
     for key in ("status_before", "status_after"):
         if key in details and details[key] not in _ALLOWED_STATUSES:
             raise ValueError("Audit status is invalid")
@@ -157,7 +165,7 @@ def write(
     safe_details = details or {}
     if action not in _ALLOWED_ACTIONS.get(entity_type, set()):
         raise ValueError("Audit action/entity combination is invalid")
-    _validate_details(safe_details)
+    _validate_details(safe_details, action)
     event = AuditEvent(
         organization_id=actor.organization_id,
         actor_user_id=actor.id,
