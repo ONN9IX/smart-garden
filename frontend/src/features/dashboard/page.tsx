@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -59,8 +60,18 @@ function DashboardContent() {
       </div>
         {summary.groups.length === 0 ? <p className="empty-state">Активных групп пока нет.</p>
           : <ul className="dashboard-groups">{summary.groups.map((group) => <li className="card group-summary" key={group.id}>
-            <h3>{group.name}</h3><dl><div><dt>Дети</dt><dd>{group.active_children}</dd></div><div><dt>Присутствуют</dt><dd>{group.present}</dd></div><div><dt>Отсутствуют</dt><dd>{group.absent}</dd></div><div><dt>Без отметки</dt><dd>{group.unknown}</dd></div></dl>
+            <h3><Link className="text-link" href={`/groups/${group.id}`}>{group.name}</Link></h3><dl><div><dt>Дети</dt><dd>{group.active_children}</dd></div><div><dt>Присутствуют</dt><dd>{group.present}</dd></div><div><dt>Отсутствуют</dt><dd>{group.absent}</dd></div><div><dt>Без отметки</dt><dd>{group.unknown}</dd></div></dl>
           </li>)}</ul>}
+      </section>
+      <section className="section-space" aria-labelledby="quick-actions-heading">
+        <div className="section-heading"><div><h2 id="quick-actions-heading">Быстрые действия</h2><p className="muted">Переходы к уже доступным разделам управления.</p></div></div>
+        <ul className="record-list">
+          {[
+            ["/groups", "Группы"], ["/children", "Дети"], ["/guardians", "Родители"],
+            ["/employees", "Сотрудники"], ["/attendance", "Посещаемость"], ["/announcements", "Объявления"],
+            ...(current.user.role === "DIRECTOR" ? [["/audit", "Аудит"]] : []),
+          ].map(([href, label]) => <li key={href}><Link className="record-link" href={href}><strong>{label}</strong><span className="muted">Открыть раздел</span></Link></li>)}
+        </ul>
       </section>
       <section className="card context-card section-space" aria-labelledby="context-heading"><h2 id="context-heading">Текущий доступ</h2>
         <dl className="context-list"><div><dt>Детский сад</dt><dd>{current.organization.name}</dd></div><div><dt>Пользователь</dt><dd>{current.user.username}</dd></div><div><dt>Роль</dt><dd>{ROLE_LABELS[current.user.role] ?? "Пользователь"}</dd></div></dl>
