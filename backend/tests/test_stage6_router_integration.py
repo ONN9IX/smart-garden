@@ -19,7 +19,10 @@ def test_shared_router_extension_points_are_registered_without_placeholder_route
     assert 'app.include_router(teacher_router, prefix="/api/v1")' in source
     assert 'app.include_router(management_router, prefix="/api/v1")' in source
 
-    api_routes = [route for route in main_module.app.routes if route.path.startswith("/api/v1")]
+    api_routes = [
+        route for route in main_module.app.routes
+        if getattr(route, "path", "").startswith("/api/v1")
+    ]
     paths = {route.path for route in api_routes}
     assert {
         "/api/v1/auth/me",
