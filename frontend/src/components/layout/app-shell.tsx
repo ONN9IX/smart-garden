@@ -3,24 +3,24 @@
 /** Authenticated layout. Future modules remain disabled until their approved stages. */
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api/auth";
 import { userMessage } from "@/lib/api/client";
 import { useAuth } from "@/features/auth/auth-provider";
 import { ROLE_LABELS } from "@/types/auth";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-
-const futureSections = ["Настройки"];
+import { ManagementNav } from "@/components/layout/management-nav";
+import { TeacherNav } from "@/components/layout/teacher-nav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { current, clear } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   if (!current || current.user.role === "PARENT") return null;
+  const isTeacher = current.user.role === "TEACHER";
 
   async function logout() {
     if (busy) return;
@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return <div className="app-shell">
     <header className="app-header">
-      <Link href="/dashboard" className="brand" aria-label="Умный сад — главная"><span className="brand-mark" aria-hidden="true">✳</span> Умный сад</Link>
+      <Link href={isTeacher ? "/teacher" : "/dashboard"} className="brand" aria-label="Умный сад — главная"><span className="brand-mark" aria-hidden="true">✳</span> Умный сад</Link>
       <div className="header-actions">
         <span className="organization-name">{current.organization.name}</span>
         <div className="header-user"><strong>{current.user.username}</strong><span>{ROLE_LABELS[current.user.role] ?? "Пользователь"}</span></div>
@@ -48,18 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     {error && <div className="shell-alert"><Alert>{error}</Alert></div>}
     <div className="app-body">
       <aside className="sidebar" aria-label="Основное меню">
-        <nav>
-          <Link href="/dashboard" className={`nav-item ${pathname === "/dashboard" ? "active" : ""}`} aria-current={pathname === "/dashboard" ? "page" : undefined}>Главная</Link>
-          <Link href="/children" className={`nav-item ${pathname.startsWith("/children") ? "active" : ""}`} aria-current={pathname.startsWith("/children") ? "page" : undefined}>Дети</Link>
-          <Link href="/groups" className={`nav-item ${pathname.startsWith("/groups") ? "active" : ""}`} aria-current={pathname.startsWith("/groups") ? "page" : undefined}>Группы</Link>
-          <Link href="/guardians" className={`nav-item ${pathname.startsWith("/guardians") ? "active" : ""}`} aria-current={pathname.startsWith("/guardians") ? "page" : undefined}>Родители</Link>
-          <Link href="/employees" className={`nav-item ${pathname.startsWith("/employees") ? "active" : ""}`} aria-current={pathname.startsWith("/employees") ? "page" : undefined}>Сотрудники</Link>
-          <Link href="/attendance" className={`nav-item ${pathname.startsWith("/attendance") ? "active" : ""}`} aria-current={pathname.startsWith("/attendance") ? "page" : undefined}>Посещаемость</Link>
-          <Link href="/announcements" className={`nav-item ${pathname.startsWith("/announcements") ? "active" : ""}`} aria-current={pathname.startsWith("/announcements") ? "page" : undefined}>Объявления</Link>
-          {current.user.role === "DIRECTOR" && <Link href="/audit" className={`nav-item ${pathname.startsWith("/audit") ? "active" : ""}`} aria-current={pathname.startsWith("/audit") ? "page" : undefined}>Аудит</Link>}
-          {futureSections.map((section) => <span key={section} className="nav-item disabled" aria-disabled="true" title="Раздел будет реализован на следующем этапе">{section}</span>)}
-        </nav>
-        <p className="sidebar-note">Настройки появятся на следующих этапах.</p>
+        {isTeacher ? <TeacherNav /> : <ManagementNav role={current.user.role} />}
       </aside>
       <main className="main-content">{children}</main>
     </div>

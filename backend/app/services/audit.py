@@ -24,6 +24,18 @@ _ALLOWED_DETAIL_KEYS = {
     "after",
     "target_type",
     "group_id",
+    "employee_id",
+    "thread_id",
+    "poll_id",
+    "option_id",
+    "recipient_user_id",
+    "assignee_employee_id",
+    "photo_asset_id",
+    "document_notice_id",
+    "scope",
+    "category",
+    "thread_type",
+    "requires_ack",
 }
 _ALLOWED_ACTIONS = {
     "group": {"group.create", "group.update", "group.archive", "group.restore"},
@@ -33,20 +45,56 @@ _ALLOWED_ACTIONS = {
         "child_guardian.create", "child_guardian.update", "child_guardian.archive", "child_guardian.restore",
     },
     "employee": {"employee.create", "employee.update", "employee.archive", "employee.restore"},
-    "user_account": {"account.create", "account.reset_password", "account.block", "account.unblock"},
+    "user_account": {
+        "account.create", "account.reset_password", "account.block", "account.unblock",
+        "teacher_account.create", "teacher_account.reset", "teacher_account.block", "teacher_account.unblock",
+    },
     "attendance": {"attendance.create", "attendance.update"},
-    "announcement": {"announcement.create", "announcement.update", "announcement.archive"},
+    "announcement": {
+        "announcement.create", "announcement.update", "announcement.archive",
+        "teacher_announcement.create", "teacher_announcement.update", "teacher_announcement.archive",
+    },
+    "teacher_assignment": {
+        "teacher_assignment.create", "teacher_assignment.archive", "teacher_assignment.restore",
+    },
+    "group_schedule_item": {"schedule.create", "schedule.update", "schedule.archive"},
+    "communication_message": {"teacher_message.create"},
+    "child_diary_entry": {"diary.create", "diary.update"},
+    "poll": {"poll.create", "poll.close"},
+    "poll_vote": {"poll.vote"},
+    "incident": {"incident.create", "incident.update", "incident.resolve"},
+    "teacher_task": {
+        "teacher_task.create", "teacher_task.update", "teacher_task.cancel", "teacher_task.status",
+    },
+    "notification": {"notification.read"},
+    "document_notice": {"document_notice.issue", "document_notice.ack"},
+    "photo_consent": {"photo_consent.record", "photo_consent.withdraw"},
+    "photo_asset": {"photo.create", "photo.restrict", "photo.remove"},
 }
 _ALLOWED_CHANGED_FIELDS = {
     "name", "group_id", "first_name", "last_name", "middle_name", "birth_date",
     "phone", "email", "position", "relation_type", "status", "arrival_time", "departure_time",
     "target_type",
+    "weekday", "start_time", "end_time", "title", "date", "note", "question",
+    "options", "closes_at", "occurred_at", "category", "description", "due_at",
+    "assignee_employee_id", "requires_ack", "read_at", "acknowledged_at", "scope",
+    "effective_from", "effective_to", "captured_at", "mime_type", "size_bytes", "body",
 }
-_ALLOWED_STATUSES = {"active", "archived", "blocked"}
+_ALLOWED_STATUSES = {
+    "active", "archived", "blocked", "closed", "open", "in_progress", "done", "cancelled",
+    "resolved", "granted", "withdrawn", "restricted", "removed", "read", "unread", "issued",
+    "acknowledged",
+}
 _ALLOWED_RELATIONS = {"mother", "father", "legal_guardian", "other"}
-_ALLOWED_ACCOUNT_ROLES = {"ADMIN", "PARENT"}
+_ALLOWED_ACCOUNT_ROLES = {"ADMIN", "PARENT", "TEACHER"}
 _ALLOWED_ATTENDANCE_STATUSES = {"present", "absent", "unknown"}
 _ALLOWED_ANNOUNCEMENT_TARGETS = {"all", "group"}
+_ALLOWED_INCIDENT_CATEGORIES = {"safety", "behavior", "operational", "other"}
+_ALLOWED_THREAD_TYPES = {"group", "direct"}
+_UUID_DETAIL_KEYS = {
+    "child_id", "guardian_id", "group_id", "employee_id", "thread_id", "poll_id", "option_id",
+    "recipient_user_id", "assignee_employee_id", "photo_asset_id", "document_notice_id",
+}
 
 
 def _validate_details(details: dict[str, Any]) -> None:
@@ -65,13 +113,19 @@ def _validate_details(details: dict[str, Any]) -> None:
         raise ValueError("Audit account role is invalid")
     if "relation_type" in details and details["relation_type"] not in _ALLOWED_RELATIONS:
         raise ValueError("Audit relation type is invalid")
-    for key in ("child_id", "guardian_id"):
-        if key in details:
+    for key in _UUID_DETAIL_KEYS:
+        if key in details and details[key] is not None:
             UUID(str(details[key]))
     if "target_type" in details and details["target_type"] not in _ALLOWED_ANNOUNCEMENT_TARGETS:
         raise ValueError("Audit announcement target is invalid")
-    if "group_id" in details and details["group_id"] is not None:
-        UUID(str(details["group_id"]))
+    if "scope" in details and details["scope"] != "group_photo_report":
+        raise ValueError("Audit photo-consent scope is invalid")
+    if "category" in details and details["category"] not in _ALLOWED_INCIDENT_CATEGORIES:
+        raise ValueError("Audit incident category is invalid")
+    if "thread_type" in details and details["thread_type"] not in _ALLOWED_THREAD_TYPES:
+        raise ValueError("Audit thread type is invalid")
+    if "requires_ack" in details and not isinstance(details["requires_ack"], bool):
+        raise ValueError("Audit document acknowledgement flag is invalid")
     for key in ("before", "after"):
         if key not in details:
             continue

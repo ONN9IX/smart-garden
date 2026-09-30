@@ -21,6 +21,7 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.models.auth_session import AuthSession
+from app.models.employee import Employee
 from app.models.guardian import Guardian
 from app.models.user import User
 
@@ -36,6 +37,18 @@ def _parent_guardian_active(db: Session, user: User) -> None:
         Guardian.status == "active",
     ))
     if guardian is None:
+        raise AppError(403, "FORBIDDEN")
+
+
+def _teacher_employee_active(db: Session, user: User) -> None:
+    if user.role != "TEACHER":
+        return
+    employee = db.scalar(select(Employee.id).where(
+        Employee.user_id == user.id,
+        Employee.organization_id == user.organization_id,
+        Employee.status == "active",
+    ))
+    if employee is None:
         raise AppError(403, "FORBIDDEN")
 
 
@@ -63,9 +76,10 @@ def authenticate_credentials(db: Session, username: str, password: str) -> User:
         raise AppError(403, "USER_BLOCKED")
     if user.organization.status != "active":
         raise AppError(403, "ORGANIZATION_BLOCKED")
-    if user.role not in {"DIRECTOR", "ADMIN", "PARENT"}:
+    if user.role not in {"DIRECTOR", "ADMIN", "TEACHER", "PARENT"}:
         raise AppError(403, "FORBIDDEN")
     _parent_guardian_active(db, user)
+    _teacher_employee_active(db, user)
     return user
 
 
@@ -94,9 +108,10 @@ def current_identity(
         raise AppError(403, "USER_BLOCKED")
     if user.organization.status != "active":
         raise AppError(403, "ORGANIZATION_BLOCKED")
-    if user.role not in {"DIRECTOR", "ADMIN", "PARENT"}:
+    if user.role not in {"DIRECTOR", "ADMIN", "TEACHER", "PARENT"}:
         raise AppError(403, "FORBIDDEN")
     _parent_guardian_active(db, user)
+    _teacher_employee_active(db, user)
     return user
 
 

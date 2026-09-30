@@ -4,6 +4,7 @@
 export const ROLES = {
   DIRECTOR: "DIRECTOR",
   ADMIN: "ADMIN",
+  TEACHER: "TEACHER",
   PARENT: "PARENT",
 } as const;
 
@@ -35,6 +36,7 @@ export interface LogoutResult {
 export const ROLE_LABELS: Record<Role, string> = {
   [ROLES.DIRECTOR]: "Директор",
   [ROLES.ADMIN]: "Администратор",
+  [ROLES.TEACHER]: "Воспитатель",
   [ROLES.PARENT]: "Родитель",
 };
 

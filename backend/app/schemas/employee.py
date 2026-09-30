@@ -58,7 +58,7 @@ class EmployeePatch(BaseModel):
 class EmployeeAccountSummary(BaseModel):
     id: UUID
     username: str
-    role: Literal["ADMIN"]
+    role: Literal["ADMIN", "TEACHER"]
     status: Literal["active", "blocked"]
     must_change_password: bool
 
