@@ -69,7 +69,6 @@ function DashboardContent() {
           {[
             ["/groups", "Работа с группами"], ["/children", "Карточки детей"], ["/guardians", "Контакты родителей"],
             ["/employees", "Карточки сотрудников"], ["/attendance", "Отметки посещения"], ["/announcements", "Публикации"],
-            ...(current.user.role === "DIRECTOR" ? [["/audit", "Журнал событий"]] : []),
           ].map(([href, label]) => <li key={href}><Link className="record-link" href={href}><strong>{label}</strong><span className="muted">Открыть раздел</span></Link></li>)}
         </ul>
       </section>
