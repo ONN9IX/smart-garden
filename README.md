@@ -19,7 +19,7 @@
 
 ## Текущий фокус
 
-Stage 1–5 technical scope принят и FROZEN. Stage 1–4 содержат бизнес-функции MVP; Stage 5 добавляет production/security hardening, проверяемое резервное копирование и восстановление PostgreSQL, supply-chain CI, очистку истёкших auth sessions и операционные runbooks. Следующий implementation Stage не утверждён. Для актуальной работы разработчики используют `AGENTS.md` → `docs/CURRENT_STATE.md` → текущую Issue. СКУД/планшет на входе, платежи, AI, фото и сложные интеграции пока не входят в разработку.
+Stage 1–5 technical scope принят и FROZEN. Stage 1–4 содержат бизнес-функции MVP; Stage 5 добавляет production/security hardening, проверяемое резервное копирование и восстановление PostgreSQL, supply-chain CI, очистку истёкших auth sessions и операционные runbooks. Stage 6 TEACHER architecture и безопасная схема параллельной разработки зафиксированы Issue #121, но implementation НЕ НАЧАТА. Следующий gate — сериализованный `S6-FOUNDATION`; параллельные ONN9IX/F1zname tracks запрещены до его merge и зелёного post-merge CI. Для актуальной работы разработчики используют `AGENTS.md` → `docs/CURRENT_STATE.md` → текущую Issue. СКУД/планшет на входе, платежи, AI, фото и сложные интеграции пока не входят в разработку.
 
 Техническая приёмка Stage 5 не разрешает реальный pilot или реальные персональные данные. До пилота необходимо отдельно закрыть legal/privacy/infrastructure checklist, включая роли участников обработки, hosting/data location, subprocessors/data flows, business retention, backup policy, access administration и deployment-level login-abuse verification. Dev/test/preview/recovery используют только синтетические данные.
 
@@ -80,6 +80,10 @@ Stage 1–5 technical scope принят и FROZEN. Stage 1–4 содержат
 - `docs/33-stage-5-ci-toolchain-supply-chain.md` — required CI, toolchain и dependency security.
 - `docs/34-stage-5-operations-session-cleanup.md` — session cleanup и pilot operations runbooks.
 - `docs/35-stage-5-acceptance.md` — финальная техническая приёмка и freeze Stage 5.
+- `docs/36-stage-6-teacher-design-and-decisions.md` — frozen scope, identity, assignment и privacy boundaries кабинета TEACHER.
+- `docs/37-stage-6-permissions-and-api.md` — frozen permission matrix, server-side access и Stage 6 API.
+- `docs/38-stage-6-data-model-privacy-and-tests.md` — complete Foundation schema, audit/privacy и mandatory negative tests.
+- `docs/39-stage-6-parallel-delivery-plan.md` — единый Foundation gate, reserved shared files и одна автономная full-cabinet доставка Track B параллельно только с disjoint Track A Issues.
 - `CONTRIBUTING.md` — короткие правила ежедневной разработки и PR.
 
 ## Единая архитектура
