@@ -7,7 +7,6 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.core.organization_time import organization_today
 from app.models.child import Child
 from app.models.child_diary_entry import ChildDiaryEntry
 from app.models.communication import CommunicationMessage, CommunicationThread
@@ -126,7 +125,7 @@ def _active_assignment(db: Session, actor: User, employee_id: UUID, group_id: UU
         TeacherGroupAssignment.status == "active",
     ))
     if assignment is None:
-        raise AppError(409, "TEACHER_ASSIGNMENT_REQUIRED")
+        raise AppError(409, "VALIDATION_ERROR", "group_id")
     return assignment
 
 
@@ -347,7 +346,7 @@ def list_schedule(db: Session, actor: User, group_id: UUID | None, status: str) 
 def create_schedule(db: Session, actor: User, payload: ScheduleCreate) -> ScheduleItemResponse:
     _group(db, actor, payload.group_id, active=True)
     if payload.end_time <= payload.start_time:
-        raise AppError(400, "INVALID_SCHEDULE_TIME")
+        raise AppError(400, "VALIDATION_ERROR", "end_time")
     item = GroupScheduleItem(
         organization_id=actor.organization_id,
         group_id=payload.group_id,
@@ -372,7 +371,7 @@ def create_schedule(db: Session, actor: User, payload: ScheduleCreate) -> Schedu
 def update_schedule(db: Session, actor: User, item_id: UUID, payload: SchedulePatch) -> ScheduleItemResponse:
     item = _schedule_item(db, actor, item_id, lock=True)
     if item.status != "active":
-        raise AppError(409, "SCHEDULE_ARCHIVED")
+        raise AppError(409, "VALIDATION_ERROR")
     data = payload.model_dump(exclude_unset=True)
     if "group_id" in data:
         if data["group_id"] is None:
@@ -544,7 +543,10 @@ def _poll_response(db: Session, poll: Poll) -> PollResponse:
             PollOption.sort_order,
             func.count(PollVote.id).label("vote_count"),
         )
-        .outerjoin(PollVote, PollVote.option_id == PollOption.id)
+        .outerjoin(PollVote, and_(
+            PollVote.option_id == PollOption.id,
+            PollVote.organization_id == poll.organization_id,
+        ))
         .where(PollOption.poll_id == poll.id)
         .group_by(PollOption.id, PollOption.label, PollOption.sort_order)
         .order_by(PollOption.sort_order, PollOption.id)
@@ -612,7 +614,7 @@ def create_poll(db: Session, actor: User, payload: PollCreate) -> PollResponse:
 def close_poll(db: Session, actor: User, poll_id: UUID) -> PollResponse:
     poll = _poll(db, actor, poll_id, lock=True)
     if poll.status == "archived":
-        raise AppError(409, "POLL_ARCHIVED")
+        raise AppError(409, "VALIDATION_ERROR")
     if poll.status != "closed":
         poll.status = "closed"
         audit.write(db, actor, "poll.close", "poll", poll.id, {
@@ -817,7 +819,7 @@ def create_task(db: Session, actor: User, payload: TeacherTaskCreate) -> Teacher
 def update_task(db: Session, actor: User, task_id: UUID, payload: TeacherTaskPatch) -> TeacherTaskResponse:
     item = _task(db, actor, task_id, lock=True)
     if item.status == "cancelled":
-        raise AppError(409, "TASK_CANCELLED")
+        raise AppError(409, "VALIDATION_ERROR")
     data = payload.model_dump(exclude_unset=True)
     target_employee = data.get("assignee_employee_id", item.assignee_employee_id)
     target_group = data.get("group_id", item.group_id)
