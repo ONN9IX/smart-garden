@@ -259,7 +259,7 @@ Required ADMIN functionality:
 - Payments;
 - Reconciliation;
 - debt/overpayment;
-- reversal/refund only if exact permission is frozen in implementation Issue consistent with docs/45;
+- read reversal/refund results; manual reversal/refund actions remain DIRECTOR-only;
 - Receipt metadata/content where operationally justified.
 
 Must not expose:
