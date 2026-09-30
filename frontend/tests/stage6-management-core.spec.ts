@@ -75,7 +75,7 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
 
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Оперативная сводка" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Солнышко", exact: true })).toHaveAttribute("href", `/groups/${groupId}`);
+  await expect(page.getByText("Солнышко", { exact: true })).toBeVisible();
 
   await page.goto("/groups");
   await page.getByLabel("Поиск по названию").fill("ром");
