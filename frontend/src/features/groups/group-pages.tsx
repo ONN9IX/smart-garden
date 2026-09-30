@@ -27,6 +27,7 @@ function GroupsContent() {
   const router = useRouter();
   const [status, setStatus] = useState<StatusFilter>("active");
   const [groups, setGroups] = useState<Group[]>([]);
+  const [search, setSearch] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -46,6 +47,7 @@ function GroupsContent() {
   }, [status]);
 
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  const visibleGroups = groups.filter((group) => group.name.toLocaleLowerCase("ru").includes(search.trim().toLocaleLowerCase("ru")));
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
@@ -73,13 +75,15 @@ function GroupsContent() {
         <Button type="submit" disabled={busy}>{busy ? "Сохранение..." : "Создать группу"}</Button>
       </form>
     </section>
-    <section className="section-space"><div className="section-heading"><h2>Список групп</h2>
-      <label>Показать <select className="input compact-input" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}><option value="active">Активные</option><option value="archived">Архив</option></select></label>
-    </div>
+    <section className="section-space"><div className="section-heading"><h2>Список групп</h2></div>
+      <div className="filter-row">
+        <label>Показать <select className="input" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}><option value="active">Активные</option><option value="archived">Архив</option><option value="all">Все</option></select></label>
+        <label>Поиск по названию <Input value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+      </div>
       {error && <Alert>{error}</Alert>}
-      {loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : groups.length === 0
-        ? <p className="empty-state">Групп пока нет.</p>
-        : <ul className="record-list">{groups.map((group) => <li key={group.id}><Link href={`/groups/${group.id}`} className="record-link"><strong>{group.name}</strong><span className="muted">{group.status === "active" ? "Активна" : "В архиве"}</span></Link></li>)}</ul>}
+      {loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : visibleGroups.length === 0
+        ? <p className="empty-state">Группы не найдены.</p>
+        : <ul className="record-list">{visibleGroups.map((group) => <li key={group.id}><Link href={`/groups/${group.id}`} className="record-link"><strong>{group.name}</strong><span className="muted">{group.status === "active" ? "Активна" : "В архиве"}</span></Link></li>)}</ul>}
     </section>
   </AppShell>;
 }
@@ -137,7 +141,8 @@ function GroupDetail({ id }: { id: string }) {
 
   async function changeStatus() {
     if (!group || busy) return;
-    if (group.status === "active" && !window.confirm("Архивировать группу?")) return;
+    const confirmation = group.status === "active" ? "Архивировать группу?" : "Восстановить группу?";
+    if (!window.confirm(confirmation)) return;
     setBusy(true);
     setError("");
     setMessage("");

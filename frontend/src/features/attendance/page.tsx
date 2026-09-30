@@ -35,17 +35,26 @@ function AttendanceContent() {
     setLoading(true); setError("");
     try {
       // Fetch the eligible set before applying the child selector, so it never traps the choice.
-      const [result, groupList] = await Promise.all([attendanceApi.list(day, groupId, status), groupsApi.list("all")]);
+      const [result, groupList] = await Promise.all([attendanceApi.list(day, groupId), groupsApi.list("all")]);
       if (currentRequest !== request.current) return;
       setRows(result.items); setGroups(groupList.items);
     } catch (reason) { if (currentRequest === request.current) setError(userMessage(reason)); }
     finally { if (currentRequest === request.current) setLoading(false); }
-  }, [day, groupId, status]);
+  }, [day, groupId]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
-  const visible = childId ? rows.filter((row) => row.child.id === childId) : rows;
+  const statusRows = status === "all" ? rows : rows.filter((row) => row.status === status);
+  const visible = childId ? statusRows.filter((row) => row.child.id === childId) : statusRows;
+  const counts = rows.reduce((total, row) => ({ ...total, [row.status]: total[row.status] + 1 }), { present: 0, absent: 0, unknown: 0 });
   return <AppShell><div className="page-heading"><span className="eyebrow">Учёт</span><h1>Посещаемость</h1><p>Ручные отметки детей за выбранный день.</p></div>
-    <div className="filter-row"><label>Дата <Input type="date" value={day} max={localDate()} onChange={(event) => { invalidate(); setDay(event.target.value); setGroupId(""); setStatus("all"); setChildId(""); }} /></label><label>Группа <select className="input" value={groupId} onChange={(event) => { invalidate(); setGroupId(event.target.value); setChildId(""); }}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><label>Статус <select className="input" value={status} onChange={(event) => { invalidate(); setStatus(event.target.value as typeof status); setChildId(""); }}><option value="all">Все</option><option value="present">Присутствует</option><option value="absent">Отсутствует</option><option value="unknown">Без отметки</option></select></label><label>Ребёнок <select className="input" value={childId} onChange={(event) => setChildId(event.target.value)}><option value="">Все дети</option>{rows.map((row) => <option key={row.child.id} value={row.child.id}>{row.child.last_name} {row.child.first_name}</option>)}</select></label></div>
-    {error && <Alert>{error}</Alert>}{loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : visible.length === 0 ? <p className="empty-state">На эту дату дети не найдены.</p> : <div className="attendance-list">{visible.map((row) => <AttendanceItem key={`${row.date}:${row.child.id}`} row={row} refresh={load} />)}</div>}
+    <div className="filter-row"><label>Дата <Input type="date" value={day} max={localDate()} onChange={(event) => { invalidate(); setDay(event.target.value); setGroupId(""); setStatus("all"); setChildId(""); }} /></label><label>Группа <select className="input" value={groupId} onChange={(event) => { invalidate(); setGroupId(event.target.value); setChildId(""); }}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><label>Статус <select className="input" value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setChildId(""); }}><option value="all">Все</option><option value="present">Присутствует</option><option value="absent">Отсутствует</option><option value="unknown">Без отметки</option></select></label><label>Ребёнок <select className="input" value={childId} onChange={(event) => setChildId(event.target.value)}><option value="">Все дети</option>{statusRows.map((row) => <option key={row.child.id} value={row.child.id}>{row.child.last_name} {row.child.first_name}</option>)}</select></label></div>
+    {error && <Alert>{error}</Alert>}
+    {!loading && !error && <section className="dashboard-grid" aria-label="Сводка посещаемости">
+      <article className="card metric-card"><span>Всего</span><strong>{rows.length}</strong></article>
+      <article className="card metric-card"><span>Присутствуют</span><strong>{counts.present}</strong></article>
+      <article className="card metric-card"><span>Отсутствуют</span><strong>{counts.absent}</strong></article>
+      <article className="card metric-card"><span>Без отметки</span><strong>{counts.unknown}</strong></article>
+    </section>}
+    {loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : visible.length === 0 ? <p className="empty-state">По выбранным фильтрам дети не найдены.</p> : <div className="attendance-list">{visible.map((row) => <AttendanceItem key={`${row.date}:${row.child.id}`} row={row} refresh={load} />)}</div>}
   </AppShell>;
 }
 

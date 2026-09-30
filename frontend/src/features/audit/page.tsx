@@ -63,6 +63,12 @@ function AuditContent() {
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      setItems([]);
+      setError("Дата начала не может быть позже даты окончания.");
+      setLoading(false);
+      return;
+    }
     try {
       const result = await auditApi.list({
         entity_type: entityType || undefined, action: action || undefined,
@@ -75,6 +81,7 @@ function AuditContent() {
 
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
   const resetPage = () => setOffset(0);
+  const resetFilters = () => { setEntityType(""); setAction(""); setDateFrom(""); setDateTo(""); setLimit(50); setOffset(0); };
 
   return <AppShell>
     <div className="page-heading"><span className="eyebrow">Безопасность</span><h1>Журнал аудита</h1>
@@ -91,6 +98,7 @@ function AuditContent() {
       <label>На странице <select className="input" value={limit} onChange={(event) => { resetPage(); setLimit(Number(event.target.value)); }}>
         {[25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
       </select></label>
+      <Button type="button" variant="secondary" onClick={resetFilters}>Сбросить фильтры</Button>
     </div>
     {error && <Alert>{error}</Alert>}
     {loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button>

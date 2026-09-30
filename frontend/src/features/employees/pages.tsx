@@ -47,10 +47,11 @@ function EmployeesContent() {
     finally { setLoading(false); }
   }, [status]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
-  const visible = items.filter((item) => name(item).toLocaleLowerCase("ru").includes(search.trim().toLocaleLowerCase("ru")));
+  const term = search.trim().toLocaleLowerCase("ru");
+  const visible = items.filter((item) => `${name(item)} ${item.position}`.toLocaleLowerCase("ru").includes(term));
   return <AppShell><div className="page-heading"><span className="eyebrow">Управление</span><h1>Сотрудники</h1><p>Карточки сотрудников вашего сада.</p><Link className="button button-primary" href="/employees/new">Добавить сотрудника</Link></div>
-    <div className="filter-row"><label>Статус <select className="input" value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="active">Активные</option><option value="archived">Архив</option><option value="all">Все</option></select></label><label>Поиск по имени <Input value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
-    {error && <Alert>{error}</Alert>}{loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : visible.length === 0 ? <p className="empty-state">Сотрудники не найдены.</p> : <ul className="record-list">{visible.map((item) => <li key={item.id}><Link className="record-link" href={`/employees/${item.id}`}><strong>{name(item)}</strong><span className="muted">{item.position} · {item.status === "active" ? "Активен" : "Архив"} · {item.account ? "Доступ ADMIN" : "Без доступа"}</span></Link></li>)}</ul>}
+    <div className="filter-row"><label>Статус <select className="input" value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="active">Активные</option><option value="archived">Архив</option><option value="all">Все</option></select></label><label>Поиск по имени или должности <Input value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
+    {error && <Alert>{error}</Alert>}{loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : visible.length === 0 ? <p className="empty-state">Сотрудники не найдены.</p> : <ul className="record-list">{visible.map((item) => <li key={item.id}><Link className="record-link" href={`/employees/${item.id}`}><strong>{name(item)}</strong><span className="muted">{item.position} · {item.status === "active" ? "Активен" : "Архив"} · {item.account ? `ADMIN: ${item.account.status === "active" ? "активен" : "заблокирован"}` : "Без аккаунта"}</span></Link></li>)}</ul>}
   </AppShell>;
 }
 

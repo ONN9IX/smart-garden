@@ -39,15 +39,24 @@ export function AnnouncementsPage() {
 function AnnouncementsContent() {
   const [status, setStatus] = useState<AnnouncementStatusFilter>("active");
   const [targetType, setTargetType] = useState<AnnouncementTarget | "">("");
+  const [groupId, setGroupId] = useState("");
+  const [groups, setGroups] = useState<Group[]>([]);
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    try { setItems((await announcementsApi.list(status, targetType || undefined)).items); }
+    try {
+      const [result, groupList] = await Promise.all([
+        announcementsApi.list(status, targetType || undefined, groupId || undefined),
+        groupsApi.list("active"),
+      ]);
+      setItems(result.items);
+      setGroups(groupList.items);
+    }
     catch (reason) { setError(userMessage(reason)); }
     finally { setLoading(false); }
-  }, [status, targetType]);
+  }, [groupId, status, targetType]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
 
   return <AppShell>
@@ -57,9 +66,10 @@ function AnnouncementsContent() {
       <label>Статус <select className="input" value={status} onChange={(event) => setStatus(event.target.value as AnnouncementStatusFilter)}>
         <option value="active">Активные</option><option value="archived">Архив</option><option value="all">Все</option>
       </select></label>
-      <label>Получатели <select className="input" value={targetType} onChange={(event) => setTargetType(event.target.value as AnnouncementTarget | "")}>
+      <label>Получатели <select className="input" value={targetType} onChange={(event) => { const value = event.target.value as AnnouncementTarget | ""; setTargetType(value); if (value !== "group") setGroupId(""); }}>
         <option value="">Все</option><option value="all">Весь детский сад</option><option value="group">Группа</option>
       </select></label>
+      {targetType === "group" && <label>Группа <select aria-label="Фильтр по группе" className="input" value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
     </div>
     {error && <Alert>{error}</Alert>}
     {loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button>

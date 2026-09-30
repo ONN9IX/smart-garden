@@ -141,7 +141,10 @@ function GuardianDetail({ id }: { id: string }) {
   }
   async function changeStatus() {
     if (!guardian || busy) return;
-    if (guardian.status === "active" && !window.confirm("Архивировать представителя? Связанный аккаунт родителя будет заблокирован.")) return;
+    const confirmation = guardian.status === "active"
+      ? "Архивировать представителя? Связанный аккаунт родителя будет заблокирован."
+      : "Восстановить карточку представителя? Связанный аккаунт останется заблокированным, пока его не разблокируют отдельно.";
+    if (!window.confirm(confirmation)) return;
     setBusy(true); setError(""); setMessage("");
     try {
       setGuardian(guardian.status === "active" ? await guardiansApi.archive(id) : await guardiansApi.restore(id));
