@@ -67,9 +67,9 @@ function DashboardContent() {
         <div className="section-heading"><div><h2 id="quick-actions-heading">Быстрые действия</h2><p className="muted">Переходы к уже доступным разделам управления.</p></div></div>
         <ul className="record-list">
           {[
-            ["/groups", "Группы"], ["/children", "Дети"], ["/guardians", "Родители"],
-            ["/employees", "Сотрудники"], ["/attendance", "Посещаемость"], ["/announcements", "Объявления"],
-            ...(current.user.role === "DIRECTOR" ? [["/audit", "Аудит"]] : []),
+            ["/groups", "Работа с группами"], ["/children", "Карточки детей"], ["/guardians", "Контакты родителей"],
+            ["/employees", "Карточки сотрудников"], ["/attendance", "Отметки посещения"], ["/announcements", "Публикации"],
+            ...(current.user.role === "DIRECTOR" ? [["/audit", "Журнал событий"]] : []),
           ].map(([href, label]) => <li key={href}><Link className="record-link" href={href}><strong>{label}</strong><span className="muted">Открыть раздел</span></Link></li>)}
         </ul>
       </section>
