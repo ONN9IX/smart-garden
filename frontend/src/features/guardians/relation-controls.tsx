@@ -46,7 +46,7 @@ export function ChildRelations({ child, refresh }: { child: Child; refresh: () =
       <div className="section-heading"><Link className="text-link" href={`/guardians/${relation.guardian.id}`}>{relation.guardian.last_name} {relation.guardian.first_name}</Link><span>{relation.status === "active" ? "Активная связь" : "Архив связи"}</span></div>
       <div className="action-row section-space"><label htmlFor={`relation-${relation.id}`}>Отношение</label><RelationSelect id={`relation-${relation.id}`} value={relation.relation_type} disabled={busy || relation.status !== "active"} change={(value) => void run(() => childrenApi.updateLink(child.id, relation.guardian.id, value))} />
         {relation.status === "active" ? <Button variant="secondary" disabled={busy} onClick={() => { if (window.confirm("Убрать связь с представителем?")) void run(() => childrenApi.archiveLink(child.id, relation.guardian.id)); }}>Убрать связь</Button>
-          : <Button variant="secondary" disabled={busy} onClick={() => void run(() => childrenApi.restoreLink(child.id, relation.guardian.id))}>Восстановить связь</Button>}
+          : <Button variant="secondary" disabled={busy} onClick={() => { if (window.confirm("Восстановить связь с представителем?")) void run(() => childrenApi.restoreLink(child.id, relation.guardian.id)); }}>Восстановить связь</Button>}
       </div>
     </li>)}</ul> : <p className="empty-state">Представители пока не связаны с карточкой.</p>}
     {child.status === "active" && <div className="card section-card section-space"><h3>Добавить представителя</h3>
@@ -87,7 +87,7 @@ export function GuardianRelations({ guardian, refresh }: { guardian: Guardian; r
       <Link className="text-link" href={`/children/${relation.child.id}`}>{relation.child.last_name} {relation.child.first_name}</Link><p>{relation.child.group.name} · {relation.relation_status === "active" ? "Активная связь" : "Архив связи"}</p>
       <div className="action-row"><label htmlFor={`guardian-relation-${relation.relation_id}`}>Отношение</label><RelationSelect id={`guardian-relation-${relation.relation_id}`} value={relation.relation_type} disabled={busy || relation.relation_status !== "active"} change={(value) => void run(() => childrenApi.updateLink(relation.child.id, guardian.id, value))} />
         {relation.relation_status === "active" ? <Button variant="secondary" disabled={busy} onClick={() => { if (window.confirm("Убрать связь с ребёнком?")) void run(() => childrenApi.archiveLink(relation.child.id, guardian.id)); }}>Убрать связь</Button>
-          : <Button variant="secondary" disabled={busy} onClick={() => void run(() => childrenApi.restoreLink(relation.child.id, guardian.id))}>Восстановить связь</Button>}
+          : <Button variant="secondary" disabled={busy} onClick={() => { if (window.confirm("Восстановить связь с ребёнком?")) void run(() => childrenApi.restoreLink(relation.child.id, guardian.id)); }}>Восстановить связь</Button>}
       </div>
     </li>)}</ul> : <p className="empty-state">Связанных детей пока нет.</p>}
     {guardian.status === "active" && <div className="card section-card section-space"><h3>Связать с ребёнком</h3>{loading ? <Loading /> : <div className="filter-row">
