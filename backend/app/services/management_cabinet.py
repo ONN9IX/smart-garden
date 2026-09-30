@@ -701,11 +701,7 @@ def create_incident(db: Session, actor: User, payload: IncidentCreate) -> Incide
 def update_incident(db: Session, actor: User, incident_id: UUID, payload: IncidentPatch) -> IncidentResponse:
     item = _incident(db, actor, incident_id, lock=True)
     data = payload.model_dump(exclude_unset=True)
-    target_group = data.get("group_id", item.group_id)
-    target_child = data.get("child_id", item.child_id)
-    if target_group is None:
-        raise AppError(400, "VALIDATION_ERROR", "group_id")
-    _incident_context(db, actor, target_group, target_child)
+    _incident_context(db, actor, item.group_id, item.child_id)
 
     before_status = item.status
     changed: list[str] = []
