@@ -33,7 +33,7 @@
 | Read balances/debt | Yes | Yes | No | Own eligible only |
 | Record manual Payment metadata | Yes | Yes | No | No |
 | Reconcile/allocate Payment | Yes | Yes | No | No |
-| Reverse/refund Payment | Yes | Yes with explicit permission | No | No |
+| Reverse/refund Payment | Yes | No | No | No |
 | Read payment history | Yes | Yes | No | Own eligible only |
 | Register/read Receipt metadata | Yes | Yes | No | Own eligible only |
 | Read authenticated Receipt content | Yes | Yes if operationally required | No | Own eligible only |
@@ -264,7 +264,7 @@ Proposed routes:
 - `POST /api/v1/billing/charges/{charge_id}/cancel`
 - `POST /api/v1/billing/charges/{charge_id}/correct`
 
-DIRECTOR/ADMIN may operate according to the permission matrix.
+DIRECTOR/ADMIN may operate according to the permission matrix. Manual reversal/refund commands are DIRECTOR-only; provider-originated reversals/refunds may be applied server-side after authenticated provider-event validation.
 
 Issued amount/date/contract history is not overwritten by generic PATCH.
 
@@ -276,8 +276,8 @@ Core management routes:
 - `POST /api/v1/billing/payments/manual`
 - `GET /api/v1/billing/payments/{payment_id}`
 - `POST /api/v1/billing/payments/{payment_id}/allocate`
-- `POST /api/v1/billing/payments/{payment_id}/reverse`
-- `POST /api/v1/billing/payments/{payment_id}/refund`
+- `POST /api/v1/billing/payments/{payment_id}/reverse` — DIRECTOR only for manual management action
+- `POST /api/v1/billing/payments/{payment_id}/refund` — DIRECTOR only for manual management action
 
 A manual Payment request includes only business-safe fields such as:
 
