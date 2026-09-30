@@ -1,7 +1,7 @@
 # Stage 6 — DIRECTOR / ADMIN Permissions and API Contract
 
-**Status:** design proposal for Issue #123; frozen only after PR merge.  
-**Owner:** ONN9IX.  
+**Status:** design proposal for Issue #123; frozen only after PR merge.
+**Owner:** ONN9IX.
 **All routes:** under `/api/v1`.
 
 ## 1. Authorization invariants

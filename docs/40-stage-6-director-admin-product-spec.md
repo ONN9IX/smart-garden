@@ -1,9 +1,9 @@
 # Stage 6 — DIRECTOR / ADMIN Cabinet Product Specification
 
-**Status:** design proposal for Issue #123; becomes frozen only after the design PR merges.  
-**Owner:** ONN9IX.  
-**Track:** Stage 6 Track A — DIRECTOR / ADMIN.  
-**Implementation:** NOT STARTED.  
+**Status:** design proposal for Issue #123; becomes frozen only after the design PR merges.
+**Owner:** ONN9IX.
+**Track:** Stage 6 Track A — DIRECTOR / ADMIN.
+**Implementation:** NOT STARTED.
 **Compatibility:** Stages 1–5 remain frozen; TEACHER Track B remains independently owned.
 
 ## 1. Goal
@@ -682,8 +682,8 @@ Every major screen covers:
 - success;
 - error.
 
-401 -> login/auth flow.  
-403 -> safe forbidden state.  
+401 -> login/auth flow.
+403 -> safe forbidden state.
 404 -> safe not-found/non-disclosure state.
 
 Frontend must not reveal that a hidden UUID belongs to another tenant.

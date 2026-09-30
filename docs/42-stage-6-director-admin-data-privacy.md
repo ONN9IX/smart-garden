@@ -1,7 +1,7 @@
 # Stage 6 — DIRECTOR / ADMIN Data, Privacy and Security Contract
 
-**Status:** design proposal for Issue #123; frozen only after PR merge.  
-**Owner:** ONN9IX.  
+**Status:** design proposal for Issue #123; frozen only after PR merge.
+**Owner:** ONN9IX.
 **Purpose:** data minimization, tenant isolation, RBAC, Audit/logging/browser-storage boundaries and mandatory negative tests.
 
 This is a technical privacy/security contract, not a legal opinion or authorization for real personal data.

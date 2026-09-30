@@ -1,7 +1,7 @@
 # Stage 6 — DIRECTOR / ADMIN Delivery Plan
 
-**Status:** design proposal for Issue #123; frozen only after PR merge.  
-**Owner:** ONN9IX.  
+**Status:** design proposal for Issue #123; frozen only after PR merge.
+**Owner:** ONN9IX.
 **Track:** Stage 6 Track A — DIRECTOR / ADMIN.
 
 ## 1. Goal
@@ -260,40 +260,40 @@ Any conflict triggers STOP -> Master Chat.
 
 One Attendance model.
 
-Track A: all-management operations through existing API.  
+Track A: all-management operations through existing API.
 Track B: assigned-group teacher operations.
 
 ### Announcements
 
 One Announcement model.
 
-Track A: existing management all/group announcement API.  
+Track A: existing management all/group announcement API.
 Track B: teacher own assigned-Group announcements.
 
 ### Tasks
 
 One TeacherTask model.
 
-Track A: create/manage/assign.  
+Track A: create/manage/assign.
 Track B: own read/status.
 
 ### Incidents
 
 One Incident model.
 
-Track A: same-tenant operational management.  
+Track A: same-tenant operational management.
 Track B: assigned Group.
 
 ### Communication
 
-Track A: canonical Group thread management.  
+Track A: canonical Group thread management.
 Track B: Group and direct TEACHER↔PARENT participant flows.
 
 Track A never gains blanket direct-thread access.
 
 ### Photos
 
-Track A: consent state and minimal administrative metadata.  
+Track A: consent state and minimal administrative metadata.
 Track B: consent-gated teacher/parent content flows.
 
 Production storage remains fail-closed.
