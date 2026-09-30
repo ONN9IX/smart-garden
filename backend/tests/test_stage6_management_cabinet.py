@@ -1,13 +1,11 @@
 """Stage 6 DIRECTOR/ADMIN cabinet integration, tenant/RBAC and privacy coverage."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 from uuid import UUID
 
-from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.core.security import hash_password
-from app.main import app
 from app.models.audit_event import AuditEvent
 from app.models.child import Child
 from app.models.child_diary_entry import ChildDiaryEntry
@@ -268,7 +266,7 @@ def test_management_admin_permissions_and_operational_access(client, db, users):
 
 
 def test_management_tenant_and_schema_boundaries(client, db, users):
-    organization, other, _, _ = users
+    _, other, _, _ = users
     _director(client, db, users)
 
     foreign_group = Group(organization_id=other.id, name="Чужая группа управления", status="active")
