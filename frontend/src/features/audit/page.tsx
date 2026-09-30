@@ -13,7 +13,7 @@ import type { AuditEvent } from "@/types/stage4";
 
 const entityTypes = [
   "group", "child", "guardian", "child_guardian", "employee", "user_account", "attendance", "announcement",
-  "teacher_group_assignment", "group_schedule_item", "communication_message", "child_diary_entry", "poll",
+  "teacher_assignment", "group_schedule_item", "communication_message", "child_diary_entry", "poll",
   "incident", "teacher_task", "notification", "document_notice", "photo_consent", "photo_asset", "organization",
 ];
 const actions = [
@@ -23,6 +23,7 @@ const actions = [
   "child_guardian.create", "child_guardian.update", "child_guardian.archive", "child_guardian.restore",
   "employee.create", "employee.update", "employee.archive", "employee.restore",
   "account.create", "account.reset_password", "account.block", "account.unblock",
+  "teacher_account.create", "teacher_account.reset", "teacher_account.block", "teacher_account.unblock",
   "attendance.create", "attendance.update",
   "announcement.create", "announcement.update", "announcement.archive",
   "teacher_assignment.create", "teacher_assignment.archive", "teacher_assignment.restore",
@@ -30,8 +31,8 @@ const actions = [
   "teacher_message.create", "diary.create", "diary.update",
   "poll.create", "poll.close", "poll.vote",
   "incident.create", "incident.update", "incident.resolve",
-  "teacher_task.create", "teacher_task.update", "teacher_task.cancel",
-  "notification.read", "document_notice.issue", "document_notice.acknowledge",
+  "teacher_task.create", "teacher_task.update", "teacher_task.cancel", "teacher_task.status",
+  "notification.read", "document_notice.issue", "document_notice.ack",
   "photo_consent.record", "photo_consent.withdraw", "photo.create", "photo.restrict", "photo.remove",
   "organization.settings_update",
 ];
