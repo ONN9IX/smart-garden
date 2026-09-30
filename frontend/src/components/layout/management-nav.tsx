@@ -4,24 +4,39 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@/types/auth";
 
-const futureSections = ["Настройки"];
-
 function navClass(active: boolean) { return `nav-item ${active ? "active" : ""}`; }
 
 export function ManagementNav({ role }: { role: Role }) {
   const pathname = usePathname();
+  const links = [
+    ["/dashboard", "Главная"],
+    ["/children", "Дети"],
+    ["/groups", "Группы"],
+    ["/guardians", "Родители"],
+    ["/employees", "Сотрудники"],
+    ["/teachers", "Воспитатели"],
+    ["/attendance", "Посещаемость"],
+    ["/schedule", "Расписание"],
+    ["/announcements", "Объявления"],
+    ["/tasks", "Задачи"],
+    ["/incidents", "Происшествия"],
+    ["/polls", "Опросы"],
+    ["/communications", "Сообщения"],
+    ["/diary", "Дневник"],
+    ["/notifications", "Уведомления"],
+    ["/document-notices", "Уведомления о документах"],
+    ["/photo-consents", "Согласия на фото"],
+  ] as const;
+
   return <>
     <nav>
-      <Link href="/dashboard" className={navClass(pathname === "/dashboard")} aria-current={pathname === "/dashboard" ? "page" : undefined}>Главная</Link>
-      <Link href="/children" className={navClass(pathname.startsWith("/children"))} aria-current={pathname.startsWith("/children") ? "page" : undefined}>Дети</Link>
-      <Link href="/groups" className={navClass(pathname.startsWith("/groups"))} aria-current={pathname.startsWith("/groups") ? "page" : undefined}>Группы</Link>
-      <Link href="/guardians" className={navClass(pathname.startsWith("/guardians"))} aria-current={pathname.startsWith("/guardians") ? "page" : undefined}>Родители</Link>
-      <Link href="/employees" className={navClass(pathname.startsWith("/employees"))} aria-current={pathname.startsWith("/employees") ? "page" : undefined}>Сотрудники</Link>
-      <Link href="/attendance" className={navClass(pathname.startsWith("/attendance"))} aria-current={pathname.startsWith("/attendance") ? "page" : undefined}>Посещаемость</Link>
-      <Link href="/announcements" className={navClass(pathname.startsWith("/announcements"))} aria-current={pathname.startsWith("/announcements") ? "page" : undefined}>Объявления</Link>
+      {links.map(([href, label]) => {
+        const active = href === "/dashboard" ? pathname === href : pathname.startsWith(href);
+        return <Link key={href} href={href} className={navClass(active)} aria-current={active ? "page" : undefined}>{label}</Link>;
+      })}
       {role === "DIRECTOR" && <Link href="/audit" className={navClass(pathname.startsWith("/audit"))} aria-current={pathname.startsWith("/audit") ? "page" : undefined}>Аудит</Link>}
-      {futureSections.map((section) => <span key={section} className="nav-item disabled" aria-disabled="true" title="Раздел будет реализован на следующем этапе">{section}</span>)}
+      {role === "DIRECTOR" && <Link href="/settings" className={navClass(pathname.startsWith("/settings"))} aria-current={pathname.startsWith("/settings") ? "page" : undefined}>Настройки</Link>}
     </nav>
-    <p className="sidebar-note">Настройки появятся на следующих этапах.</p>
+    <p className="sidebar-note">{role === "DIRECTOR" ? "Директор: полный управленческий доступ." : "Администратор: операционный доступ без аудита и настроек."}</p>
   </>;
 }

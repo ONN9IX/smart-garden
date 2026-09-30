@@ -11,7 +11,11 @@ import { auditApi } from "@/lib/api/audit";
 import { userMessage } from "@/lib/api/client";
 import type { AuditEvent } from "@/types/stage4";
 
-const entityTypes = ["group", "child", "guardian", "child_guardian", "employee", "user_account", "attendance", "announcement"];
+const entityTypes = [
+  "group", "child", "guardian", "child_guardian", "employee", "user_account", "attendance", "announcement",
+  "teacher_assignment", "group_schedule_item", "communication_message", "child_diary_entry", "poll",
+  "incident", "teacher_task", "notification", "document_notice", "photo_consent", "photo_asset", "organization",
+];
 const actions = [
   "group.create", "group.update", "group.archive", "group.restore",
   "child.create", "child.update", "child.archive", "child.restore",
@@ -19,16 +23,28 @@ const actions = [
   "child_guardian.create", "child_guardian.update", "child_guardian.archive", "child_guardian.restore",
   "employee.create", "employee.update", "employee.archive", "employee.restore",
   "account.create", "account.reset_password", "account.block", "account.unblock",
+  "teacher_account.create", "teacher_account.reset", "teacher_account.block", "teacher_account.unblock",
   "attendance.create", "attendance.update",
   "announcement.create", "announcement.update", "announcement.archive",
+  "teacher_assignment.create", "teacher_assignment.archive", "teacher_assignment.restore",
+  "schedule.create", "schedule.update", "schedule.archive",
+  "teacher_message.create", "diary.create", "diary.update",
+  "poll.create", "poll.close", "poll.vote",
+  "incident.create", "incident.update", "incident.resolve",
+  "teacher_task.create", "teacher_task.update", "teacher_task.cancel", "teacher_task.status",
+  "notification.read", "document_notice.issue", "document_notice.ack",
+  "photo_consent.record", "photo_consent.withdraw", "photo.create", "photo.restrict", "photo.remove",
+  "organization.settings_update",
 ];
 const detailLabels: Record<string, string> = {
   changed_fields: "Изменённые поля", status_before: "Статус до", status_after: "Статус после",
   account_role: "Роль аккаунта", relation_type: "Тип связи", child_id: "ID ребёнка",
   guardian_id: "ID представителя", before: "До", after: "После",
-  target_type: "Цель", group_id: "ID группы",
+  target_type: "Цель", group_id: "ID группы", thread_id: "ID чата",
+  assignee_employee_id: "ID воспитателя", recipient_user_id: "ID получателя",
+  requires_ack: "Требуется подтверждение", category: "Категория", scope: "Область согласия",
 };
-const actorRole = { DIRECTOR: "Директор", ADMIN: "Администратор", PARENT: "Родитель" };
+const actorRole: Record<string, string> = { DIRECTOR: "Директор", ADMIN: "Администратор", TEACHER: "Воспитатель", PARENT: "Родитель" };
 
 function detailValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(", ");

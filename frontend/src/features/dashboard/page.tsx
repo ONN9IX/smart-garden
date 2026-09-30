@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loading } from "@/components/ui/loading";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { useAuth } from "@/features/auth/auth-provider";
+import { ManagementTodayPanel } from "@/features/management/today";
 import { userMessage } from "@/lib/api/client";
 import { dashboardApi } from "@/lib/api/dashboard";
 import { ROLE_LABELS } from "@/types/auth";
@@ -62,6 +63,7 @@ function DashboardContent() {
             <h3>{group.name}</h3><dl><div><dt>Дети</dt><dd>{group.active_children}</dd></div><div><dt>Присутствуют</dt><dd>{group.present}</dd></div><div><dt>Отсутствуют</dt><dd>{group.absent}</dd></div><div><dt>Без отметки</dt><dd>{group.unknown}</dd></div></dl>
           </li>)}</ul>}
       </section>
+      <ManagementTodayPanel />
       <section className="card context-card section-space" aria-labelledby="context-heading"><h2 id="context-heading">Текущий доступ</h2>
         <dl className="context-list"><div><dt>Детский сад</dt><dd>{current.organization.name}</dd></div><div><dt>Пользователь</dt><dd>{current.user.username}</dd></div><div><dt>Роль</dt><dd>{ROLE_LABELS[current.user.role] ?? "Пользователь"}</dd></div></dl>
       </section>

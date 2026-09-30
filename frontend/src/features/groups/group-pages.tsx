@@ -164,6 +164,13 @@ function GroupDetail({ id }: { id: string }) {
         {editing ? <form onSubmit={(event) => void save(event)}><FormField id="edit-group-name" label="Название группы"><Input id="edit-group-name" maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} /></FormField><div className="action-row"><Button disabled={busy} type="submit">Сохранить</Button><Button type="button" variant="secondary" onClick={() => { setEditing(false); setName(group.name); }}>Отмена</Button></div></form>
           : <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить название</Button><Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{group.status === "active" ? "Архивировать" : "Восстановить"}</Button></div>}
       </section>
+      <section className="section-space"><h2>Операции группы</h2><div className="action-row">
+        <Link className="button button-secondary" href={`/schedule?group_id=${group.id}`}>Расписание</Link>
+        <Link className="button button-secondary" href={`/tasks?group_id=${group.id}`}>Задачи</Link>
+        <Link className="button button-secondary" href={`/incidents?group_id=${group.id}`}>Происшествия</Link>
+        <Link className="button button-secondary" href={`/polls?group_id=${group.id}`}>Опросы</Link>
+        <Link className="button button-secondary" href={`/communications?group_id=${group.id}`}>Сообщения</Link>
+      </div></section>
       <section className="section-space"><h2>Дети в группе</h2>{children.length ? <ul className="record-list">{children.map((child) => <li key={child.id}><Link className="record-link" href={`/children/${child.id}`}>{child.last_name} {child.first_name} {child.middle_name ?? ""}</Link></li>)}</ul> : <p className="empty-state">В группе нет активных детей.</p>}</section>
     </>}
   </AppShell>;
