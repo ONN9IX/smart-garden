@@ -157,6 +157,7 @@ function ChildDetail({ id }: { id: string }) {
   }, [id]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
   async function save(fields: ChildFields) {
+    if (child && fields.group_id !== child.group.id && !window.confirm("Перевести ребёнка в выбранную группу? Доступ воспитателей изменится согласно новой группе.")) return;
     setBusy(true); setError(""); setMessage("");
     try { setChild(await childrenApi.update(id, fields)); setEditing(false); setMessage("Карточка сохранена."); }
     catch (reason) { setError(userMessage(reason)); }
@@ -164,7 +165,8 @@ function ChildDetail({ id }: { id: string }) {
   }
   async function changeStatus() {
     if (!child || busy) return;
-    if (child.status === "active" && !window.confirm("Архивировать карточку ребёнка?")) return;
+    const confirmation = child.status === "active" ? "Архивировать карточку ребёнка?" : "Восстановить карточку ребёнка?";
+    if (!window.confirm(confirmation)) return;
     setBusy(true); setError(""); setMessage("");
     try {
       setChild(child.status === "active" ? await childrenApi.archive(id) : await childrenApi.restore(id));
