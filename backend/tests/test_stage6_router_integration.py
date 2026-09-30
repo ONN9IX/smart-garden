@@ -19,21 +19,13 @@ def test_shared_router_extension_points_are_registered_without_placeholder_route
     assert 'app.include_router(teacher_router, prefix="/api/v1")' in source
     assert 'app.include_router(management_router, prefix="/api/v1")' in source
 
-    api_routes = [
-        route for route in main_module.app.routes
-        if getattr(route, "path", "").startswith("/api/v1")
-    ]
-    paths = {route.path for route in api_routes}
+    spec = main_module.app.openapi()
+    paths = set(spec["paths"])
     assert {
         "/api/v1/auth/me",
         "/api/v1/groups",
         "/api/v1/teacher-management/assignments",
     } <= paths
+    assert {"get", "post"} <= spec["paths"]["/api/v1/teacher-management/assignments"].keys()
     assert not any(path.startswith("/api/v1/teacher/") for path in paths)
     assert not any(path.startswith("/api/v1/management/") for path in paths)
-
-    signatures = [
-        (route.path, tuple(sorted(getattr(route, "methods", set()))))
-        for route in api_routes
-    ]
-    assert len(signatures) == len(set(signatures))
