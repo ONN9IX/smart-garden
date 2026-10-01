@@ -160,32 +160,31 @@ def cabinet_world(db, users):
     )
 
 
-def test_parent_linked_children_and_direct_bootstrap(db, cabinet_world):
+def test_parent_linked_children_and_direct_bootstrap(client, db, cabinet_world):
     world = cabinet_world
-    with TestClient(app) as parent_client:
-        assert _login(parent_client, world.parent.username).status_code == 200
-        linked = parent_client.get("/api/v1/parent/children")
-        assert linked.status_code == 200
-        assert linked.json() == [{
-            "id": str(world.child.id),
-            "first_name": world.child.first_name,
-            "last_name": world.child.last_name,
-            "middle_name": world.child.middle_name,
-        }]
-        direct = parent_client.post("/api/v1/parent/communications/direct", json={
-            "child_id": str(world.child.id),
-        })
-        assert direct.status_code == 201
-        assert direct.json()["thread_type"] == "direct"
-        assert direct.json()["child_id"] == str(world.child.id)
-        assert direct.json()["guardian_id"] == str(world.guardian.id)
+    assert _login(client, world.parent.username).status_code == 200
+    linked = client.get("/api/v1/parent/children")
+    assert linked.status_code == 200
+    assert linked.json() == [{
+        "id": str(world.child.id),
+        "first_name": world.child.first_name,
+        "last_name": world.child.last_name,
+        "middle_name": world.child.middle_name,
+    }]
+    direct = client.post("/api/v1/parent/communications/direct", json={
+        "child_id": str(world.child.id),
+    })
+    assert direct.status_code == 201
+    assert direct.json()["thread_type"] == "direct"
+    assert direct.json()["child_id"] == str(world.child.id)
+    assert direct.json()["guardian_id"] == str(world.guardian.id)
 
-        world.relation.status = "archived"
-        db.flush()
-        assert parent_client.get("/api/v1/parent/children").json() == []
-        assert parent_client.post("/api/v1/parent/communications/direct", json={
-            "child_id": str(world.child.id),
-        }).status_code == 404
+    world.relation.status = "archived"
+    db.flush()
+    assert client.get("/api/v1/parent/children").json() == []
+    assert client.post("/api/v1/parent/communications/direct", json={
+        "child_id": str(world.child.id),
+    }).status_code == 404
 
 
 def test_teacher_daily_groups_attendance_schedule_and_security(client, db, cabinet_world):
