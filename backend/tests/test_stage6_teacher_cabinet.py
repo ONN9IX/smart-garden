@@ -160,6 +160,34 @@ def cabinet_world(db, users):
     )
 
 
+def test_parent_linked_children_and_direct_bootstrap(db, cabinet_world):
+    world = cabinet_world
+    with TestClient(app) as parent_client:
+        assert _login(parent_client, world.parent.username).status_code == 200
+        linked = parent_client.get("/api/v1/parent/children")
+        assert linked.status_code == 200
+        assert linked.json() == [{
+            "id": str(world.child.id),
+            "first_name": world.child.first_name,
+            "last_name": world.child.last_name,
+            "middle_name": world.child.middle_name,
+        }]
+        direct = parent_client.post("/api/v1/parent/communications/direct", json={
+            "child_id": str(world.child.id),
+        })
+        assert direct.status_code == 201
+        assert direct.json()["thread_type"] == "direct"
+        assert direct.json()["child_id"] == str(world.child.id)
+        assert direct.json()["guardian_id"] == str(world.guardian.id)
+
+        world.relation.status = "archived"
+        db.flush()
+        assert parent_client.get("/api/v1/parent/children").json() == []
+        assert parent_client.post("/api/v1/parent/communications/direct", json={
+            "child_id": str(world.child.id),
+        }).status_code == 404
+
+
 def test_teacher_daily_groups_attendance_schedule_and_security(client, db, cabinet_world):
     world = cabinet_world
     assert _login(client, world.teacher.username).status_code == 200
@@ -252,6 +280,11 @@ def test_teacher_diary_announcements_polls_incidents_tasks_notices(client, db, c
         "note": "Синтетическая запись дня",
     })
     assert diary.status_code == 201
+    updated_diary = client.patch(f"/api/v1/teacher/diary/{diary.json()['id']}", json={
+        "note": "Обновлённая синтетическая запись",
+    })
+    assert updated_diary.status_code == 200
+    assert updated_diary.json()["note"] == "Обновлённая синтетическая запись"
     assert client.post("/api/v1/teacher/diary", json={
         "child_id": str(world.other_child.id), "date": datetime.now(UTC).date().isoformat(), "note": "Недоступно",
     }).status_code == 404
@@ -264,6 +297,17 @@ def test_teacher_diary_announcements_polls_incidents_tasks_notices(client, db, c
         "group_id": str(world.assigned.id), "title": "Объявление", "body": "Синтетический текст",
     })
     assert announcement.status_code == 201
+    updated_announcement = client.patch(
+        f"/api/v1/teacher/announcements/{announcement.json()['id']}",
+        json={"title": "Обновлённое объявление", "body": "Обновлённый синтетический текст"},
+    )
+    assert updated_announcement.status_code == 200
+    assert updated_announcement.json()["title"] == "Обновлённое объявление"
+    archived_announcement = client.post(
+        f"/api/v1/teacher/announcements/{announcement.json()['id']}/archive",
+    )
+    assert archived_announcement.status_code == 200
+    assert archived_announcement.json()["status"] == "archived"
     management_announcement = Announcement(
         organization_id=world.organization.id, target_type="group", group_id=world.assigned.id,
         title="Управляющее объявление", body="Синтетика", status="active",
