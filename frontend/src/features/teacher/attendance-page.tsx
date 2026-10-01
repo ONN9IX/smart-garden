@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { userMessage } from "@/lib/api/client";
 import { teacherApi } from "@/lib/api/teacher";
 import type { AttendanceRow } from "@/types/teacher";
@@ -8,7 +8,7 @@ import { GroupPicker, styles, TeacherPageFrame, useGroups } from "./shared";
 
 export function AttendancePage() {
   const { groups, groupId, setGroupId, error: groupError } = useGroups();
-  const userChangedDay = useState({ current: false })[0];
+  const userChangedDay = useRef(false);
   const [day, setDay] = useState("");
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [error, setError] = useState("");
