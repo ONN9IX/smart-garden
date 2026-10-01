@@ -26,6 +26,7 @@ test("teacher completes daily flow and sees only enabled modules", async ({ page
   await page.getByRole("link", { name: "Назначенные" }).click();
   await expect(page.getByText("Тестовый Ребёнок")).toBeVisible();
   await page.getByRole("link", { name: "Посещаемость" }).click();
+  await expect(page.getByLabel("Дата")).toHaveValue("2026-09-30");
   await page.getByRole("button", { name: "Пришёл" }).click();
   await page.getByRole("link", { name: "Ещё" }).click();
   await expect(page.getByRole("link", { name: "Объявления" })).toBeVisible();
