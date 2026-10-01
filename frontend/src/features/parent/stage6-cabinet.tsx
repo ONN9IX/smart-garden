@@ -86,7 +86,7 @@ function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
   const selectedChildId = childId || linkedChildren[0]?.id || "";
 
   useEffect(() => {
-    if (!selectedChildId) { setData(null); return; }
+    if (!selectedChildId) return;
     parentStage6Api.today(selectedChildId)
       .then((value) => { setData(value); setError(""); })
       .catch((reason) => { setData(null); setError(userMessage(reason)); });
@@ -137,8 +137,8 @@ function Messages({ threads, linkedChildren, reload }: {
 
   useEffect(() => {
     if (selectedThreadId) parentStage6Api.messages(selectedThreadId).then(setMessages);
-    else setMessages([]);
   }, [selectedThreadId]);
+  const visibleMessages = selectedThreadId ? messages : [];
 
   async function openDirect() {
     if (!selectedChildId) return;
@@ -164,7 +164,7 @@ function Messages({ threads, linkedChildren, reload }: {
       {threads.length === 0 && <p className={styles.muted}>Диалогов пока нет.</p>}
       {threads.map((thread) => <button key={thread.id} className={thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} onClick={() => setThreadId(thread.id)}>{thread.thread_type === "group" ? "Чат группы" : "Воспитатель"}</button>)}
     </section>
-    <section className={styles.card}><h2>Сообщения</h2><ul className={styles.list}>{messages.map((message) => <li className={styles.row} key={message.id}>{message.body}</li>)}</ul><form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim()}>Отправить</button></form></section>
+    <section className={styles.card}><h2>Сообщения</h2><ul className={styles.list}>{visibleMessages.map((message) => <li className={styles.row} key={message.id}>{message.body}</li>)}</ul><form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim()}>Отправить</button></form></section>
   </div>;
 }
 
