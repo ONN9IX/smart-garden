@@ -30,6 +30,7 @@ from app.core.errors import (
     error_response,
     validation_error_handler,
 )
+from app.core.product_features import is_api_feature_disabled
 
 settings = get_settings()
 logger = logging.getLogger("smart_garden.api")
@@ -44,6 +45,9 @@ app.add_middleware(
 
 @app.middleware("http")
 async def enforce_origin(request: Request, call_next):
+    # OFF product modules remain in code/data but are hidden at the API boundary.
+    if is_api_feature_disabled(request.url.path):
+        return error_response(404, "NOT_FOUND")
     # CORS alone does not reject side-effecting cross-origin requests at the server.
     origin = request.headers.get("origin")
     if request.method in {"POST", "PUT", "PATCH", "DELETE"} and origin and origin not in settings.allowed_origins:
