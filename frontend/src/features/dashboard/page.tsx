@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Alert } from "@/components/ui/alert";
@@ -18,13 +19,13 @@ function displayDate(value: string) {
   return new Intl.DateTimeFormat("ru-RU", { dateStyle: "long" }).format(new Date(year, month - 1, day));
 }
 
-const cards: Array<{ key: keyof DashboardSummary; label: string }> = [
-  { key: "active_children", label: "Активные дети" },
-  { key: "present", label: "Присутствуют" },
-  { key: "absent", label: "Отсутствуют" },
-  { key: "unknown", label: "Без отметки" },
-  { key: "active_groups", label: "Активные группы" },
-  { key: "active_employees", label: "Активные сотрудники" },
+const cards: Array<{ key: keyof DashboardSummary; label: string; href: string }> = [
+  { key: "active_children", label: "Активные дети", href: "/children" },
+  { key: "present", label: "Присутствуют", href: "/attendance" },
+  { key: "absent", label: "Отсутствуют", href: "/attendance" },
+  { key: "unknown", label: "Без отметки", href: "/attendance" },
+  { key: "active_groups", label: "Активные группы", href: "/groups" },
+  { key: "active_employees", label: "Активные сотрудники", href: "/employees" },
 ];
 
 export function DashboardPage() {
@@ -51,9 +52,9 @@ function DashboardContent() {
     {error && <Alert>{error}</Alert>}
     {loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : summary && <>
       <section className="dashboard-grid" aria-label="Основные показатели">
-        {cards.map(({ key, label }) => <article className="card metric-card" key={key}>
-          <span>{label}</span><strong>{String(summary[key])}</strong>
-        </article>)}
+        {cards.map(({ key, label, href }) => <Link className="card metric-card metric-link" href={href} key={key}>
+          <span>{label}</span><strong>{String(summary[key])}</strong><small>Открыть раздел →</small>
+        </Link>)}
       </section>
       <section className="section-space" aria-labelledby="groups-dashboard-heading"><div className="section-heading">
         <div><h2 id="groups-dashboard-heading">Группы сегодня</h2><p className="muted">Учитываются текущие активные дети и их текущие группы.</p></div>
