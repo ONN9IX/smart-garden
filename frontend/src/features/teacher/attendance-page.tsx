@@ -8,12 +8,15 @@ import { GroupPicker, styles, TeacherPageFrame, useGroups } from "./shared";
 
 export function AttendancePage() {
   const { groups, groupId, setGroupId, error: groupError } = useGroups();
-  const [day, setDay] = useState(() => new Date().toISOString().slice(0, 10));
+  const [day, setDay] = useState("");
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  useEffect(() => {
+    teacherApi.today().then((value) => setDay(value.date)).catch((reason) => setError(userMessage(reason)));
+  }, []);
   const load = useCallback(() => {
-    if (!groupId) return;
+    if (!groupId || !day) return;
     teacherApi.attendance(groupId, day).then(setRows).catch((reason) => setError(userMessage(reason)));
   }, [day, groupId]);
   useEffect(load, [load]);
