@@ -12,6 +12,23 @@ import type { Group } from "@/types/stage2";
 import type { TeacherProjection, TeacherTask } from "@/types/management";
 import { fullName, ManagerPage, useQueryParam } from "./common";
 
+function taskStatusLabel(status: TeacherTask["status"]) {
+  const labels: Record<TeacherTask["status"], string> = {
+    open: "Открыта",
+    in_progress: "В работе",
+    done: "Готово",
+    cancelled: "Отменена",
+  };
+  return labels[status];
+}
+
+function taskStatusClass(status: TeacherTask["status"]) {
+  if (status === "open") return "status-chip status-chip-open";
+  if (status === "in_progress") return "status-chip status-chip-progress";
+  if (status === "done") return "status-chip status-chip-done";
+  return "status-chip status-chip-cancelled";
+}
+
 export function TasksPage() {
   return <ManagerPage><TasksContent /></ManagerPage>;
 }
@@ -93,7 +110,7 @@ function TasksContent() {
     {loading ? <Loading /> : items.length === 0 ? <p className="empty-state">Задач нет.</p> : <ul className="record-list">{items.map((item) => <li key={item.id}><div className="card section-card">
       <h2>{item.title}</h2>
       {item.description && <p>{item.description}</p>}
-      <p className="muted">{item.status} {item.due_at ? "· до " + new Date(item.due_at).toLocaleString("ru-RU") : ""}</p>
+      <p><span className={taskStatusClass(item.status)}>{taskStatusLabel(item.status)}</span>{item.due_at && <span className="muted"> · до {new Date(item.due_at).toLocaleString("ru-RU")}</span>}</p>
       {item.status !== "cancelled" && <div className="action-row">
         <select className="input compact-input" value={item.status} onChange={(event) => void managementApi.updateTask(item.id, { status: event.target.value as "open" | "in_progress" | "done" }).then(load).catch((reason) => setError(userMessage(reason)))}>
           <option value="open">Открыта</option><option value="in_progress">В работе</option><option value="done">Готово</option>
