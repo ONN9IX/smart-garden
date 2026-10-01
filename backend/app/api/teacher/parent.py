@@ -11,6 +11,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.teacher.contracts import (
     AnnouncementResponse,
+    ChildSummary,
     DiaryResponse,
     MessageCreate,
     MessageResponse,
@@ -20,11 +21,16 @@ from app.schemas.teacher.contracts import (
     PollVoteCreate,
     ThreadResponse,
 )
-from app.services.teacher import communications, content, photos
+from app.services.teacher import cabinet, communications, content, photos
 
 router = APIRouter(prefix="/parent", tags=["Stage 6 кабинет родителя"])
 Parent = Annotated[User, Depends(require_role("PARENT"))]
 Database = Annotated[Session, Depends(get_db)]
+
+
+@router.get("/children", response_model=list[ChildSummary])
+def list_children(user: Parent, db: Database) -> list[ChildSummary]:
+    return cabinet.parent_children(db, user)
 
 
 @router.get("/communications/threads", response_model=list[ThreadResponse])
