@@ -9,13 +9,13 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from app.core.product_features import PRODUCT_FEATURES
 from app.core.security import hash_password
 from app.main import app
 from app.models.announcement import Announcement
 from app.models.audit_event import AuditEvent
 from app.models.child import Child
 from app.models.child_guardian import ChildGuardian
-from app.core.product_features import PRODUCT_FEATURES
 from app.models.document_notice import DocumentNotice
 from app.models.employee import Employee
 from app.models.group import Group
