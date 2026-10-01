@@ -16,7 +16,7 @@ export function TodayDashboard() {
     {!data && !error && <p>Загружаем рабочий день…</p>}
     {data && <>
       <div className={styles.grid}>
-        <section className={styles.card}><h2>Мои группы</h2><div className={styles.metric}>{data.groups.length}</div><Link href="/teacher/groups">Открыть группы</Link></section>
+        <section className={styles.card}><h2>Мои группы</h2><div className={styles.metric}>{data.groups.length}</div><Link href="/teacher/groups">Открыть список</Link></section>
         <section className={styles.card}><h2>Расписание</h2><div className={styles.metric}>{data.schedule.length}</div><Link href="/teacher/schedule">На сегодня</Link></section>
         <section className={styles.card}><h2>Новые сообщения</h2><div className={styles.metric}>{data.unread_communication_count}</div><Link href="/teacher/communications">Открыть</Link></section>
         <section className={styles.card}><h2>Активные задачи</h2><div className={styles.metric}>{data.tasks.length}</div><Link href="/teacher/more">Подробнее</Link></section>

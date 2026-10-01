@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 export function TeacherNav() {
   const pathname = usePathname();
   const items = [
-    ["/teacher", "Сегодня"], ["/teacher/groups", "Мои группы"],
+    ["/teacher", "Сегодня"], ["/teacher/groups", "Назначенные"],
     ["/teacher/attendance", "Посещаемость"], ["/teacher/schedule", "Расписание"],
     ["/teacher/communications", "Родители и сообщения"], ["/teacher/more", "Ещё"],
   ];

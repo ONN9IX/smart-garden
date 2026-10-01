@@ -22,7 +22,7 @@ test("teacher completes the mobile daily flow without management navigation", as
   await expect(page.getByRole("heading", { name: "Кабинет воспитателя" })).toBeVisible();
   await expect(page.getByText("Новые сообщения")).toBeVisible();
   await expect(page.getByRole("link", { name: "Сотрудники" })).toHaveCount(0);
-  await page.getByRole("link", { name: "Мои группы" }).click();
+  await page.getByRole("link", { name: "Назначенные" }).click();
   await expect(page.getByText("Тестовый Ребёнок")).toBeVisible();
   await expect(page.getByText("+70000000000")).toBeVisible();
   await page.getByRole("link", { name: "Посещаемость" }).click();
@@ -37,5 +37,5 @@ test("teacher empty assignment state remains usable", async ({ page }) => {
   await page.route("**/api/v1/teacher/today", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ date: "2026-09-30", groups: [], schedule: [], attendance: [], tasks: [], notifications: [], unread_communication_count: 0 }) }));
   await page.goto("/teacher");
   await expect(page.getByText("0", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "Мои группы" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Назначенные" })).toBeVisible();
 });
