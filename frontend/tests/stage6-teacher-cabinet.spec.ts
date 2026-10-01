@@ -53,11 +53,21 @@ test("teacher operational modules expose the frozen daily actions", async ({ pag
     diaryEntries = [...diaryEntries, { ...diaryEntries[0], id: "00000000-0000-4000-8000-000000000620", note: "Новая запись" }];
     await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(diaryEntries.at(-1)) });
   });
+  await page.route("**/api/v1/teacher/diary/*", async (route) => {
+    const id = route.request().url().split("/").at(-1);
+    const payload = route.request().postDataJSON() as { note: string };
+    diaryEntries = diaryEntries.map((entry) => entry.id === id ? { ...entry, note: payload.note } : entry);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(diaryEntries.find((entry) => entry.id === id)) });
+  });
   await page.goto("/teacher/diary");
   await expect(page.getByText("Хороший день")).toBeVisible();
   await page.getByLabel("Запись").fill("Новая запись");
   await page.getByRole("button", { name: "Сохранить" }).click();
   await expect(page.getByText("Новая запись")).toBeVisible();
+  await page.getByRole("button", { name: "Изменить" }).last().click();
+  await page.getByLabel("Запись").fill("Исправленная запись");
+  await page.getByRole("button", { name: "Сохранить изменения" }).click();
+  await expect(page.getByText("Исправленная запись")).toBeVisible();
 
   let announcements = [{ id: "00000000-0000-4000-8000-000000000625", target_type: "group", group_id: group.id, title: "Напоминание", body: "Синтетический текст", status: "active", created_by: teacher.user.id, created_at: "2026-09-30T10:00:00Z", updated_at: "2026-09-30T10:00:00Z" }];
   await page.route("**/api/v1/teacher/announcements?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(announcements) }));
@@ -65,11 +75,32 @@ test("teacher operational modules expose the frozen daily actions", async ({ pag
     announcements = [...announcements, { ...announcements[0], id: "00000000-0000-4000-8000-000000000626", title: "Новое объявление" }];
     await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(announcements.at(-1)) });
   });
+  await page.route("**/api/v1/teacher/announcements/*", async (route) => {
+    const id = route.request().url().split("/").at(-1);
+    const payload = route.request().postDataJSON() as { title: string; body: string };
+    announcements = announcements.map((item) => item.id === id ? { ...item, ...payload } : item);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(announcements.find((item) => item.id === id)) });
+  });
+  await page.route("**/api/v1/teacher/announcements/*/archive", async (route) => {
+    const parts = route.request().url().split("/");
+    const id = parts.at(-2);
+    announcements = announcements.map((item) => item.id === id ? { ...item, status: "archived" } : item);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(announcements.find((item) => item.id === id)) });
+  });
   await page.goto("/teacher/announcements");
   await page.getByLabel("Заголовок").fill("Новое объявление");
   await page.getByLabel("Текст").fill("Только для назначенной группы");
   await page.getByRole("button", { name: "Опубликовать для группы" }).click();
   await expect(page.getByText("Новое объявление")).toBeVisible();
+  let createdAnnouncement = page.getByRole("listitem").filter({ hasText: "Новое объявление" });
+  await createdAnnouncement.getByRole("button", { name: "Изменить" }).click();
+  await page.getByLabel("Заголовок").fill("Исправленное объявление");
+  await page.getByLabel("Текст").fill("Исправленный текст");
+  await page.getByRole("button", { name: "Сохранить изменения" }).click();
+  await expect(page.getByText("Исправленное объявление")).toBeVisible();
+  createdAnnouncement = page.getByRole("listitem").filter({ hasText: "Исправленное объявление" });
+  await createdAnnouncement.getByRole("button", { name: "Архивировать" }).click();
+  await expect(createdAnnouncement.getByText("archived")).toBeVisible();
 
   const poll = { id: "00000000-0000-4000-8000-000000000627", group_id: group.id, question: "Придёте?", status: "active", closes_at: null, created_by: teacher.user.id, created_at: "2026-09-30T10:00:00Z", selected_option_id: null, options: [{ id: "00000000-0000-4000-8000-000000000628", label: "Да", sort_order: 0 }, { id: "00000000-0000-4000-8000-000000000629", label: "Нет", sort_order: 1 }] };
   await page.route("**/api/v1/teacher/polls?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([poll]) }));
