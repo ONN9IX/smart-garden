@@ -319,7 +319,8 @@ def test_teacher_diary_announcements_polls_incidents_tasks_notices(client, db, c
         assert len({item["id"] for item in parent_announcements.json()}) == len(parent_announcements.json())
         assert parent_client.get(f"/api/v1/parent/children/{world.child.id}/diary").status_code == 200
         parent_polls = parent_client.get("/api/v1/parent/polls")
-        option_id = parent_polls.json()[0]["options"][0]["id"]
+        eligible_poll = next(item for item in parent_polls.json() if item["id"] == poll_id)
+        option_id = eligible_poll["options"][0]["id"]
         assert parent_client.post(f"/api/v1/parent/polls/{poll_id}/vote", json={
             "option_id": option_id,
         }).status_code == 200
