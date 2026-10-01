@@ -70,6 +70,11 @@ Before Issue #152 started there were no open Issues or PRs.
 ### PARENT
 
 - linked Children context
+- Today overview for the selected linked Child:
+  - current active Group
+  - garden-local date
+  - today's Attendance status and arrival/departure when recorded
+  - today's active Group schedule
 - eligible Announcements
 - Group/direct communications
 
@@ -137,8 +142,12 @@ Final integrated acceptance:
 
 The product-module OFF decision in Issue #150 / PR #151 is a later explicit Master Chat scope override for active exposure. It does not delete the frozen underlying Stage 6 capability code.
 
+## Post-freeze demo readiness
+
+Issue #154 is a no-migration refinement on top of the frozen Stage 6 architecture. It adds a minimized PARENT daily overview, aligns active Attendance default dates with the Organization timezone, removes residual visible links to OFF modules and updates the browser-demo documentation. It does not re-enable deferred modules or change tenant/RBAC architecture.
+
 ## Next gate
 
-No new runtime Stage starts automatically.
+No new broad runtime Stage starts automatically.
 
 The next implementation/re-enable gate must be created explicitly by Master Chat from the fresh post-acceptance `main` baseline with a precise scope, owner, write-set, privacy review and CI plan.
