@@ -23,8 +23,11 @@ export const teacherApi = {
   direct: (childId: string, guardianId: string) => api.post<Thread>("/teacher/communications/direct", { child_id: childId, guardian_id: guardianId }),
   diary: (childId: string) => api.get<DiaryEntry[]>(`/teacher/diary?child_id=${childId}`),
   createDiary: (body: object) => api.post<DiaryEntry>("/teacher/diary", body),
+  updateDiary: (id: string, body: object) => api.patch<DiaryEntry>(`/teacher/diary/${id}`, body),
   announcements: (groupId: string) => api.get<Announcement[]>(`/teacher/announcements?group_id=${groupId}`),
   createAnnouncement: (body: object) => api.post<Announcement>("/teacher/announcements", body),
+  updateAnnouncement: (id: string, body: object) => api.patch<Announcement>(`/teacher/announcements/${id}`, body),
+  archiveAnnouncement: (id: string) => api.post<Announcement>(`/teacher/announcements/${id}/archive`),
   polls: (groupId: string) => api.get<Poll[]>(`/teacher/polls?group_id=${groupId}`),
   createPoll: (body: object) => api.post<Poll>("/teacher/polls", body),
   closePoll: (id: string) => api.post<Poll>(`/teacher/polls/${id}/close`),
@@ -55,8 +58,10 @@ export const teacherApi = {
 };
 
 export const parentStage6Api = {
+  children: () => api.get<ChildSummary[]>("/parent/children"),
   announcements: () => api.get<Announcement[]>("/parent/announcements"),
   threads: () => api.get<Thread[]>("/parent/communications/threads"),
+  direct: (childId: string) => api.post<Thread>("/parent/communications/direct", { child_id: childId }),
   messages: (threadId: string) => api.get<Message[]>(`/parent/communications/threads/${threadId}/messages`),
   sendMessage: (threadId: string, body: string) => api.post<Message>(`/parent/communications/threads/${threadId}/messages`, { body }),
   diary: (childId: string) => api.get<DiaryEntry[]>(`/parent/children/${childId}/diary`),
