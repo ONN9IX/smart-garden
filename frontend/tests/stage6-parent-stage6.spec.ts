@@ -53,7 +53,7 @@ test("parent bootstraps direct chat from linked child", async ({ page }) => {
   await expect(page.getByLabel("Ребёнок")).toHaveValue(child.id);
   await expect(page.getByRole("button", { name: "Отправить" })).toBeDisabled();
   await page.getByRole("button", { name: "Открыть личный диалог" }).click();
-  await expect(page.getByRole("button", { name: "Воспитатель" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Воспитатель · Ребёнок Тестовый" })).toBeVisible();
   await expect(page.getByText("Сообщение воспитателя")).toBeVisible();
   await page.getByLabel("Ответ").fill("Ответ родителя");
   await page.getByRole("button", { name: "Отправить" }).click();
