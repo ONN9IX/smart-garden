@@ -11,6 +11,7 @@ function label(kind: string) {
   const labels: Record<string, string> = {
     attendance_missing: "Не заполнена посещаемость",
     tasks_overdue: "Просроченные задачи",
+    incidents_open: "Открытые происшествия",
     notifications_unread: "Непрочитанные уведомления",
     group_without_teacher: "Группа без активного воспитателя",
   };
@@ -39,6 +40,7 @@ export function ManagementTodayPanel() {
         <article className="card metric-card"><span>Без воспитателя</span><strong>{today.groups_without_active_teacher_assignment}</strong></article>
         <article className="card metric-card"><span>Открытые задачи</span><strong>{today.open_tasks}</strong></article>
         <article className="card metric-card"><span>Просрочено</span><strong>{today.overdue_tasks}</strong></article>
+        {featureEnabled("incidents") && <article className="card metric-card"><span>Происшествия</span><strong>{today.open_incidents}</strong></article>}
         <article className="card metric-card"><span>Новые уведомления</span><strong>{today.unread_notifications}</strong></article>
       </div>
       {attentionItems.length === 0
