@@ -25,7 +25,7 @@ test("child card has no actions for OFF modules", async ({ page }) => {
   await page.route("**/api/v1/groups?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [group] }) }));
   await page.route("**/api/v1/guardians**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) }));
   await page.goto(`/children/${childId}`);
-  await expect(page.getByRole("heading", { name: "Тестовый Ребёнок" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ребёнок Тестовый" })).toBeVisible();
   for (const label of ["Дневник", "Согласие на фото", "Происшествия группы"]) {
     await expect(page.getByRole("link", { name: label })).toHaveCount(0);
   }
