@@ -15,6 +15,7 @@ from app.models.announcement import Announcement
 from app.models.audit_event import AuditEvent
 from app.models.child import Child
 from app.models.child_guardian import ChildGuardian
+from app.core.product_features import PRODUCT_FEATURES
 from app.models.document_notice import DocumentNotice
 from app.models.employee import Employee
 from app.models.group import Group
@@ -271,7 +272,9 @@ def test_teacher_communication_participants_and_relation_revocation(client, db, 
     assert "Ответ родителя" not in str(details)
 
 
-def test_teacher_diary_announcements_polls_incidents_tasks_notices(client, db, cabinet_world):
+def test_teacher_diary_announcements_polls_incidents_tasks_notices(client, db, cabinet_world, monkeypatch):
+    for feature in ("diary", "polls", "incidents", "document_notices"):
+        monkeypatch.setitem(PRODUCT_FEATURES, feature, True)
     world = cabinet_world
     assert _login(client, world.teacher.username).status_code == 200
     diary = client.post("/api/v1/teacher/diary", json={
@@ -414,6 +417,7 @@ def _png_with_text() -> bytes:
 
 
 def test_photo_consent_authenticated_content_and_production_fail_closed(client, db, cabinet_world, monkeypatch):
+    monkeypatch.setitem(PRODUCT_FEATURES, "photos", True)
     world = cabinet_world
     assert _login(client, world.teacher.username).status_code == 200
     raw = _png_with_text()
