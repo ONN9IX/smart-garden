@@ -9,10 +9,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from app.core.organization_time import organization_today
 from app.core.product_features import PRODUCT_FEATURES
 from app.core.security import hash_password
 from app.main import app
 from app.models.announcement import Announcement
+from app.models.attendance import Attendance
 from app.models.audit_event import AuditEvent
 from app.models.child import Child
 from app.models.child_guardian import ChildGuardian
@@ -186,6 +188,44 @@ def test_parent_linked_children_and_direct_bootstrap(client, db, cabinet_world):
     assert client.post("/api/v1/parent/communications/direct", json={
         "child_id": str(world.child.id),
     }).status_code == 404
+
+
+def test_parent_today_is_linked_child_only_and_garden_local(client, db, cabinet_world):
+    world = cabinet_world
+    day = organization_today(world.organization)
+    world.schedule.weekday = day.weekday()
+    db.flush()
+
+    assert _login(client, world.parent.username).status_code == 200
+    initial = client.get(f"/api/v1/parent/children/{world.child.id}/today")
+    assert initial.status_code == 200
+    payload = initial.json()
+    assert payload["date"] == day.isoformat()
+    assert payload["child"]["id"] == str(world.child.id)
+    assert payload["group"] == {"id": str(world.assigned.id), "name": world.assigned.name}
+    assert payload["attendance"]["status"] == "unknown"
+    assert [item["title"] for item in payload["schedule"]] == ["Синтетическое занятие"]
+    assert client.get(f"/api/v1/parent/children/{world.other_child.id}/today").status_code == 404
+
+    db.add(Attendance(
+        organization_id=world.organization.id,
+        child_id=world.child.id,
+        group_id=world.assigned.id,
+        date=day,
+        status="present",
+        arrival_time=time(8, 20),
+        created_by=world.director.id,
+        updated_by=world.director.id,
+    ))
+    db.flush()
+    marked = client.get(f"/api/v1/parent/children/{world.child.id}/today")
+    assert marked.status_code == 200
+    assert marked.json()["attendance"]["status"] == "present"
+    assert marked.json()["attendance"]["arrival_time"] == "08:20:00"
+
+    world.relation.status = "archived"
+    db.flush()
+    assert client.get(f"/api/v1/parent/children/{world.child.id}/today").status_code == 404
 
 
 def test_teacher_daily_groups_attendance_schedule_and_security(client, db, cabinet_world):
