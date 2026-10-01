@@ -35,6 +35,8 @@ test("parent sees daily child overview and only enabled modules", async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/parent");
   await expect(page.getByRole("heading", { name: "Кабинет родителя" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expect(page.getByRole("button", { name: "Сегодня" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Группа: Ромашка")).toBeVisible();
   await expect(page.getByText("В детском саду")).toBeVisible();
   await expect(page.getByText("Приход: 08:15")).toBeVisible();
@@ -53,7 +55,7 @@ test("parent bootstraps direct chat from linked child", async ({ page }) => {
   await expect(page.getByLabel("Ребёнок")).toHaveValue(child.id);
   await expect(page.getByRole("button", { name: "Отправить" })).toBeDisabled();
   await page.getByRole("button", { name: "Открыть личный диалог" }).click();
-  await expect(page.getByRole("button", { name: "Воспитатель" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Воспитатель · Ребёнок Тестовый" })).toBeVisible();
   await expect(page.getByText("Сообщение воспитателя")).toBeVisible();
   await page.getByLabel("Ответ").fill("Ответ родителя");
   await page.getByRole("button", { name: "Отправить" }).click();

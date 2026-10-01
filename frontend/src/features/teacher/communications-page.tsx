@@ -36,12 +36,23 @@ export function CommunicationsPage() {
     try { const thread = await teacherApi.direct(childId, selectedGuardianId); await loadThreads(); setThreadId(thread.id); }
     catch (reason) { setError(userMessage(reason)); }
   }
+  function threadLabel(thread: Thread) {
+    if (thread.thread_type === "group") {
+      const group = groups.find((item) => item.id === thread.group_id);
+      return group ? `Группа · ${group.name}` : "Чат группы";
+    }
+    const child = children.find((item) => item.id === thread.child_id);
+    const guardian = guardians.find((item) => item.id === thread.guardian_id);
+    if (child && guardian) return `${child.last_name} ${child.first_name} · ${guardian.last_name} ${guardian.first_name}`;
+    if (child) return `${child.last_name} ${child.first_name} · родитель`;
+    return "Личный диалог";
+  }
   async function send(event: FormEvent) {
     event.preventDefault(); if (!threadId || !body.trim()) return;
     try { await teacherApi.sendMessage(threadId, body); setBody(""); setMessages(await teacherApi.messages(threadId)); }
     catch (reason) { setError(userMessage(reason)); }
   }
-  return <TeacherPageFrame title="Родители и сообщения" eyebrow="Участники определяются сервером">
+  return <TeacherPageFrame title="Сообщения" eyebrow="Родители и группы">
     {(error || groupError) && <p className={styles.error}>{error || groupError}</p>}
     <section className={styles.card}><h2>Открыть диалог</h2><div className={styles.toolbar}>
       <GroupPicker groups={groups} groupId={groupId} setGroupId={setGroupId} />
@@ -51,8 +62,8 @@ export function CommunicationsPage() {
       <button className={styles.buttonSecondary} onClick={() => void openDirect()}>Личный диалог</button>
     </div></section>
     <div className={styles.grid}>
-      <section className={styles.card}><h2>Диалоги</h2><ul className={styles.list}>{threads.map((thread) => <li key={thread.id}><button className={thread.id === threadId ? styles.button : styles.buttonSecondary} onClick={() => setThreadId(thread.id)}>{thread.thread_type === "group" ? "Группа" : "Личный диалог"}</button></li>)}</ul></section>
-      <section className={styles.card}><h2>Сообщения</h2><ul className={styles.list}>{messages.map((message) => <li className={styles.row} key={message.id}><span>{message.body}</span><small>{new Date(message.created_at).toLocaleString("ru-RU")}</small></li>)}</ul><form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Новое сообщение<textarea value={body} maxLength={4000} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!threadId}>Отправить</button></form></section>
+      <section className={styles.card}><h2>Диалоги</h2>{threads.length === 0 ? <p className={styles.muted}>Диалогов пока нет.</p> : <ul className={styles.list}>{threads.map((thread) => <li key={thread.id}><button className={`${thread.id === threadId ? styles.button : styles.buttonSecondary} ${styles.conversationButton}`} onClick={() => setThreadId(thread.id)}>{threadLabel(thread)}</button></li>)}</ul>}</section>
+      <section className={styles.card}><h2>Сообщения</h2>{messages.length === 0 ? <p className={styles.muted}>Выберите диалог или начните новый.</p> : <ul className={styles.list}>{messages.map((message) => <li className={styles.row} key={message.id}><span className={styles.messageBubble}><span>{message.body}</span><small>{new Date(message.created_at).toLocaleString("ru-RU")}</small></span></li>)}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Новое сообщение<textarea value={body} maxLength={4000} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!threadId}>Отправить</button></form></section>
     </div>
   </TeacherPageFrame>;
 }

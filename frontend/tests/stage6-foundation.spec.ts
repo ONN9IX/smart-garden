@@ -25,7 +25,7 @@ test("TEACHER is routed to an isolated minimal cabinet shell", async ({ page }) 
   await expect(page.getByText("Воспитатель", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Сегодня" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Дети" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Группы" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Группы", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Сотрудники" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Аудит" })).toHaveCount(0);
 });
