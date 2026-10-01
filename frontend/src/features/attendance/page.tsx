@@ -21,7 +21,8 @@ const labels = { present: "Присутствует", absent: "Отсутств�
 
 export function AttendancePage() { return <AuthGate route="dashboard"><AttendanceContent /></AuthGate>; }
 function AttendanceContent() {
-  const [day, setDay] = useState(localDate);
+  const [gardenToday, setGardenToday] = useState("");
+  const [day, setDay] = useState("");
   const [groupId, setGroupId] = useState(""); const [status, setStatus] = useState<AttendanceStatus | "all">("all"); const [childId, setChildId] = useState("");
   const [groups, setGroups] = useState<Group[]>([]); const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState("");
