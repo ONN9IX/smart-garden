@@ -1,9 +1,10 @@
 "use client";
 
-/** Authenticated layout. Future modules remain disabled until their approved stages. */
-import { useState } from "react";
+/** Authenticated layout with reversible product-module route gates. */
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { routeEnabled } from "@/config/product-features";
 import { authApi } from "@/lib/api/auth";
 import { userMessage } from "@/lib/api/client";
 import { useAuth } from "@/features/auth/auth-provider";
@@ -16,11 +17,19 @@ import { TeacherNav } from "@/components/layout/teacher-nav";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { current, clear } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const disabledRoute = !routeEnabled(pathname);
+
+  useEffect(() => {
+    if (!current || current.user.role === "PARENT" || !disabledRoute) return;
+    router.replace(current.user.role === "TEACHER" ? "/teacher" : "/dashboard");
+  }, [current, disabledRoute, router]);
 
   if (!current || current.user.role === "PARENT") return null;
   const isTeacher = current.user.role === "TEACHER";
+  if (disabledRoute) return null;
 
   async function logout() {
     if (busy) return;

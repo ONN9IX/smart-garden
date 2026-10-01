@@ -142,13 +142,8 @@ test("DIRECTOR can traverse the complete Stage 6 management cabinet", async ({ p
     ["/teachers", "Воспитатели"],
     ["/schedule", "Расписание"],
     ["/tasks", "Задачи воспитателей"],
-    ["/incidents", "Происшествия"],
-    ["/polls", "Опросы"],
     ["/communications?group_id=" + groupId, "Сообщения группы"],
-    ["/diary?child_id=" + childId, "Дневник ребёнка"],
     ["/notifications", "Уведомления"],
-    ["/document-notices", "Уведомления о документах"],
-    ["/photo-consents?child_id=" + childId, "Согласия на фото"],
     ["/audit", "Журнал аудита"],
     ["/settings", "Настройки организации"],
   ];
@@ -184,11 +179,9 @@ test("ADMIN gets operations but no privileged teacher-account, assignment, Audit
   await expect(page.getByRole("button", { name: /Заблокировать|Разблокировать/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Назначить" })).toHaveCount(0);
 
-  for (const heading of ["Расписание", "Задачи воспитателей", "Происшествия", "Опросы", "Уведомления"]) {
+  for (const heading of ["Расписание", "Задачи воспитателей", "Уведомления"]) {
     const route = heading === "Расписание" ? "/schedule"
       : heading === "Задачи воспитателей" ? "/tasks"
-      : heading === "Происшествия" ? "/incidents"
-      : heading === "Опросы" ? "/polls"
       : "/notifications";
     await page.goto(route);
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();

@@ -7,6 +7,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.product_features import feature_enabled
 from app.models.child import Child
 from app.models.child_diary_entry import ChildDiaryEntry
 from app.models.communication import CommunicationMessage, CommunicationThread
@@ -161,10 +162,12 @@ def management_today(db: Session, actor: User) -> ManagementToday:
         TeacherTask.due_at.is_not(None),
         TeacherTask.due_at < now,
     )) or 0
-    open_incidents = db.scalar(select(func.count(Incident.id)).where(
-        Incident.organization_id == actor.organization_id,
-        Incident.status == "open",
-    )) or 0
+    open_incidents = 0
+    if feature_enabled("incidents"):
+        open_incidents = db.scalar(select(func.count(Incident.id)).where(
+            Incident.organization_id == actor.organization_id,
+            Incident.status == "open",
+        )) or 0
     unread = db.scalar(select(func.count(Notification.id)).where(
         Notification.organization_id == actor.organization_id,
         Notification.recipient_user_id == actor.id,

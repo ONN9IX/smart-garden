@@ -4,6 +4,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { featureEnabled, type ProductFeature } from "@/config/product-features";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { useAuth } from "@/features/auth/auth-provider";
 import { authApi } from "@/lib/api/auth";
@@ -13,6 +14,7 @@ import type { Announcement, ChildSummary, DiaryEntry, Message, PhotoAsset, Poll,
 import styles from "@/features/teacher/cabinet.module.css";
 
 type Tab = "announcements" | "messages" | "diary" | "polls" | "photos";
+type ParentTab = readonly [tab: Tab, label: string, feature?: ProductFeature];
 
 export function ParentStage6Cabinet() {
   return <AuthGate route="parent"><ParentContent /></AuthGate>;
@@ -29,8 +31,10 @@ function ParentContent() {
   const [error, setError] = useState("");
 
   const load = useCallback(() => Promise.all([
-    parentStage6Api.children(), parentStage6Api.announcements(),
-    parentStage6Api.threads(), parentStage6Api.polls(),
+    parentStage6Api.children(),
+    parentStage6Api.announcements(),
+    parentStage6Api.threads(),
+    featureEnabled("polls") ? parentStage6Api.polls() : Promise.resolve([] as Poll[]),
   ]).then(([nextChildren, nextAnnouncements, nextThreads, nextPolls]) => {
     setChildren(nextChildren);
     setAnnouncements(nextAnnouncements);
@@ -51,15 +55,23 @@ function ParentContent() {
     }
   }
 
+  const tabs: readonly ParentTab[] = [
+    ["announcements", "Объявления"],
+    ["messages", "Сообщения"],
+    ["diary", "Дневник", "diary"],
+    ["polls", "Опросы", "polls"],
+    ["photos", "Фото", "photos"],
+  ];
+
   return <main className={styles.stack} style={{ maxWidth: 1100, margin: "0 auto", padding: "1rem" }}>
     <header className={styles.card}><div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> Умный сад</div><h1>Кабинет родителя</h1><p>{current.organization.name} · {current.user.username}</p><button className={styles.buttonSecondary} onClick={() => void logout()}>Выйти</button></header>
     {error && <p className={styles.error}>{error}</p>}
-    <nav className={styles.tabs}>{(["announcements", "messages", "diary", "polls", "photos"] as Tab[]).map((item) => <button className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{({ announcements: "Объявления", messages: "Сообщения", diary: "Дневник", polls: "Опросы", photos: "Фото" })[item]}</button>)}</nav>
+    <nav className={styles.tabs}>{tabs.filter(([, , feature]) => !feature || featureEnabled(feature)).map(([item, label]) => <button className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{label}</button>)}</nav>
     {tab === "announcements" && <Announcements items={announcements} />}
     {tab === "messages" && <Messages threads={threads} linkedChildren={children} reload={load} />}
-    {tab === "diary" && <Diary linkedChildren={children} />}
-    {tab === "polls" && <Polls items={polls} reload={load} />}
-    {tab === "photos" && <Photos linkedChildren={children} />}
+    {featureEnabled("diary") && tab === "diary" && <Diary linkedChildren={children} />}
+    {featureEnabled("polls") && tab === "polls" && <Polls items={polls} reload={load} />}
+    {featureEnabled("photos") && tab === "photos" && <Photos linkedChildren={children} />}
   </main>;
 }
 
