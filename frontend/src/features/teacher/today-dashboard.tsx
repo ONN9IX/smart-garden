@@ -11,17 +11,34 @@ export function TodayDashboard() {
   const [data, setData] = useState<Today | null>(null);
   const [error, setError] = useState("");
   useEffect(() => { teacherApi.today().then(setData).catch((reason) => setError(userMessage(reason))); }, []);
+
   return <TeacherPageFrame title="Кабинет воспитателя" eyebrow="Сегодня">
     {error && <p className={styles.error}>{error}</p>}
-    {!data && !error && <p>Загружаем рабочий день…</p>}
+    {!data && !error && <p className={styles.muted}>Загружаем рабочий день…</p>}
     {data && <>
       <div className={styles.grid}>
-        <section className={styles.card}><h2>Мои группы</h2><div className={styles.metric}>{data.groups.length}</div><Link href="/teacher/groups">Открыть список</Link></section>
-        <section className={styles.card}><h2>Расписание</h2><div className={styles.metric}>{data.schedule.length}</div><Link href="/teacher/schedule">На сегодня</Link></section>
-        <section className={styles.card}><h2>Новые сообщения</h2><div className={styles.metric}>{data.unread_communication_count}</div><Link href="/teacher/communications">Открыть</Link></section>
-        <section className={styles.card}><h2>Активные задачи</h2><div className={styles.metric}>{data.tasks.length}</div><Link href="/teacher/more">Подробнее</Link></section>
+        <Link className={`${styles.card} ${styles.actionCard}`} href="/teacher/groups">
+          <h2>Мои группы</h2><div className={styles.metric}>{data.groups.length}</div><small>Открыть группы →</small>
+        </Link>
+        <Link className={`${styles.card} ${styles.actionCard}`} href="/teacher/schedule">
+          <h2>Расписание</h2><div className={styles.metric}>{data.schedule.length}</div><small>Посмотреть сегодня →</small>
+        </Link>
+        <Link className={`${styles.card} ${styles.actionCard}`} href="/teacher/communications">
+          <h2>Новые сообщения</h2><div className={styles.metric}>{data.unread_communication_count}</div><small>Открыть диалоги →</small>
+        </Link>
+        <Link className={`${styles.card} ${styles.actionCard}`} href="/teacher/more">
+          <h2>Активные задачи</h2><div className={styles.metric}>{data.tasks.length}</div><small>Задачи и уведомления →</small>
+        </Link>
       </div>
-      <section className={styles.card}><h2>Посещаемость</h2><ul className={styles.list}>{data.attendance.map((item) => <li className={styles.row} key={item.group_id}><span>{data.groups.find((group) => group.id === item.group_id)?.name ?? "Группа"}</span><span>Присутствуют: {item.present} · Отсутствуют: {item.absent} · Не отмечены: {item.unknown}</span></li>)}</ul></section>
+      <section className={styles.card}>
+        <h2>Посещаемость по группам</h2>
+        {data.attendance.length === 0
+          ? <p className={styles.muted}>Нет групп для ежедневной отметки.</p>
+          : <ul className={styles.list}>{data.attendance.map((item) => <li className={styles.row} key={item.group_id}>
+              <strong>{data.groups.find((group) => group.id === item.group_id)?.name ?? "Группа"}</strong>
+              <span>В саду: {item.present} · Отсутствуют: {item.absent} · Без отметки: {item.unknown}</span>
+            </li>)}</ul>}
+      </section>
     </>}
   </TeacherPageFrame>;
 }
