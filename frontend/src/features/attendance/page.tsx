@@ -25,7 +25,7 @@ const labels = { present: "Присутствует", absent: "Отсутств�
 
 export function AttendancePage() { return <AuthGate route="dashboard"><AttendanceContent /></AuthGate>; }
 function AttendanceContent() {
-  const fallbackToday = useRef(localDate()).current;
+  const [fallbackToday] = useState(localDate);
   const userChangedDay = useRef(false);
   const [gardenToday, setGardenToday] = useState(fallbackToday);
   const [day, setDay] = useState(fallbackToday);
