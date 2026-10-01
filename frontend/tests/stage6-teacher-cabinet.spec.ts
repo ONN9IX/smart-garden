@@ -24,7 +24,7 @@ test("teacher completes daily flow and sees only enabled modules", async ({ page
   await page.goto("/teacher");
   await expect(page.getByRole("heading", { name: "Кабинет воспитателя" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.getByRole("link", { name: "Мои группы" }).click();
+  await page.getByRole("link", { name: "Мои группы", exact: true }).click();
   await expect(page.getByText("Тестовый Ребёнок")).toBeVisible();
   await page.getByRole("link", { name: "Посещаемость" }).click();
   await expect(page.getByLabel("Дата")).toHaveValue("2026-09-30");
@@ -46,7 +46,7 @@ test("teacher keeps schedule, communications, announcements, tasks and notificat
   await page.route("**/api/v1/teacher/communications/threads", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([thread]) }));
   await page.route("**/api/v1/teacher/communications/threads/*/messages", (route) => route.fulfill({ status: route.request().method() === "POST" ? 201 : 200, contentType: "application/json", body: route.request().method() === "POST" ? JSON.stringify({ id: "00000000-0000-4000-8000-000000000617", thread_id: thread.id, sender_user_id: teacher.user.id, body: "Ответ воспитателя", created_at: "2026-09-30T10:10:00Z" }) : JSON.stringify([{ id: "00000000-0000-4000-8000-000000000618", thread_id: thread.id, sender_user_id: "00000000-0000-4000-8000-000000000621", body: "Сообщение родителя", created_at: "2026-09-30T10:00:00Z" }]) }));
   await page.goto("/teacher/communications");
-  await expect(page.getByRole("heading", { name: "Сообщения" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Сообщения", level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: /Ребёнок Тестовый · Родитель Тестовый/ })).toBeVisible();
   await expect(page.getByText("Сообщение родителя")).toBeVisible();
 
@@ -67,5 +67,5 @@ test("teacher empty assignment state remains usable", async ({ page }) => {
   await page.route("**/api/v1/teacher/today", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ date: "2026-09-30", groups: [], schedule: [], attendance: [], tasks: [], notifications: [], unread_communication_count: 0 }) }));
   await page.goto("/teacher");
   await expect(page.getByText("0", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "Мои группы" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Мои группы", exact: true })).toBeVisible();
 });
