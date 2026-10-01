@@ -63,6 +63,35 @@ def children(db: Session, actor: User, group_id: UUID) -> list[ChildSummary]:
     ) for item in items]
 
 
+def parent_children(db: Session, actor: User) -> list[ChildSummary]:
+    guardian = access.parent_guardian(db, actor)
+    items = db.scalars(
+        select(Child)
+        .join(Group, Group.id == Child.group_id)
+        .join(ChildGuardian, ChildGuardian.child_id == Child.id)
+        .where(
+            Child.organization_id == actor.organization_id,
+            Child.status == "active",
+            Group.organization_id == actor.organization_id,
+            Group.status == "active",
+            ChildGuardian.organization_id == actor.organization_id,
+            ChildGuardian.guardian_id == guardian.id,
+            ChildGuardian.status == "active",
+        )
+        .distinct()
+        .order_by(Child.last_name, Child.first_name, Child.id)
+    )
+    return [
+        ChildSummary(
+            id=item.id,
+            first_name=item.first_name,
+            last_name=item.last_name,
+            middle_name=item.middle_name,
+        )
+        for item in items
+    ]
+
+
 def guardians(db: Session, actor: User, group_id: UUID) -> list[GuardianContext]:
     access.teacher_group(db, actor, group_id)
     rows = db.execute(
