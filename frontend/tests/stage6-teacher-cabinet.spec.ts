@@ -23,10 +23,12 @@ test("teacher completes daily flow and sees only enabled modules", async ({ page
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/teacher");
   await expect(page.getByRole("heading", { name: "Кабинет воспитателя" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole("link", { name: "Мои группы" }).click();
   await expect(page.getByText("Тестовый Ребёнок")).toBeVisible();
   await page.getByRole("link", { name: "Посещаемость" }).click();
   await expect(page.getByLabel("Дата")).toHaveValue("2026-09-30");
+  await expect(page.getByText("Не отмечен")).toBeVisible();
   await page.getByRole("button", { name: "Пришёл" }).click();
   await page.getByRole("link", { name: "Задачи и уведомления" }).click();
   await expect(page.getByRole("heading", { name: "Задачи и уведомления" })).toBeVisible();
