@@ -16,6 +16,7 @@ from app.schemas.teacher.contracts import (
     MessageCreate,
     MessageResponse,
     ParentDirectThreadCreate,
+    ParentTodayResponse,
     PhotoResponse,
     PollResponse,
     PollVoteCreate,
@@ -31,6 +32,11 @@ Database = Annotated[Session, Depends(get_db)]
 @router.get("/children", response_model=list[ChildSummary])
 def list_children(user: Parent, db: Database) -> list[ChildSummary]:
     return cabinet.parent_children(db, user)
+
+
+@router.get("/children/{child_id}/today", response_model=ParentTodayResponse)
+def get_child_today(child_id: UUID, user: Parent, db: Database) -> ParentTodayResponse:
+    return cabinet.parent_today(db, user, child_id)
 
 
 @router.get("/communications/threads", response_model=list[ThreadResponse])
