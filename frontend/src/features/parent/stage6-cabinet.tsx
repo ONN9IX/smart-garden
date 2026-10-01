@@ -66,10 +66,13 @@ function ParentContent() {
     ["photos", "Фото", "photos"],
   ];
 
-  return <main className={styles.stack} style={{ maxWidth: 1100, margin: "0 auto", padding: "1rem" }}>
-    <header className={styles.card}><div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> Умный сад</div><h1>Кабинет родителя</h1><p>{current.organization.name} · {current.user.username}</p><button className={styles.buttonSecondary} onClick={() => void logout()}>Выйти</button></header>
+  return <main className={`${styles.stack} ${styles.parentShell}`}>
+    <header className={`${styles.card} ${styles.parentHeader}`}>
+      <div className={styles.parentHeaderMain}><div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> Умный сад</div><h1>Кабинет родителя</h1><p className={styles.muted}>{current.organization.name} · {current.user.username}</p></div>
+      <button className={styles.buttonSecondary} onClick={() => void logout()}>Выйти</button>
+    </header>
     {error && <p className={styles.error}>{error}</p>}
-    <nav className={styles.tabs}>{tabs.filter(([, , feature]) => !feature || featureEnabled(feature)).map(([item, label]) => <button className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{label}</button>)}</nav>
+    <nav className={styles.tabs} aria-label="Разделы кабинета">{tabs.filter(([, , feature]) => !feature || featureEnabled(feature)).map(([item, label]) => <button aria-pressed={tab === item} className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{label}</button>)}</nav>
     {tab === "today" && <Today linkedChildren={children} />}
     {tab === "announcements" && <Announcements items={announcements} />}
     {tab === "messages" && <Messages threads={threads} linkedChildren={children} reload={load} />}
@@ -102,6 +105,12 @@ function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
       ? "Отсутствует"
       : "Пока не отмечен";
 
+  const attendanceClass = data?.attendance.status === "present"
+    ? `${styles.statusPill} ${styles.statusPresent}`
+    : data?.attendance.status === "absent"
+      ? `${styles.statusPill} ${styles.statusAbsent}`
+      : `${styles.statusPill} ${styles.statusUnknown}`;
+
   return <section className={styles.card}>
     <h2>Сегодня</h2>
     <div className={styles.toolbar}>
@@ -110,13 +119,13 @@ function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
     {error && <p className={styles.error}>{error}</p>}
     {!data && !error && <p className={styles.muted}>Загружаем данные дня…</p>}
     {data && <div className={styles.stack}>
-      <div className={styles.grid}>
-        <article className={styles.card}><strong>{data.child.last_name} {data.child.first_name}</strong><br/><small>Группа: {data.group.name}</small></article>
-        <article className={styles.card}><strong>{attendanceLabel}</strong><br/><small>{data.attendance.arrival_time ? `Приход: ${data.attendance.arrival_time.slice(0, 5)}` : "Отметку ставит воспитатель"}{data.attendance.departure_time ? ` · Уход: ${data.attendance.departure_time.slice(0, 5)}` : ""}</small></article>
+      <div className={styles.todaySummary}>
+        <article className={`${styles.card} ${styles.todayIdentity}`}><strong>{data.child.last_name} {data.child.first_name}</strong><br/><small>Группа: {data.group.name}</small></article>
+        <article className={styles.card}><span className={attendanceClass}>{attendanceLabel}</span><br/><small>{data.attendance.arrival_time ? `Приход: ${data.attendance.arrival_time.slice(0, 5)}` : "Отметку ставит воспитатель"}{data.attendance.departure_time ? ` · Уход: ${data.attendance.departure_time.slice(0, 5)}` : ""}</small></article>
       </div>
-      <div><strong>Расписание на сегодня</strong>{data.schedule.length === 0
+      <div><strong className={styles.scheduleTitle}>Расписание на сегодня</strong>{data.schedule.length === 0
         ? <p className={styles.muted}>На сегодня занятий в расписании нет.</p>
-        : <ul className={styles.list}>{data.schedule.map((item) => <li className={styles.row} key={item.id}><span>{item.title}</span><small>{item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}</small></li>)}</ul>}</div>
+        : <ul className={styles.list}>{data.schedule.map((item) => <li className={styles.row} key={item.id}><span><strong>{item.title}</strong></span><small>{item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}</small></li>)}</ul>}</div>
     </div>}
   </section>;
 }
@@ -162,9 +171,13 @@ function Messages({ threads, linkedChildren, reload }: {
         <button className={styles.buttonSecondary} disabled={!selectedChildId} onClick={() => void openDirect()}>Открыть личный диалог</button>
       </div>
       {threads.length === 0 && <p className={styles.muted}>Диалогов пока нет.</p>}
-      {threads.map((thread) => <button key={thread.id} className={thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} onClick={() => setThreadId(thread.id)}>{thread.thread_type === "group" ? "Чат группы" : "Воспитатель"}</button>)}
+      {threads.map((thread) => {
+        const child = linkedChildren.find((item) => item.id === thread.child_id);
+        const label = thread.thread_type === "group" ? "Чат группы" : child ? `Воспитатель · ${child.last_name} ${child.first_name}` : "Воспитатель";
+        return <button key={thread.id} className={`${thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} ${styles.conversationButton}`} onClick={() => setThreadId(thread.id)}>{label}</button>;
+      })}
     </section>
-    <section className={styles.card}><h2>Сообщения</h2><ul className={styles.list}>{visibleMessages.map((message) => <li className={styles.row} key={message.id}>{message.body}</li>)}</ul><form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim()}>Отправить</button></form></section>
+    <section className={styles.card}><h2>Сообщения</h2>{visibleMessages.length === 0 ? <p className={styles.muted}>Выберите диалог или откройте новый.</p> : <ul className={styles.list}>{visibleMessages.map((message) => <li className={styles.row} key={message.id}><span className={styles.messageBubble}><span>{message.body}</span></span></li>)}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim()}>Отправить</button></form></section>
   </div>;
 }
 
