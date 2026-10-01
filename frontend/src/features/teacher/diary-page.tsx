@@ -23,13 +23,11 @@ export function DiaryPage() {
     }).catch((reason) => setError(userMessage(reason)));
   }, [groupId]);
 
-  async function loadEntries(id: string) {
-    setEntries(await teacherApi.diary(id));
-  }
-
   useEffect(() => {
     if (!childId) return;
-    void loadEntries(childId).catch((reason) => setError(userMessage(reason)));
+    teacherApi.diary(childId)
+      .then(setEntries)
+      .catch((reason) => setError(userMessage(reason)));
   }, [childId]);
 
   async function submit(event: FormEvent) {
@@ -46,7 +44,7 @@ export function DiaryPage() {
       }
       setEditingId("");
       setNote("");
-      await loadEntries(childId);
+      setEntries(await teacherApi.diary(childId));
     } catch (reason) {
       setError(userMessage(reason));
     }
