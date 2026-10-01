@@ -11,6 +11,17 @@ test.beforeEach(async ({ page }) => {
   threads = [];
   await page.route("**/api/v1/auth/me", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(parent) }));
   await page.route("**/api/v1/parent/children", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([child]) }));
+  await page.route(`**/api/v1/parent/children/${child.id}/today`, (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      date: "2026-09-30",
+      child,
+      group: { id: groupId, name: "Ромашка" },
+      attendance: { status: "present", arrival_time: "08:15:00", departure_time: null },
+      schedule: [{ id: "00000000-0000-4000-8000-000000000629", group_id: groupId, weekday: 2, start_time: "09:00:00", end_time: "09:30:00", title: "Музыка" }],
+    }),
+  }));
   await page.route("**/api/v1/parent/announcements", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ id: "00000000-0000-4000-8000-000000000622", target_type: "group", group_id: groupId, title: "Объявление группы", body: "Синтетический текст", status: "active", created_by: "00000000-0000-4000-8000-000000000601", created_at: "2026-09-30T10:00:00Z", updated_at: "2026-09-30T10:00:00Z" }]) }));
   await page.route("**/api/v1/parent/communications/threads", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(threads) }));
   await page.route("**/api/v1/parent/communications/direct", async (route) => {
@@ -20,14 +31,19 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/parent/communications/threads/*/messages", (route) => route.fulfill({ status: route.request().method() === "POST" ? 201 : 200, contentType: "application/json", body: route.request().method() === "POST" ? JSON.stringify({ id: "00000000-0000-4000-8000-000000000627", thread_id: thread.id, sender_user_id: parent.user.id, body: "Ответ родителя", created_at: "2026-09-30T10:05:00Z" }) : JSON.stringify([{ id: "00000000-0000-4000-8000-000000000628", thread_id: thread.id, sender_user_id: "00000000-0000-4000-8000-000000000601", body: "Сообщение воспитателя", created_at: "2026-09-30T10:00:00Z" }]) }));
 });
 
-test("parent sees only enabled announcements and messages", async ({ page }) => {
+test("parent sees daily child overview and only enabled modules", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/parent");
   await expect(page.getByRole("heading", { name: "Кабинет родителя" })).toBeVisible();
-  await expect(page.getByText("Объявление группы")).toBeVisible();
+  await expect(page.getByText("Группа: Ромашка")).toBeVisible();
+  await expect(page.getByText("В детском саду")).toBeVisible();
+  await expect(page.getByText("Приход: 08:15")).toBeVisible();
+  await expect(page.getByText("Музыка")).toBeVisible();
   for (const label of ["Дневник", "Опросы", "Фото"]) {
     await expect(page.getByRole("button", { name: label })).toHaveCount(0);
   }
+  await page.getByRole("button", { name: "Объявления" }).click();
+  await expect(page.getByText("Объявление группы")).toBeVisible();
   await expect(page.getByRole("button", { name: "Сообщения" })).toBeVisible();
 });
 

@@ -19,9 +19,15 @@
 
 ## Текущий фокус
 
-Stage 1–5 technical scope принят и FROZEN. Stage 1–4 содержат бизнес-функции MVP; Stage 5 добавляет production/security hardening, проверяемое резервное копирование и восстановление PostgreSQL, supply-chain CI, очистку истёкших auth sessions и операционные runbooks. Stage 6 TEACHER architecture и безопасная схема параллельной разработки зафиксированы Issue #121, но implementation НЕ НАЧАТА. Следующий gate — сериализованный `S6-FOUNDATION`; параллельные ONN9IX/F1zname tracks запрещены до его merge и зелёного post-merge CI. Для актуальной работы разработчики используют `AGENTS.md` → `docs/CURRENT_STATE.md` → текущую Issue. СКУД/планшет на входе, платежи, AI, фото и сложные интеграции пока не входят в разработку.
+Stages 1–6 технически приняты и FROZEN. Текущий активный MVP включает четыре роли: DIRECTOR, ADMIN, TEACHER и PARENT.
 
-Техническая приёмка Stage 5 не разрешает реальный pilot или реальные персональные данные. До пилота необходимо отдельно закрыть legal/privacy/infrastructure checklist, включая роли участников обработки, hosting/data location, subprocessors/data flows, business retention, backup policy, access administration и deployment-level login-abuse verification. Dev/test/preview/recovery используют только синтетические данные.
+Активный продукт: группы, дети, родители, сотрудники, воспитатели и назначения, посещаемость, расписание, объявления, задачи, сообщения, уведомления, Audit и настройки организации.
+
+Через центральные feature flags временно выключены, но не удалены: Polls, Incidents, Diary, Photos, Photo consents и Document notices.
+
+Contracts/Billing, входной планшет, psychology/development-support и SaaS subscription также остаются на паузе до отдельного решения Master Chat.
+
+Для browser-проверки текущего продукта используйте [PREVIEW.md](PREVIEW.md). Dev/test/preview используют только синтетические данные. Реальный pilot требует отдельного legal/privacy/retention/infrastructure review; технический freeze не является заявлением о полной 152-ФЗ готовности.
 
 ### Этап 1 — фундамент (FROZEN)
 - Backend: организация, пользователи, роли, авторизация по логину/паролю, временный пароль, смена пароля, изоляция данных организаций.
@@ -109,4 +115,23 @@ Frontend не создаёт и не использует собственную
 
 ## Статус готовности
 
-Stage 1–4 business capabilities доступны в общей preview версии на Stage 5 hardened baseline: Frontend Next.js работает с FastAPI и PostgreSQL без mock business paths. Помимо авторизации, групп, детей, представителей, сотрудников и посещаемости реализованы Audit, Announcements и Dashboard. Проверка основных браузерных сценариев описана в [PREVIEW.md](PREVIEW.md). Dev/test/preview используют только синтетические данные. Реальный pilot требует отдельного legal/privacy/retention/infrastructure review; технический freeze не является заявлением о юридическом соответствии или разрешением использовать реальные ПДн.
+Stages 1–6 объединены в `main` и прошли integrated technical acceptance.
+
+Текущий MVP позволяет продемонстрировать полный рабочий контур:
+
+```text
+DIRECTOR / ADMIN
+→ создают структуру сада и управляют операционными процессами
+
+TEACHER
+→ работает только со своими назначенными группами
+→ ведёт посещаемость, расписание, объявления, задачи и сообщения
+
+PARENT
+→ видит только связанных детей
+→ получает ежедневную сводку, объявления и сообщения
+```
+
+OFF-модули сохраняются в репозитории и могут быть возвращены отдельным решением без восстановления удалённого кода.
+
+Реальные персональные данные по-прежнему запрещены в dev/test/preview. Техническая готовность не заменяет юридическую, инфраструктурную и организационную готовность к реальному пилоту.

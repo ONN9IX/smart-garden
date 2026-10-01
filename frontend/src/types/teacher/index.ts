@@ -12,6 +12,13 @@ export type AttendanceRow = {
   group: GroupSummary; status: "present" | "absent" | "unknown";
   arrival_time: string | null; departure_time: string | null;
 };
+export type ParentToday = {
+  date: string;
+  child: ChildSummary;
+  group: GroupSummary;
+  attendance: { status: "present" | "absent" | "unknown"; arrival_time: string | null; departure_time: string | null };
+  schedule: ScheduleItem[];
+};
 export type Thread = {
   id: string; thread_type: "group" | "direct"; group_id: string;
   child_id: string | null; guardian_id: string | null; created_at: string;

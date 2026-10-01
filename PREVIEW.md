@@ -1,10 +1,10 @@
-# Проверить принятый MVP в браузере
+# Проверить текущий Smart Garden MVP в браузере
 
-Нужен установленный и запущенный Docker Desktop с Docker Compose, а также Git Bash. Данные в preview синтетические.
+Preview использует только синтетические данные. Реальные персональные данные в dev/test/preview запрещены.
 
-Это browser preview принятых Stage 1–4 business flows на Stage 5 hardened baseline. Stage 5 не добавляет новый пользовательский экран: его production/security, recovery, supply-chain и operations evidence проверяется прежде всего required CI и runbooks.
+## 1. Запуск
 
-В Git Bash из папки `smart-garden`:
+Нужны Docker Desktop, Docker Compose и Git Bash.
 
 ```bash
 git fetch origin
@@ -13,28 +13,117 @@ git pull --ff-only
 bash scripts/start-preview.sh
 ```
 
-Если локальной ветки `main` ещё нет, выполните `git switch --track origin/main` и пропустите `git pull --ff-only`.
+Откройте:
 
-После запуска откройте [http://localhost:3000/login](http://localhost:3000/login). Временные пароли `director-demo`, `admin-demo`, `stage2-director-demo`, `stage3-director-demo` и `stage4-director-demo` отображаются в терминале **только при первом создании** аккаунтов. Для полной проверки Stage 4 войдите под `stage4-director-demo` и смените пароль. В разделе «Сотрудники» можно создать синтетическую карточку, исправить её, выдать ADMIN доступ и записать временный пароль из одноразовой карточки. Закройте карточку: после перехода на другую страницу или обновления пароль нельзя показать снова. Сброс пароля выдаёт новый одноразовый пароль. Если сохранение карточки не удалось, исправьте данные или подключение и повторите сохранение в открытой форме.
+- Frontend: http://localhost:3000/login
+- API health: http://localhost:8000/api/v1/health
+- OpenAPI: http://localhost:8000/docs
 
-В разделе «Посещаемость» выберите дату и группу. Для активного синтетического ребёнка сохраните `present`, затем исправьте на `absent`; «Без отметки» без сохранённой записи показывает `unknown`. Фильтры статуса и ребёнка используют текущий набор строк; при смене даты фильтры и незавершённые формы сбрасываются. Синтетические группа и ребёнок из Stage 2 уже созданы. Можно также проверить PARENT аккаунт из карточки представителя: после смены пароля ему доступен только `/parent`. API: [health](http://localhost:8000/api/v1/health) и [OpenAPI](http://localhost:8000/docs).
+Временные пароли выводятся в терминале только при создании соответствующего synthetic аккаунта. Они не сохраняются в открытом виде и не коммитятся.
 
-Краткая проверка Stage 4:
+Если нужный PARENT/TEACHER аккаунт уже существует, но пароль неизвестен, используйте существующий DIRECTOR flow управления аккаунтом и безопасно получите новый одноразовый временный пароль. Не добавляйте статические demo-пароли в репозиторий.
 
-- [`/dashboard`](http://localhost:3000/dashboard) — проверьте текущую garden-local дату, общие счётчики и строки активных групп; totals должны соответствовать сумме строк групп.
-- [`/announcements`](http://localhost:3000/announcements) — создайте объявление только с синтетическим текстом для всего сада или активной группы, измените его и архивируйте; архивная запись остаётся доступной только для чтения.
-- [`/audit`](http://localhost:3000/audit) — доступен DIRECTOR; проверьте события выполненных действий и отсутствие паролей, токенов, временных паролей, title/body объявления и лишних персональных данных в details.
+## 2. Текущий продуктовый baseline
 
-Повторный запуск `bash scripts/start-preview.sh` сохраняет аккаунты и новые пароли в локальном томе PostgreSQL. Если забыли пароль, нужен новый локальный тестовый том: команда ниже **удаляет только данные этой локальной preview-БД**, после чего запустите `bash scripts/start-preview.sh` ещё раз:
+Активны:
+
+- Dashboard;
+- Children;
+- Groups;
+- Guardians / Parents;
+- Employees;
+- Teachers / assignments;
+- Attendance;
+- Schedule;
+- Announcements;
+- Tasks;
+- Communications;
+- Notifications;
+- Audit;
+- Organization Settings;
+- Auth/account management.
+
+OFF, но сохранены в коде и данных:
+
+- Polls;
+- Incidents;
+- Diary;
+- Photos;
+- Photo consents;
+- Document notices.
+
+Также пока не реализуем runtime для Contracts/Billing, Entry Kiosk, psychology/development-support и SaaS tenant subscription.
+
+## 3. Рекомендуемый сценарий демонстрации
+
+### DIRECTOR
+
+1. Войти под synthetic DIRECTOR.
+2. Открыть Dashboard и показать garden-local текущую дату.
+3. Открыть Groups.
+4. Открыть Children и карточку synthetic ребёнка.
+5. Открыть Guardians и связь родителя с ребёнком.
+6. Открыть Employees / Teachers и показать назначение воспитателя.
+7. Открыть Attendance.
+8. Открыть Schedule.
+9. Создать или показать synthetic Announcement.
+10. Создать или показать Task воспитателю.
+11. Открыть Group communications.
+12. Показать Audit.
+13. Показать Settings.
+
+OFF-модули не должны отображаться в меню или карточке ребёнка.
+
+### TEACHER
+
+1. Войти под synthetic TEACHER.
+2. Открыть Today.
+3. Показать назначенную группу.
+4. Открыть roster и доступные контакты родителей.
+5. Открыть Attendance и отметить synthetic ребёнка.
+6. Проверить, что дата по умолчанию соответствует garden-local дате сервера.
+7. Открыть Schedule.
+8. Открыть Communications.
+9. Открыть Announcements.
+10. Открыть Tasks / Notifications через раздел «Ещё».
+
+Воспитатель видит только назначенные ему группы.
+
+### PARENT
+
+1. Убедиться, что synthetic Guardian связан с synthetic Child и имеет PARENT account.
+2. Войти под PARENT.
+3. На вкладке «Сегодня» показать:
+   - своего ребёнка;
+   - текущую группу;
+   - сегодняшнюю посещаемость;
+   - время прихода/ухода при наличии;
+   - расписание группы на сегодня.
+4. Открыть Announcements.
+5. Открыть Messages.
+6. Создать/открыть прямой диалог с воспитателем.
+
+PARENT не должен видеть другого ребёнка или внутренние management/teacher экраны.
+
+## 4. Сброс локальной preview-БД
+
+Если нужны полностью новые synthetic аккаунты и данные:
 
 ```bash
 docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.preview.yml down -v
+bash scripts/start-preview.sh
 ```
 
-Чтобы просто остановить контейнеры, сохранив данные:
+Команда удаляет только локальный preview volume.
+
+Чтобы просто остановить preview и сохранить данные:
 
 ```bash
 docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.preview.yml down
 ```
 
-Не вводите реальные персональные данные или другой реальный business free text в локальную preview версию. Существующий `/api/v1/health` остаётся availability check для API и PostgreSQL. Preview не является production deployment instruction или разрешением реального pilot. Родительский экран пока технический: данные детей ему не показываются.
+## 5. Граница preview
+
+Preview не является production deployment instruction.
+
+Техническая демонстрация не означает полную 152-ФЗ готовность и не разрешает использование реальных ПДн до отдельного legal/privacy/infrastructure review.

@@ -1,7 +1,7 @@
 import { api, ApiError, NetworkError } from "@/lib/api/client";
 import type {
   Announcement, AttendanceRow, ChildSummary, DiaryEntry, DocumentNotice, GroupSummary,
-  GuardianContext, Incident, Message, Notification, PhotoAsset, PhotoConsent, Poll,
+  GuardianContext, Incident, Message, Notification, ParentToday, PhotoAsset, PhotoConsent, Poll,
   ScheduleItem, TeacherTask, Thread, Today,
 } from "@/types/teacher";
 
@@ -59,6 +59,7 @@ export const teacherApi = {
 
 export const parentStage6Api = {
   children: () => api.get<ChildSummary[]>("/parent/children"),
+  today: (childId: string) => api.get<ParentToday>(`/parent/children/${childId}/today`),
   announcements: () => api.get<Announcement[]>("/parent/announcements"),
   threads: () => api.get<Thread[]>("/parent/communications/threads"),
   direct: (childId: string) => api.post<Thread>("/parent/communications/direct", { child_id: childId }),

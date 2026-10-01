@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
+import { featureEnabled } from "@/config/product-features";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -179,11 +180,11 @@ function ChildDetail({ id }: { id: string }) {
       <div className="page-heading section-space"><span className="eyebrow">Ребёнок · {child.status === "active" ? "Активен" : "Архив"}</span><h1>{fullName(child)}</h1><p>Дата рождения: {dateLabel(child.birth_date)} · Группа: {child.group.name}</p></div>
       {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
       {editing ? <ChildForm key={child.updated_at} initial={{ first_name: child.first_name, last_name: child.last_name, middle_name: child.middle_name, birth_date: child.birth_date, group_id: child.group.id }} groups={groups} busy={busy} submit={save} cancel={() => setEditing(false)} /> : <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить</Button><Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{child.status === "active" ? "Архивировать" : "Восстановить"}</Button></div>}
-      <section className="section-space"><h2>Операционная информация</h2><div className="action-row">
-        <Link className="button button-secondary" href={`/diary?child_id=${child.id}`}>Дневник</Link>
-        <Link className="button button-secondary" href={`/photo-consents?child_id=${child.id}`}>Согласие на фото</Link>
-        <Link className="button button-secondary" href={`/incidents?group_id=${child.group.id}`}>Происшествия группы</Link>
-      </div></section>
+      {(featureEnabled("diary") || featureEnabled("photos") || featureEnabled("incidents")) && <section className="section-space"><h2>Операционная информация</h2><div className="action-row">
+        {featureEnabled("diary") && <Link className="button button-secondary" href={`/diary?child_id=${child.id}`}>Дневник</Link>}
+        {featureEnabled("photos") && <Link className="button button-secondary" href={`/photo-consents?child_id=${child.id}`}>Согласие на фото</Link>}
+        {featureEnabled("incidents") && <Link className="button button-secondary" href={`/incidents?group_id=${child.group.id}`}>Происшествия группы</Link>}
+      </div></section>}
       <ChildRelations child={child} refresh={load} />
     </>}
   </AppShell>;

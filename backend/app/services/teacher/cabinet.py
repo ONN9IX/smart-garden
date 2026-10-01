@@ -30,6 +30,8 @@ from app.schemas.teacher.contracts import (
     GroupSummary,
     GuardianContext,
     NotificationResponse,
+    ParentAttendanceSummary,
+    ParentTodayResponse,
     ScheduleItemResponse,
     TaskResponse,
     TodayResponse,
@@ -90,6 +92,49 @@ def parent_children(db: Session, actor: User) -> list[ChildSummary]:
         )
         for item in items
     ]
+
+
+def parent_today(db: Session, actor: User, child_id: UUID) -> ParentTodayResponse:
+    _, child = access.parent_child(db, actor, child_id)
+    group = db.scalar(select(Group).where(
+        Group.id == child.group_id,
+        Group.organization_id == actor.organization_id,
+        Group.status == "active",
+    ))
+    if group is None:
+        raise AppError(404, "NOT_FOUND")
+    day = organization_today(actor.organization)
+    record = db.scalar(select(Attendance).where(
+        Attendance.organization_id == actor.organization_id,
+        Attendance.child_id == child.id,
+        Attendance.date == day,
+    ))
+    schedule_items = db.scalars(select(GroupScheduleItem).where(
+        GroupScheduleItem.organization_id == actor.organization_id,
+        GroupScheduleItem.group_id == group.id,
+        GroupScheduleItem.weekday == day.weekday(),
+        GroupScheduleItem.status == "active",
+    ).order_by(GroupScheduleItem.start_time, GroupScheduleItem.id))
+    return ParentTodayResponse(
+        date=day,
+        child=ChildSummary(
+            id=child.id, first_name=child.first_name, last_name=child.last_name,
+            middle_name=child.middle_name,
+        ),
+        group=GroupSummary(id=group.id, name=group.name),
+        attendance=ParentAttendanceSummary(
+            status=record.status if record is not None else "unknown",
+            arrival_time=record.arrival_time if record is not None else None,
+            departure_time=record.departure_time if record is not None else None,
+        ),
+        schedule=[
+            ScheduleItemResponse(
+                id=item.id, group_id=item.group_id, weekday=item.weekday,
+                start_time=item.start_time, end_time=item.end_time, title=item.title,
+            )
+            for item in schedule_items
+        ],
+    )
 
 
 def guardians(db: Session, actor: User, group_id: UUID) -> list[GuardianContext]:
