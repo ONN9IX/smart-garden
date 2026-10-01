@@ -56,10 +56,10 @@ function ParentContent() {
     {error && <p className={styles.error}>{error}</p>}
     <nav className={styles.tabs}>{(["announcements", "messages", "diary", "polls", "photos"] as Tab[]).map((item) => <button className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{({ announcements: "Объявления", messages: "Сообщения", diary: "Дневник", polls: "Опросы", photos: "Фото" })[item]}</button>)}</nav>
     {tab === "announcements" && <Announcements items={announcements} />}
-    {tab === "messages" && <Messages threads={threads} children={children} reload={load} />}
-    {tab === "diary" && <Diary children={children} />}
+    {tab === "messages" && <Messages threads={threads} linkedChildren={children} reload={load} />}
+    {tab === "diary" && <Diary linkedChildren={children} />}
     {tab === "polls" && <Polls items={polls} reload={load} />}
-    {tab === "photos" && <Photos children={children} />}
+    {tab === "photos" && <Photos linkedChildren={children} />}
   </main>;
 }
 
@@ -67,19 +67,18 @@ function Announcements({ items }: { items: Announcement[] }) {
   return <section className={styles.card}><h2>Объявления</h2><ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span><strong>{item.title}</strong><br/>{item.body}</span><small>{new Date(item.created_at).toLocaleDateString("ru-RU")}</small></li>)}</ul></section>;
 }
 
-function Messages({ threads, children, reload }: {
-  threads: Thread[]; children: ChildSummary[]; reload: () => Promise<unknown>;
+function Messages({ threads, linkedChildren, reload }: {
+  threads: Thread[]; linkedChildren: ChildSummary[]; reload: () => Promise<unknown>;
 }) {
   const [threadId, setThreadId] = useState(threads[0]?.id || "");
-  const [childId, setChildId] = useState(children[0]?.id || "");
+  const [childId, setChildId] = useState(linkedChildren[0]?.id || "");
   const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState("");
   const selectedThreadId = threadId || threads[0]?.id || "";
-  const selectedChildId = childId || children[0]?.id || "";
+  const selectedChildId = childId || linkedChildren[0]?.id || "";
 
   useEffect(() => {
     if (selectedThreadId) parentStage6Api.messages(selectedThreadId).then(setMessages);
-    else setMessages([]);
   }, [selectedThreadId]);
 
   async function openDirect() {
@@ -100,7 +99,7 @@ function Messages({ threads, children, reload }: {
   return <div className={styles.grid}>
     <section className={styles.card}><h2>Диалоги</h2>
       <div className={styles.toolbar}>
-        <label>Ребёнок<select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{children.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
+        <label>Ребёнок<select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
         <button className={styles.buttonSecondary} disabled={!selectedChildId} onClick={() => void openDirect()}>Открыть личный диалог</button>
       </div>
       {threads.map((thread) => <button key={thread.id} className={thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} onClick={() => setThreadId(thread.id)}>{thread.thread_type === "group" ? "Группа" : "Воспитатель"}</button>)}
@@ -109,32 +108,30 @@ function Messages({ threads, children, reload }: {
   </div>;
 }
 
-function Diary({ children }: { children: ChildSummary[] }) {
-  const [childId, setChildId] = useState(children[0]?.id || "");
+function Diary({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
+  const [childId, setChildId] = useState(linkedChildren[0]?.id || "");
   const [items, setItems] = useState<DiaryEntry[]>([]);
-  const selectedChildId = childId || children[0]?.id || "";
+  const selectedChildId = childId || linkedChildren[0]?.id || "";
 
   useEffect(() => {
     if (selectedChildId) parentStage6Api.diary(selectedChildId).then(setItems);
-    else setItems([]);
   }, [selectedChildId]);
 
-  return <section className={styles.card}><h2>Дневник ребёнка</h2><select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{children.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select><ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span>{item.note}</span><small>{item.date}</small></li>)}</ul></section>;
+  return <section className={styles.card}><h2>Дневник ребёнка</h2><select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select><ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span>{item.note}</span><small>{item.date}</small></li>)}</ul></section>;
 }
 
 function Polls({ items, reload }: { items: Poll[]; reload: () => Promise<unknown> }) {
   return <section className={styles.card}><h2>Опросы</h2><ul className={styles.list}>{items.map((poll) => <li key={poll.id}><strong>{poll.question}</strong><div className={styles.toolbar}>{poll.options.map((option) => <button key={option.id} disabled={poll.status !== "active" || Boolean(poll.selected_option_id)} className={poll.selected_option_id === option.id ? styles.button : styles.buttonSecondary} onClick={() => void parentStage6Api.vote(poll.id, option.id).then(reload)}>{option.label}</button>)}</div></li>)}</ul></section>;
 }
 
-function Photos({ children }: { children: ChildSummary[] }) {
-  const [childId, setChildId] = useState(children[0]?.id || "");
+function Photos({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
+  const [childId, setChildId] = useState(linkedChildren[0]?.id || "");
   const [items, setItems] = useState<PhotoAsset[]>([]);
-  const selectedChildId = childId || children[0]?.id || "";
+  const selectedChildId = childId || linkedChildren[0]?.id || "";
 
   useEffect(() => {
     if (selectedChildId) parentStage6Api.photos(selectedChildId).then(setItems);
-    else setItems([]);
   }, [selectedChildId]);
 
-  return <section className={styles.card}><h2>Фото</h2><select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{children.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select><div className={styles.grid}>{items.map((item) => <div key={item.id}><img className={styles.photo} src={parentStage6Api.photoContent(item.id)} alt="Фото группы" /></div>)}</div></section>;
+  return <section className={styles.card}><h2>Фото</h2><select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select><div className={styles.grid}>{items.map((item) => <div key={item.id}><img className={styles.photo} src={parentStage6Api.photoContent(item.id)} alt="Фото группы" /></div>)}</div></section>;
 }
