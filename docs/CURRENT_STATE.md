@@ -146,6 +146,10 @@ The product-module OFF decision in Issue #150 / PR #151 is a later explicit Mast
 
 Issue #154 is a no-migration refinement on top of the frozen Stage 6 architecture. It adds a minimized PARENT daily overview, aligns active Attendance default dates with the Organization timezone, removes residual visible links to OFF modules and updates the browser-demo documentation. It does not re-enable deferred modules or change tenant/RBAC architecture.
 
+## Pilot-ready UI/UX pass
+
+Issue #156 is a frontend-only polish pass on top of the same frozen Stage 6 product architecture. It improves navigation grouping, Russian status labels, action affordances, conversation context, parent/teacher daily readability and 390px mobile usability. It does not change backend contracts, RBAC, tenant isolation, schema, PII or the ON/OFF product matrix.
+
 ## Next gate
 
 No new broad runtime Stage starts automatically.
