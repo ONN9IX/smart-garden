@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from app.core.product_features import PRODUCT_FEATURES
 from app.core.security import hash_password
 from app.models.audit_event import AuditEvent
 from app.models.child import Child
@@ -58,7 +59,9 @@ def _foundation_teacher(client, db, users):
     return employee, group, db.get(User, account_id), assignment.json()
 
 
-def test_management_cabinet_director_end_to_end_and_privacy(client, db, users):
+def test_management_cabinet_director_end_to_end_and_privacy(client, db, users, monkeypatch):
+    for feature in ("diary", "polls", "incidents", "photos", "document_notices"):
+        monkeypatch.setitem(PRODUCT_FEATURES, feature, True)
     organization, _, director, _ = users
     _director(client, db, users)
     employee, group, teacher, assignment = _foundation_teacher(client, db, users)
@@ -265,7 +268,9 @@ def test_management_admin_permissions_and_operational_access(client, db, users):
     assert client.post(f"{MGMT}/management/notifications/{other_notification.id}/read").status_code == 404
 
 
-def test_management_tenant_and_schema_boundaries(client, db, users):
+def test_management_tenant_and_schema_boundaries(client, db, users, monkeypatch):
+    for feature in ("diary", "polls", "incidents", "photos", "document_notices"):
+        monkeypatch.setitem(PRODUCT_FEATURES, feature, True)
     _, other, _, _ = users
     _director(client, db, users)
 
