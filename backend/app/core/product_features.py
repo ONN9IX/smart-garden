@@ -43,11 +43,8 @@ def is_api_feature_disabled(path: str) -> bool:
             return True
 
     # PARENT diary path contains the child UUID before /diary.
-    if (
+    return (
         path.startswith("/api/v1/parent/children/")
         and path.endswith("/diary")
         and not feature_enabled("diary")
-    ):
-        return True
-
-    return False
+    )
