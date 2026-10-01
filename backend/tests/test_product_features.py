@@ -1,5 +1,5 @@
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from app.core.product_features import PRODUCT_FEATURES, is_api_feature_disabled
 from app.main import app
