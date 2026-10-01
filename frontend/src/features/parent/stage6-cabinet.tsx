@@ -10,10 +10,12 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { authApi } from "@/lib/api/auth";
 import { userMessage } from "@/lib/api/client";
 import { parentStage6Api } from "@/lib/api/teacher";
-import type { Announcement, ChildSummary, DiaryEntry, Message, PhotoAsset, Poll, Thread } from "@/types/teacher";
+import type {
+  Announcement, ChildSummary, DiaryEntry, Message, ParentToday, PhotoAsset, Poll, Thread,
+} from "@/types/teacher";
 import styles from "@/features/teacher/cabinet.module.css";
 
-type Tab = "announcements" | "messages" | "diary" | "polls" | "photos";
+type Tab = "today" | "announcements" | "messages" | "diary" | "polls" | "photos";
 type ParentTab = readonly [tab: Tab, label: string, feature?: ProductFeature];
 
 export function ParentStage6Cabinet() {
@@ -23,7 +25,7 @@ export function ParentStage6Cabinet() {
 function ParentContent() {
   const { current, clear } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("announcements");
+  const [tab, setTab] = useState<Tab>("today");
   const [children, setChildren] = useState<ChildSummary[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -56,6 +58,7 @@ function ParentContent() {
   }
 
   const tabs: readonly ParentTab[] = [
+    ["today", "Сегодня"],
     ["announcements", "Объявления"],
     ["messages", "Сообщения"],
     ["diary", "Дневник", "diary"],
@@ -67,6 +70,7 @@ function ParentContent() {
     <header className={styles.card}><div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> Умный сад</div><h1>Кабинет родителя</h1><p>{current.organization.name} · {current.user.username}</p><button className={styles.buttonSecondary} onClick={() => void logout()}>Выйти</button></header>
     {error && <p className={styles.error}>{error}</p>}
     <nav className={styles.tabs}>{tabs.filter(([, , feature]) => !feature || featureEnabled(feature)).map(([item, label]) => <button className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{label}</button>)}</nav>
+    {tab === "today" && <Today linkedChildren={children} />}
     {tab === "announcements" && <Announcements items={announcements} />}
     {tab === "messages" && <Messages threads={threads} linkedChildren={children} reload={load} />}
     {featureEnabled("diary") && tab === "diary" && <Diary linkedChildren={children} />}
@@ -75,8 +79,50 @@ function ParentContent() {
   </main>;
 }
 
+function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
+  const [childId, setChildId] = useState("");
+  const [data, setData] = useState<ParentToday | null>(null);
+  const [error, setError] = useState("");
+  const selectedChildId = childId || linkedChildren[0]?.id || "";
+
+  useEffect(() => {
+    if (!selectedChildId) { setData(null); return; }
+    parentStage6Api.today(selectedChildId)
+      .then((value) => { setData(value); setError(""); })
+      .catch((reason) => { setData(null); setError(userMessage(reason)); });
+  }, [selectedChildId]);
+
+  if (linkedChildren.length === 0) {
+    return <section className={styles.card}><h2>Сегодня</h2><p className={styles.muted}>Нет доступных карточек детей.</p></section>;
+  }
+
+  const attendanceLabel = data?.attendance.status === "present"
+    ? "В детском саду"
+    : data?.attendance.status === "absent"
+      ? "Отсутствует"
+      : "Пока не отмечен";
+
+  return <section className={styles.card}>
+    <h2>Сегодня</h2>
+    <div className={styles.toolbar}>
+      <label>Ребёнок<select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
+    </div>
+    {error && <p className={styles.error}>{error}</p>}
+    {!data && !error && <p className={styles.muted}>Загружаем данные дня…</p>}
+    {data && <div className={styles.stack}>
+      <div className={styles.grid}>
+        <article className={styles.card}><strong>{data.child.last_name} {data.child.first_name}</strong><br/><small>Группа: {data.group.name}</small></article>
+        <article className={styles.card}><strong>{attendanceLabel}</strong><br/><small>{data.attendance.arrival_time ? `Приход: ${data.attendance.arrival_time.slice(0, 5)}` : "Отметку ставит воспитатель"}{data.attendance.departure_time ? ` · Уход: ${data.attendance.departure_time.slice(0, 5)}` : ""}</small></article>
+      </div>
+      <div><strong>Расписание на сегодня</strong>{data.schedule.length === 0
+        ? <p className={styles.muted}>На сегодня занятий в расписании нет.</p>
+        : <ul className={styles.list}>{data.schedule.map((item) => <li className={styles.row} key={item.id}><span>{item.title}</span><small>{item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}</small></li>)}</ul>}</div>
+    </div>}
+  </section>;
+}
+
 function Announcements({ items }: { items: Announcement[] }) {
-  return <section className={styles.card}><h2>Объявления</h2><ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span><strong>{item.title}</strong><br/>{item.body}</span><small>{new Date(item.created_at).toLocaleDateString("ru-RU")}</small></li>)}</ul></section>;
+  return <section className={styles.card}><h2>Объявления</h2>{items.length === 0 ? <p className={styles.muted}>Новых объявлений нет.</p> : <ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span><strong>{item.title}</strong><br/>{item.body}</span><small>{new Date(item.created_at).toLocaleDateString("ru-RU")}</small></li>)}</ul>}</section>;
 }
 
 function Messages({ threads, linkedChildren, reload }: {
@@ -91,6 +137,7 @@ function Messages({ threads, linkedChildren, reload }: {
 
   useEffect(() => {
     if (selectedThreadId) parentStage6Api.messages(selectedThreadId).then(setMessages);
+    else setMessages([]);
   }, [selectedThreadId]);
 
   async function openDirect() {
@@ -114,9 +161,10 @@ function Messages({ threads, linkedChildren, reload }: {
         <label>Ребёнок<select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
         <button className={styles.buttonSecondary} disabled={!selectedChildId} onClick={() => void openDirect()}>Открыть личный диалог</button>
       </div>
-      {threads.map((thread) => <button key={thread.id} className={thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} onClick={() => setThreadId(thread.id)}>{thread.thread_type === "group" ? "Группа" : "Воспитатель"}</button>)}
+      {threads.length === 0 && <p className={styles.muted}>Диалогов пока нет.</p>}
+      {threads.map((thread) => <button key={thread.id} className={thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} onClick={() => setThreadId(thread.id)}>{thread.thread_type === "group" ? "Чат группы" : "Воспитатель"}</button>)}
     </section>
-    <section className={styles.card}><h2>Сообщения</h2><ul className={styles.list}>{messages.map((message) => <li className={styles.row} key={message.id}>{message.body}</li>)}</ul><form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!selectedThreadId}>Отправить</button></form></section>
+    <section className={styles.card}><h2>Сообщения</h2><ul className={styles.list}>{messages.map((message) => <li className={styles.row} key={message.id}>{message.body}</li>)}</ul><form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim()}>Отправить</button></form></section>
   </div>;
 }
 
