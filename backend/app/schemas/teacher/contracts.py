@@ -46,6 +46,20 @@ class ScheduleItemResponse(BaseModel):
     title: str
 
 
+class ParentAttendanceSummary(BaseModel):
+    status: Literal["present", "absent", "unknown"]
+    arrival_time: time | None
+    departure_time: time | None
+
+
+class ParentTodayResponse(BaseModel):
+    date: Date
+    child: ChildSummary
+    group: GroupSummary
+    attendance: ParentAttendanceSummary
+    schedule: list[ScheduleItemResponse]
+
+
 class ThreadResponse(BaseModel):
     id: UUID
     thread_type: Literal["group", "direct"]
