@@ -52,60 +52,7 @@ test("employee create and edit retain input after save failure", async ({ page }
   await page.getByRole("link", { name: "К сотрудникам" }).click();
   await expect(page).toHaveURL(/\/employees\/new$/);
   await page.locator("form").evaluate((form: HTMLFormElement) => form.requestSubmit());
-  await expect(page).toHaveURL(new RegExp(`/employees/${employeeId}/** QA3-02 UI regression with synthetic API responses; real API coverage remains in stage3.spec.ts. */
-import { expect, test, type Page, type Route } from "@playwright/test";
-
-const employeeId = "11111111-1111-4111-8111-111111111111";
-const groupA = "22222222-2222-4222-8222-222222222222";
-const groupB = "33333333-3333-4333-8333-333333333333";
-const childA = "44444444-4444-4444-8444-444444444444";
-const childB = "55555555-5555-4555-8555-555555555555";
-const account = { id: "66666666-6666-4666-8666-666666666666", username: "staff-synthetic", role: "ADMIN", status: "active", must_change_password: true };
-const employee = { id: employeeId, first_name: "Тест", last_name: "Синтетический", middle_name: null, position: "Сотрудник", status: "active", account: null as typeof account | null, archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
-const cors = { "access-control-allow-origin": "http://localhost:3000", "access-control-allow-credentials": "true", "access-control-allow-methods": "GET,POST,PATCH,OPTIONS", "access-control-allow-headers": "content-type" };
-const reply = (route: Route, body: object, status = 200) => route.fulfill({ status, contentType: "application/json", headers: cors, body: JSON.stringify(body) });
-const failure = (route: Route) => reply(route, { error: { code: "INTERNAL_ERROR", message: "Hidden server details", field: null } }, 500);
-
-async function mockAuth(page: Page) {
-  await page.route("**/api/v1/auth/me", (route) => reply(route, {
-    user: { id: "77777777-7777-4777-8777-777777777777", username: "director-synthetic", role: "DIRECTOR", status: "active", must_change_password: false },
-    organization: { id: "88888888-8888-4888-8888-888888888888", name: "Синтетический сад" },
-  }));
-}
-
-test("employee create and edit retain input after save failure", async ({ page }) => {
-  await mockAuth(page);
-  let createAttempts = 0; let editAttempts = 0;
-  await page.route("**/api/v1/employees**", (route) => {
-    const { pathname } = new URL(route.request().url());
-    const method = route.request().method();
-    if (pathname.endsWith("/employees") && method === "POST") {
-      createAttempts += 1;
-      return createAttempts === 1 ? failure(route) : reply(route, employee, 201);
-    }
-    if (pathname.endsWith(`/${employeeId}`) && method === "PATCH") {
-      editAttempts += 1;
-      return editAttempts === 1 ? failure(route) : reply(route, { ...employee, position: "Новая должность" });
-    }
-    if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, employee);
-    return reply(route, { items: [] });
-  });
-  await page.goto("/employees/new");
-  await page.getByLabel("Фамилия").fill(employee.last_name);
-  await page.getByLabel("Имя").fill(employee.first_name);
-  await page.getByLabel("Должность").fill(employee.position);
-  await page.getByRole("button", { name: "Сохранить" }).click();
-  await expect(page.locator(".alert-error")).toContainText("Не удалось выполнить запрос");
-  await expect(page.getByLabel("Фамилия")).toHaveValue(employee.last_name);
-  await expect(page.getByLabel("Должность")).toHaveValue(employee.position);
-  await expect(page).toHaveURL(/\/employees\/new$/);
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("несохранённые изменения");
-    await dialog.dismiss();
-  });
-  await page.getByRole("link", { name: "К сотрудникам" }).click();
-  await expect(page).toHaveURL(/\/employees\/new$/);
-));
+  await expect(page).toHaveURL(new RegExp(`/employees/${employeeId}$`));
   await page.getByRole("button", { name: "Изменить" }).click();
   await page.getByLabel("Должность").fill("Новая должность");
   await page.getByRole("button", { name: "Сохранить" }).click();
