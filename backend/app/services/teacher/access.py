@@ -133,15 +133,22 @@ def teacher_thread(db: Session, actor: User, thread_id: UUID) -> CommunicationTh
         if thread.child_id is None or thread.guardian_id is None:
             raise AppError(404, "NOT_FOUND")
         child = teacher_child(db, actor, thread.child_id)
-        relation = db.scalar(select(ChildGuardian.id).join(Guardian, Guardian.id == ChildGuardian.guardian_id).where(
-            ChildGuardian.organization_id == actor.organization_id,
-            ChildGuardian.child_id == child.id,
-            ChildGuardian.guardian_id == thread.guardian_id,
-            ChildGuardian.status == "active",
-            Guardian.organization_id == actor.organization_id,
-            Guardian.status == "active",
-            Guardian.user_id.is_not(None),
-        ))
+        relation = db.scalar(
+            select(ChildGuardian.id)
+            .join(Guardian, Guardian.id == ChildGuardian.guardian_id)
+            .join(User, User.id == Guardian.user_id)
+            .where(
+                ChildGuardian.organization_id == actor.organization_id,
+                ChildGuardian.child_id == child.id,
+                ChildGuardian.guardian_id == thread.guardian_id,
+                ChildGuardian.status == "active",
+                Guardian.organization_id == actor.organization_id,
+                Guardian.status == "active",
+                User.organization_id == actor.organization_id,
+                User.role == "PARENT",
+                User.status == "active",
+            )
+        )
         if relation is None:
             raise AppError(404, "NOT_FOUND")
     return thread
