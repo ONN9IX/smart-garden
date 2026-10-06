@@ -116,8 +116,8 @@ test("Stage 4 Dashboard, Announcements and immutable Audit", async ({ page, brow
 
   await page.goto("/audit");
   await expect(page.getByRole("heading", { name: "Журнал аудита" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "group.create", exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("cell", { name: "account.create", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Создание: Группа", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Создание аккаунта", exact: true }).first()).toBeVisible();
   const auditText = await page.locator("main").innerText();
   expect(auditText).not.toContain(groupName);
   expect(auditText).not.toContain(`Сотрудник${suffix}`);
@@ -130,8 +130,8 @@ test("Stage 4 Dashboard, Announcements and immutable Audit", async ({ page, brow
   expect(auditText).not.toContain(groupBody);
   expect(auditText).not.toContain(editedTitle);
   expect(auditText).not.toContain(editedBody);
-  await expect(page.getByRole("cell", { name: "announcement.create", exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("cell", { name: "announcement.update", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Создание: Объявление", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Изменение: Объявление", exact: true }).first()).toBeVisible();
   await expect(page.getByRole("cell", { name: "Архивация: Объявление", exact: true }).first()).toBeVisible();
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   for (const viewport of [{ width: 1280, height: 900 }, { width: 768, height: 900 }, { width: 390, height: 844 }]) {
