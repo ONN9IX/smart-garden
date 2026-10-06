@@ -194,7 +194,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await row.getByLabel("Отметка").selectOption("present");
   await row.getByLabel("Приход").fill("08:30");
   await row.getByRole("button", { name: "Сохранить отметку" }).click();
-  await expect(row.locator("p").first()).toContainText("Присутствует");
+  await expect(row.locator("p").first()).toContainText("В саду");
   await row.getByLabel("Отметка").selectOption("absent");
   await row.getByRole("button", { name: "Сохранить отметку" }).click();
   await expect(row.locator("p").first()).toContainText("Отсутствует");
