@@ -169,7 +169,7 @@ jobs:
 
       - name: Audit locked Node dependencies
         working-directory: frontend
-        run: npm audit --audit-level=high --package-lock-only
+        run: node scripts/check-npm-audit.mjs
 
   integration:
     name: Browser auth flow (Frontend → Backend → PostgreSQL)
