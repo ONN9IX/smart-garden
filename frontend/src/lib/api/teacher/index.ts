@@ -16,7 +16,7 @@ export const teacherApi = {
   saveAttendance: (body: object) => api.post<AttendanceRow>("/teacher/attendance", body),
   patchAttendance: (id: string, body: object) => api.patch<AttendanceRow>(`/teacher/attendance/${id}`, body),
   schedule: (groupId: string) => api.get<ScheduleItem[]>(`/teacher/schedule?group_id=${groupId}`),
-  groupThread: (groupId: string) => api.get<Thread>(`/teacher/groups/${groupId}/communication-thread`),
+  groupThread: (groupId: string, audience: "all" | "teachers" = "all") => api.get<Thread>(`/teacher/groups/${groupId}/communication-thread?audience=${audience}`),
   threads: () => api.get<Thread[]>("/teacher/communications/threads"),
   messages: (threadId: string) => api.get<Message[]>(`/teacher/communications/threads/${threadId}/messages`),
   sendMessage: (threadId: string, body: string) => api.post<Message>(`/teacher/communications/threads/${threadId}/messages`, { body }),

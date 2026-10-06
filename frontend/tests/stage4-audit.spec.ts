@@ -132,7 +132,7 @@ test("Stage 4 Dashboard, Announcements and immutable Audit", async ({ page, brow
   expect(auditText).not.toContain(editedBody);
   await expect(page.getByRole("cell", { name: "announcement.create", exact: true }).first()).toBeVisible();
   await expect(page.getByRole("cell", { name: "announcement.update", exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("cell", { name: "announcement.archive", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Архивация: Объявление", exact: true }).first()).toBeVisible();
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   for (const viewport of [{ width: 1280, height: 900 }, { width: 768, height: 900 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);

@@ -35,6 +35,7 @@ class GuardianContext(BaseModel):
     relation_type: Literal["mother", "father", "legal_guardian", "other"]
     phone: str | None
     email: str | None
+    can_message: bool
 
 
 class ScheduleItemResponse(BaseModel):
@@ -64,6 +65,7 @@ class ThreadResponse(BaseModel):
     id: UUID
     thread_type: Literal["group", "direct"]
     group_id: UUID
+    audience: Literal["all", "parents", "teachers"]
     child_id: UUID | None
     guardian_id: UUID | None
     created_at: datetime
@@ -73,6 +75,8 @@ class MessageResponse(BaseModel):
     id: UUID
     thread_id: UUID
     sender_user_id: UUID
+    sender_role: Literal["DIRECTOR", "ADMIN", "TEACHER", "PARENT"]
+    sender_name: str
     body: str
     created_at: datetime
 

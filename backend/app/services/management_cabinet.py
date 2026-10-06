@@ -15,6 +15,7 @@ from app.models.document_notice import DocumentNotice
 from app.models.employee import Employee
 from app.models.group import Group
 from app.models.group_schedule_item import GroupScheduleItem
+from app.models.guardian import Guardian
 from app.models.incident import Incident
 from app.models.notification import Notification
 from app.models.photo import PhotoConsent
@@ -412,43 +413,74 @@ def archive_schedule(db: Session, actor: User, item_id: UUID) -> ScheduleItemRes
     return _schedule_response(item)
 
 
-def _group_thread(db: Session, actor: User, group_id: UUID, *, create: bool) -> CommunicationThread | None:
+def _group_thread(
+    db: Session, actor: User, group_id: UUID, audience: str, *, create: bool,
+) -> CommunicationThread | None:
     _group(db, actor, group_id, active=True)
     thread = db.scalar(select(CommunicationThread).where(
         CommunicationThread.organization_id == actor.organization_id,
         CommunicationThread.thread_type == "group",
         CommunicationThread.group_id == group_id,
+        CommunicationThread.audience == audience,
     ))
     if thread is None and create:
         thread = CommunicationThread(
             organization_id=actor.organization_id,
             thread_type="group",
             group_id=group_id,
+            audience=audience,
         )
         db.add(thread)
         db.flush()
     return thread
 
 
-def list_group_messages(db: Session, actor: User, group_id: UUID) -> ManagementMessageList:
-    thread = _group_thread(db, actor, group_id, create=False)
+def _management_sender(db: Session, actor: User, sender_user_id: UUID) -> tuple[str, str]:
+    sender = db.scalar(select(User).where(
+        User.id == sender_user_id, User.organization_id == actor.organization_id,
+    ))
+    if sender is None:
+        raise AppError(404, "NOT_FOUND")
+    if sender.role == "TEACHER":
+        profile = db.scalar(select(Employee).where(
+            Employee.user_id == sender.id, Employee.organization_id == actor.organization_id,
+        ))
+    elif sender.role == "PARENT":
+        profile = db.scalar(select(Guardian).where(
+            Guardian.user_id == sender.id, Guardian.organization_id == actor.organization_id,
+        ))
+    else:
+        profile = None
+    if profile is not None:
+        return sender.role, f"{profile.last_name} {profile.first_name}"
+    return sender.role, {"DIRECTOR": "Директор", "ADMIN": "Администратор"}.get(sender.role, "Пользователь")
+
+
+def list_group_messages(
+    db: Session, actor: User, group_id: UUID, audience: str,
+) -> ManagementMessageList:
+    thread = _group_thread(db, actor, group_id, audience, create=False)
     if thread is None:
         return ManagementMessageList(items=[])
     messages = db.scalars(select(CommunicationMessage).where(
         CommunicationMessage.organization_id == actor.organization_id,
         CommunicationMessage.thread_id == thread.id,
     ).order_by(CommunicationMessage.created_at, CommunicationMessage.id))
-    return ManagementMessageList(items=[
-        ManagementMessageResponse(
+    items = []
+    for message in messages:
+        sender_role, sender_name = _management_sender(db, actor, message.sender_user_id)
+        items.append(ManagementMessageResponse(
             id=message.id,
             thread_id=message.thread_id,
             group_id=group_id,
             sender_user_id=message.sender_user_id,
+            sender_role=sender_role,
+            sender_name=sender_name,
+            audience=audience,
             body=message.body,
             created_at=message.created_at,
-        )
-        for message in messages
-    ])
+        ))
+    return ManagementMessageList(items=items)
 
 
 def create_group_message(
@@ -457,7 +489,7 @@ def create_group_message(
     group_id: UUID,
     payload: ManagementMessageCreate,
 ) -> ManagementMessageResponse:
-    thread = _group_thread(db, actor, group_id, create=True)
+    thread = _group_thread(db, actor, group_id, payload.audience, create=True)
     assert thread is not None
     message = CommunicationMessage(
         organization_id=actor.organization_id,
@@ -473,11 +505,15 @@ def create_group_message(
     })
     db.commit()
     db.refresh(message)
+    sender_role, sender_name = _management_sender(db, actor, actor.id)
     return ManagementMessageResponse(
         id=message.id,
         thread_id=thread.id,
         group_id=group_id,
         sender_user_id=actor.id,
+        sender_role=sender_role,
+        sender_name=sender_name,
+        audience=payload.audience,
         body=message.body,
         created_at=message.created_at,
     )
@@ -796,6 +832,25 @@ def list_tasks(
     return TeacherTaskList(items=[_task_response(item) for item in rows])
 
 
+def _notify_task_assignee(db: Session, actor: User, item: TeacherTask) -> None:
+    recipient_id = db.scalar(select(User.id).join(Employee, Employee.user_id == User.id).where(
+        Employee.id == item.assignee_employee_id,
+        Employee.organization_id == actor.organization_id,
+        Employee.status == "active",
+        User.organization_id == actor.organization_id,
+        User.role == "TEACHER",
+        User.status == "active",
+    ))
+    if recipient_id is not None:
+        db.add(Notification(
+            organization_id=actor.organization_id,
+            recipient_user_id=recipient_id,
+            kind="teacher_task.assigned",
+            entity_type="teacher_task",
+            entity_id=item.id,
+        ))
+
+
 def create_task(db: Session, actor: User, payload: TeacherTaskCreate) -> TeacherTaskResponse:
     _task_context(db, actor, payload.assignee_employee_id, payload.group_id)
     item = TeacherTask(
@@ -814,6 +869,7 @@ def create_task(db: Session, actor: User, payload: TeacherTaskCreate) -> Teacher
     if item.group_id is not None:
         details["group_id"] = str(item.group_id)
     audit.write(db, actor, "teacher_task.create", "teacher_task", item.id, details)
+    _notify_task_assignee(db, actor, item)
     db.commit()
     db.refresh(item)
     return _task_response(item)
@@ -824,6 +880,7 @@ def update_task(db: Session, actor: User, task_id: UUID, payload: TeacherTaskPat
     if item.status == "cancelled":
         raise AppError(409, "VALIDATION_ERROR")
     data = payload.model_dump(exclude_unset=True)
+    original_assignee = item.assignee_employee_id
     target_employee = data.get("assignee_employee_id", item.assignee_employee_id)
     target_group = data.get("group_id", item.group_id)
     if target_employee is None:
@@ -838,6 +895,8 @@ def update_task(db: Session, actor: User, task_id: UUID, payload: TeacherTaskPat
         audit.write(db, actor, "teacher_task.update", "teacher_task", item.id, {
             "changed_fields": sorted(changed),
         })
+        if item.assignee_employee_id != original_assignee:
+            _notify_task_assignee(db, actor, item)
         db.commit()
         db.refresh(item)
     return _task_response(item)

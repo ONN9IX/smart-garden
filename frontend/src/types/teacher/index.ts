@@ -2,7 +2,7 @@ export type GroupSummary = { id: string; name: string };
 export type ChildSummary = { id: string; first_name: string; last_name: string; middle_name: string | null };
 export type GuardianContext = ChildSummary & {
   child_id: string; relation_type: "mother" | "father" | "legal_guardian" | "other";
-  phone: string | null; email: string | null;
+  phone: string | null; email: string | null; can_message: boolean;
 };
 export type ScheduleItem = {
   id: string; group_id: string; weekday: number; start_time: string; end_time: string; title: string;
@@ -21,9 +21,10 @@ export type ParentToday = {
 };
 export type Thread = {
   id: string; thread_type: "group" | "direct"; group_id: string;
+  audience: "all" | "parents" | "teachers";
   child_id: string | null; guardian_id: string | null; created_at: string;
 };
-export type Message = { id: string; thread_id: string; sender_user_id: string; body: string; created_at: string };
+export type Message = { id: string; thread_id: string; sender_user_id: string; sender_role: "DIRECTOR" | "ADMIN" | "TEACHER" | "PARENT"; sender_name: string; body: string; created_at: string };
 export type DiaryEntry = {
   id: string; child_id: string; group_id: string; date: string; author_user_id: string;
   note: string; created_at: string; updated_at: string;

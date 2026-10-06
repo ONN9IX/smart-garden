@@ -46,7 +46,7 @@ function LoginForm() {
   }
 
   return <main className="center-screen"><section className="auth-card" aria-labelledby="login-title">
-    <div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> Умный сад</div>
+    <div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> ПРОМАКС</div>
     <h1 id="login-title">Вход в систему</h1>
     <p className="muted">Рабочий кабинет детского сада</p>
     <form onSubmit={(event) => void submit(event)}>

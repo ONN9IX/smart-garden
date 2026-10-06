@@ -145,8 +145,13 @@ def archive_schedule(item_id: UUID, user: Manager, db: Database) -> ScheduleItem
     "/teacher-management/communications/groups/{group_id}/messages",
     response_model=ManagementMessageList,
 )
-def group_messages(group_id: UUID, user: Manager, db: Database) -> ManagementMessageList:
-    return management_cabinet.list_group_messages(db, user, group_id)
+def group_messages(
+    group_id: UUID,
+    user: Manager,
+    db: Database,
+    audience: Literal["all", "parents", "teachers"] = "all",
+) -> ManagementMessageList:
+    return management_cabinet.list_group_messages(db, user, group_id, audience)
 
 
 @router.post(

@@ -45,6 +45,12 @@ test("employee create and edit retain input after save failure", async ({ page }
   await expect(page.getByLabel("Фамилия")).toHaveValue(employee.last_name);
   await expect(page.getByLabel("Должность")).toHaveValue(employee.position);
   await expect(page).toHaveURL(/\/employees\/new$/);
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("несохранённые изменения");
+    await dialog.dismiss();
+  });
+  await page.getByRole("link", { name: "К сотрудникам" }).click();
+  await expect(page).toHaveURL(/\/employees\/new$/);
   await page.getByRole("button", { name: "Сохранить" }).click();
   await expect(page).toHaveURL(new RegExp(`/employees/${employeeId}$`));
   await page.getByRole("button", { name: "Изменить" }).click();
@@ -79,6 +85,10 @@ test("create and reset credentials survive stale GET, then disappear on close, n
   expect(detailGets).toBe(1);
   await credentials.getByRole("button", { name: "Закрыть и скрыть пароль" }).click();
   await expect(credentials).toHaveCount(0);
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Все действующие сеансы");
+    await dialog.accept();
+  });
   await page.getByRole("button", { name: "Сбросить пароль" }).click();
   await expect(credentials).toContainText("temporary-synthetic-2");
   expect(detailGets).toBe(1);
@@ -86,6 +96,7 @@ test("create and reset credentials survive stale GET, then disappear on close, n
   await expect(credentials).toHaveCount(0);
   await page.goto(`/employees/${employeeId}`);
   await expect(credentials).toHaveCount(0);
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Сбросить пароль" }).click();
   await expect(credentials).toContainText("temporary-synthetic-3");
   await page.reload();

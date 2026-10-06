@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { userMessage } from "@/lib/api/client";
 import { teacherApi } from "@/lib/api/teacher";
 import type { ChildSummary, GuardianContext } from "@/types/teacher";
+import { relationLabels } from "@/lib/presentation";
 import { GroupPicker, styles, TeacherPageFrame, useGroups } from "./shared";
 
 export function GroupsPage() {
@@ -22,7 +23,7 @@ export function GroupsPage() {
     {(error || groupError) && <p className={styles.error}>{error || groupError}</p>}
     <div className={styles.grid}>
       <section className={styles.card}><h2>Дети</h2><ul className={styles.list}>{children.map((child) => <li className={styles.row} key={child.id}>{child.first_name} {child.last_name} {child.middle_name ?? ""}</li>)}</ul>{children.length === 0 && <p className={styles.muted}>В группе нет активных детей.</p>}</section>
-      <section className={styles.card}><h2>Контакты родителей</h2><ul className={styles.list}>{guardians.map((guardian) => <li className={styles.row} key={`${guardian.id}-${guardian.child_id}`}><span>{guardian.last_name} {guardian.first_name}<br/><small>{guardian.relation_type}</small></span><span>{guardian.phone ?? guardian.email ?? "Контакт не указан"}</span></li>)}</ul>{guardians.length === 0 && <p className={styles.muted}>Доступных контактов нет.</p>}</section>
+      <section className={styles.card}><h2>Контакты родителей</h2><ul className={styles.list}>{guardians.map((guardian) => <li className={styles.row} key={`${guardian.id}-${guardian.child_id}`}><span>{guardian.last_name} {guardian.first_name}<br/><small>{relationLabels[guardian.relation_type]} · {guardian.can_message ? "можно написать" : "нет активного аккаунта"}</small></span><span>{guardian.phone ?? guardian.email ?? "Контакт не указан"}</span></li>)}</ul>{guardians.length === 0 && <p className={styles.muted}>Доступных контактов нет.</p>}</section>
     </div>
   </TeacherPageFrame>;
 }

@@ -14,13 +14,15 @@ class CommunicationThread(Base):
     __tablename__ = "communication_threads"
     __table_args__ = (
         CheckConstraint("thread_type IN ('group', 'direct')", name="ck_communication_threads_type"),
+        CheckConstraint("audience IN ('all', 'parents', 'teachers')", name="ck_communication_threads_audience"),
+        CheckConstraint("thread_type = 'group' OR audience = 'all'", name="ck_communication_threads_direct_audience"),
         CheckConstraint(
             "(thread_type = 'group' AND child_id IS NULL AND guardian_id IS NULL) OR "
             "(thread_type = 'direct' AND child_id IS NOT NULL AND guardian_id IS NOT NULL)",
             name="ck_communication_threads_context",
         ),
         Index(
-            "uq_communication_threads_group", "group_id", unique=True,
+            "uq_communication_threads_group", "group_id", "audience", unique=True,
             postgresql_where=text("thread_type = 'group'"),
         ),
         Index(
@@ -33,6 +35,7 @@ class CommunicationThread(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     thread_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    audience: Mapped[str] = mapped_column(String(16), nullable=False, default="all", server_default="all")
     group_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("groups.id"), nullable=False)
     child_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("children.id"))
     guardian_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("guardians.id"))

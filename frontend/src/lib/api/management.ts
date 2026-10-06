@@ -62,10 +62,10 @@ export const managementApi = {
   archiveSchedule: (id: string) =>
     api.post<ScheduleItem>(`/teacher-management/schedule/${encodeURIComponent(id)}/archive`),
 
-  groupMessages: (groupId: string) =>
-    api.get<{ items: ManagementMessage[] }>(`/teacher-management/communications/groups/${encodeURIComponent(groupId)}/messages`),
-  sendGroupMessage: (groupId: string, body: string) =>
-    api.post<ManagementMessage>(`/teacher-management/communications/groups/${encodeURIComponent(groupId)}/messages`, { body }),
+  groupMessages: (groupId: string, audience: "all" | "parents" | "teachers" = "all") =>
+    api.get<{ items: ManagementMessage[] }>(`/teacher-management/communications/groups/${encodeURIComponent(groupId)}/messages?audience=${audience}`),
+  sendGroupMessage: (groupId: string, body: string, audience: "all" | "parents" | "teachers" = "all") =>
+    api.post<ManagementMessage>(`/teacher-management/communications/groups/${encodeURIComponent(groupId)}/messages`, { body, audience }),
 
   diary: (childId: string, dateFrom?: string, dateTo?: string) =>
     api.get<{ items: DiaryEntry[] }>(`/teacher-management/diary${query({ child_id: childId, date_from: dateFrom, date_to: dateTo })}`),

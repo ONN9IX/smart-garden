@@ -127,6 +127,8 @@ def teacher_thread(db: Session, actor: User, thread_id: UUID) -> CommunicationTh
     if thread is None:
         raise AppError(404, "NOT_FOUND")
     teacher_group(db, actor, thread.group_id)
+    if thread.thread_type == "group" and thread.audience not in {"all", "teachers"}:
+        raise AppError(404, "NOT_FOUND")
     if thread.thread_type == "direct":
         if thread.child_id is None or thread.guardian_id is None:
             raise AppError(404, "NOT_FOUND")
@@ -152,6 +154,8 @@ def parent_thread(db: Session, actor: User, thread_id: UUID) -> CommunicationThr
         CommunicationThread.organization_id == actor.organization_id,
     ))
     if thread is None or thread.group_id not in parent_group_ids(db, actor):
+        raise AppError(404, "NOT_FOUND")
+    if thread.thread_type == "group" and thread.audience not in {"all", "parents"}:
         raise AppError(404, "NOT_FOUND")
     if thread.thread_type == "direct":
         if thread.guardian_id != guardian.id or thread.child_id is None:

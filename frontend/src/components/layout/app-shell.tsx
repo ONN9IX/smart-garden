@@ -47,7 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return <div className="app-shell">
     <header className="app-header">
-      <Link href={isTeacher ? "/teacher" : "/dashboard"} className="brand" aria-label="Умный сад — главная"><span className="brand-mark" aria-hidden="true">✳</span> Умный сад</Link>
+      <Link href={isTeacher ? "/teacher" : "/dashboard"} className="brand" aria-label="ПРОМАКС — главная"><span className="brand-mark" aria-hidden="true">✳</span> ПРОМАКС</Link>
       <div className="header-actions">
         <span className="organization-name">{current.organization.name}</span>
         <div className="header-user"><strong>{current.user.username}</strong><span>{ROLE_LABELS[current.user.role] ?? "Пользователь"}</span></div>

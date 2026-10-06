@@ -77,8 +77,13 @@ def list_guardians(group_id: UUID, user: Teacher, db: Database) -> list[Guardian
 
 
 @router.get("/groups/{group_id}/communication-thread", response_model=ThreadResponse)
-def get_group_thread(group_id: UUID, user: Teacher, db: Database) -> ThreadResponse:
-    return communications.group_thread(db, user, group_id)
+def get_group_thread(
+    group_id: UUID,
+    user: Teacher,
+    db: Database,
+    audience: Literal["all", "teachers"] = "all",
+) -> ThreadResponse:
+    return communications.group_thread(db, user, group_id, audience)
 
 
 @router.get("/attendance", response_model=list[AttendanceRow])

@@ -6,6 +6,7 @@ import { Loading } from "@/components/ui/loading";
 import { managementApi } from "@/lib/api/management";
 import { userMessage } from "@/lib/api/client";
 import type { ManagementNotification } from "@/types/management";
+import { notificationKindLabels } from "@/lib/presentation";
 import { ManagerPage, SectionError } from "./common";
 
 export function NotificationsPage() {
@@ -32,7 +33,7 @@ function NotificationsContent() {
     <label>Показать <select className="input compact-input" value={status} onChange={(event) => setStatus(event.target.value)}><option value="unread">Непрочитанные</option><option value="read">Прочитанные</option><option value="all">Все</option></select></label>
     <SectionError error={error} retry={() => void load()} />
     {loading ? <Loading /> : items.length === 0 ? <p className="empty-state">Уведомлений нет.</p> : <ul className="record-list">{items.map((item) => <li key={item.id}><div className="record-link">
-      <strong>{item.kind}</strong>
+      <strong>{notificationKindLabels[item.kind] ?? "Новое уведомление"}</strong>
       <span className="muted">{item.entity_type} · {new Date(item.created_at).toLocaleString("ru-RU")} · {item.read_at ? "прочитано" : "новое"}</span>
       {!item.read_at && <Button variant="secondary" onClick={() => void managementApi.readNotification(item.id).then(load).catch((reason) => setError(userMessage(reason)))}>Прочитано</Button>}
     </div></li>)}</ul>}

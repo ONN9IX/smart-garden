@@ -29,6 +29,7 @@ type ApiErrorCode =
   | "PARENT_ACCOUNT_ALREADY_EXISTS"
   | "PARENT_ACCOUNT_NOT_FOUND"
   | "PARENT_ACCOUNT_BLOCKED"
+  | "PARENT_ACCOUNT_UNAVAILABLE"
   | "EMPLOYEE_ARCHIVED"
   | "EMPLOYEE_ACCOUNT_ALREADY_EXISTS"
   | "EMPLOYEE_ACCOUNT_NOT_FOUND"
@@ -59,6 +60,7 @@ const errorMessages: Partial<Record<ApiErrorCode, string>> = {
   PARENT_ACCOUNT_ALREADY_EXISTS: "Учётная запись родителя уже создана.",
   PARENT_ACCOUNT_NOT_FOUND: "Учётная запись родителя не найдена.",
   PARENT_ACCOUNT_BLOCKED: "Учётная запись родителя заблокирована.",
+  PARENT_ACCOUNT_UNAVAILABLE: "У родителя ещё нет активного аккаунта. Попросите администратора создать или восстановить доступ.",
   EMPLOYEE_ARCHIVED: "Карточка сотрудника в архиве.",
   EMPLOYEE_ACCOUNT_ALREADY_EXISTS: "Доступ уже выдан.",
   EMPLOYEE_ACCOUNT_NOT_FOUND: "Учётная запись сотрудника не найдена.",

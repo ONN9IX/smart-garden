@@ -8,6 +8,7 @@ import { Loading } from "@/components/ui/loading";
 import { groupsApi } from "@/lib/api/groups";
 import { managementApi } from "@/lib/api/management";
 import { userMessage } from "@/lib/api/client";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import type { Group } from "@/types/stage2";
 import type { TeacherProjection, TeacherTask } from "@/types/management";
 import { fullName, ManagerPage, useQueryParam } from "./common";
@@ -46,6 +47,8 @@ function TasksContent() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const draftDirty = Boolean(title || description || dueAt);
+  useUnsavedChanges(draftDirty);
 
   useQueryParam("group_id", setGroupId);
 
