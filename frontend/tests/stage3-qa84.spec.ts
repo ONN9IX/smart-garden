@@ -22,16 +22,20 @@ async function mockAuth(page: Page) {
 test("employee create and edit retain input after save failure", async ({ page }) => {
   await mockAuth(page);
   let createAttempts = 0; let editAttempts = 0;
-  await page.route("**/api/v1/employees**", (route) => {
+  await page.route("**/api/v1/employees**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
     if (pathname.endsWith("/employees") && method === "POST") {
       createAttempts += 1;
-      return createAttempts === 1 ? failure(route) : reply(route, employee, 201);
+      if (createAttempts === 1) return failure(route);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return reply(route, employee, 201);
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "PATCH") {
       editAttempts += 1;
-      return editAttempts === 1 ? failure(route) : reply(route, { ...employee, position: "Новая должность" });
+      if (editAttempts === 1) return failure(route);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return reply(route, { ...employee, position: "Новая должность" });
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, employee);
     return reply(route, { items: [] });
