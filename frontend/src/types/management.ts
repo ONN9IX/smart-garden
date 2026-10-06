@@ -89,6 +89,9 @@ export type ManagementMessage = {
   thread_id: string;
   group_id: string;
   sender_user_id: string;
+  sender_role: "DIRECTOR" | "ADMIN" | "TEACHER" | "PARENT";
+  sender_name: string;
+  audience: "all" | "parents" | "teachers";
   body: string;
   created_at: string;
 };

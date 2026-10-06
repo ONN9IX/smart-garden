@@ -22,16 +22,20 @@ async function mockAuth(page: Page) {
 test("employee create and edit retain input after save failure", async ({ page }) => {
   await mockAuth(page);
   let createAttempts = 0; let editAttempts = 0;
-  await page.route("**/api/v1/employees**", (route) => {
+  await page.route("**/api/v1/employees**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
     if (pathname.endsWith("/employees") && method === "POST") {
       createAttempts += 1;
-      return createAttempts === 1 ? failure(route) : reply(route, employee, 201);
+      if (createAttempts === 1) return failure(route);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return reply(route, employee, 201);
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "PATCH") {
       editAttempts += 1;
-      return editAttempts === 1 ? failure(route) : reply(route, { ...employee, position: "Новая должность" });
+      if (editAttempts === 1) return failure(route);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return reply(route, { ...employee, position: "Новая должность" });
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, employee);
     return reply(route, { items: [] });
@@ -45,14 +49,20 @@ test("employee create and edit retain input after save failure", async ({ page }
   await expect(page.getByLabel("Фамилия")).toHaveValue(employee.last_name);
   await expect(page.getByLabel("Должность")).toHaveValue(employee.position);
   await expect(page).toHaveURL(/\/employees\/new$/);
-  await page.getByRole("button", { name: "Сохранить" }).click();
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("несохранённые изменения");
+    await dialog.dismiss();
+  });
+  await page.getByRole("link", { name: "К сотрудникам" }).click();
+  await expect(page).toHaveURL(/\/employees\/new$/);
+  await page.getByRole("button", { name: "Сохранить" }).click({ force: true });
   await expect(page).toHaveURL(new RegExp(`/employees/${employeeId}$`));
   await page.getByRole("button", { name: "Изменить" }).click();
   await page.getByLabel("Должность").fill("Новая должность");
   await page.getByRole("button", { name: "Сохранить" }).click();
   await expect(page.locator(".alert-error")).toContainText("Не удалось выполнить запрос");
   await expect(page.getByLabel("Должность")).toHaveValue("Новая должность");
-  await page.getByRole("button", { name: "Сохранить" }).click();
+  await page.getByRole("button", { name: "Сохранить" }).click({ force: true });
   await expect(page.getByRole("heading", { name: "Синтетический Тест" })).toBeVisible();
   await expect(page.getByText("Новая должность", { exact: true })).toBeVisible();
   expect([createAttempts, editAttempts]).toEqual([2, 2]);
@@ -79,6 +89,10 @@ test("create and reset credentials survive stale GET, then disappear on close, n
   expect(detailGets).toBe(1);
   await credentials.getByRole("button", { name: "Закрыть и скрыть пароль" }).click();
   await expect(credentials).toHaveCount(0);
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Все действующие сеансы");
+    await dialog.accept();
+  });
   await page.getByRole("button", { name: "Сбросить пароль" }).click();
   await expect(credentials).toContainText("temporary-synthetic-2");
   expect(detailGets).toBe(1);
@@ -86,6 +100,7 @@ test("create and reset credentials survive stale GET, then disappear on close, n
   await expect(credentials).toHaveCount(0);
   await page.goto(`/employees/${employeeId}`);
   await expect(credentials).toHaveCount(0);
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Сбросить пароль" }).click();
   await expect(credentials).toContainText("temporary-synthetic-3");
   await page.reload();

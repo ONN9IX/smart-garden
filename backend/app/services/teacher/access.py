@@ -127,19 +127,28 @@ def teacher_thread(db: Session, actor: User, thread_id: UUID) -> CommunicationTh
     if thread is None:
         raise AppError(404, "NOT_FOUND")
     teacher_group(db, actor, thread.group_id)
+    if thread.thread_type == "group" and thread.audience not in {"all", "teachers"}:
+        raise AppError(404, "NOT_FOUND")
     if thread.thread_type == "direct":
         if thread.child_id is None or thread.guardian_id is None:
             raise AppError(404, "NOT_FOUND")
         child = teacher_child(db, actor, thread.child_id)
-        relation = db.scalar(select(ChildGuardian.id).join(Guardian, Guardian.id == ChildGuardian.guardian_id).where(
-            ChildGuardian.organization_id == actor.organization_id,
-            ChildGuardian.child_id == child.id,
-            ChildGuardian.guardian_id == thread.guardian_id,
-            ChildGuardian.status == "active",
-            Guardian.organization_id == actor.organization_id,
-            Guardian.status == "active",
-            Guardian.user_id.is_not(None),
-        ))
+        relation = db.scalar(
+            select(ChildGuardian.id)
+            .join(Guardian, Guardian.id == ChildGuardian.guardian_id)
+            .join(User, User.id == Guardian.user_id)
+            .where(
+                ChildGuardian.organization_id == actor.organization_id,
+                ChildGuardian.child_id == child.id,
+                ChildGuardian.guardian_id == thread.guardian_id,
+                ChildGuardian.status == "active",
+                Guardian.organization_id == actor.organization_id,
+                Guardian.status == "active",
+                User.organization_id == actor.organization_id,
+                User.role == "PARENT",
+                User.status == "active",
+            )
+        )
         if relation is None:
             raise AppError(404, "NOT_FOUND")
     return thread
@@ -152,6 +161,8 @@ def parent_thread(db: Session, actor: User, thread_id: UUID) -> CommunicationThr
         CommunicationThread.organization_id == actor.organization_id,
     ))
     if thread is None or thread.group_id not in parent_group_ids(db, actor):
+        raise AppError(404, "NOT_FOUND")
+    if thread.thread_type == "group" and thread.audience not in {"all", "parents"}:
         raise AppError(404, "NOT_FOUND")
     if thread.thread_type == "direct":
         if thread.guardian_id != guardian.id or thread.child_id is None:

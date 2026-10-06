@@ -121,6 +121,7 @@ class ScheduleList(BaseModel):
 class ManagementMessageCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     body: str = Field(min_length=1, max_length=4000)
+    audience: Literal["all", "parents", "teachers"] = "all"
 
     @field_validator("body", mode="before")
     @classmethod
@@ -133,6 +134,9 @@ class ManagementMessageResponse(BaseModel):
     thread_id: UUID
     group_id: UUID
     sender_user_id: UUID
+    sender_role: Literal["DIRECTOR", "ADMIN", "TEACHER", "PARENT"]
+    sender_name: str
+    audience: Literal["all", "parents", "teachers"]
     body: str
     created_at: datetime
 

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { AuthProvider } from "@/features/auth/auth-provider";
 import "./globals.css";
 
-export const metadata: Metadata = { title: "Умный сад", description: "Рабочий кабинет детского сада" };
+export const metadata: Metadata = { title: "ПРОМАКС", description: "Рабочий кабинет детского сада ПРОМАКС" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="ru"><body><AuthProvider>{children}</AuthProvider></body></html>;

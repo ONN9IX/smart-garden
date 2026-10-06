@@ -14,24 +14,33 @@ import { AuthGate } from "@/features/auth/auth-gate";
 import { useAuth } from "@/features/auth/auth-provider";
 import { employeesApi } from "@/lib/api/employees";
 import { userMessage } from "@/lib/api/client";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import type { Employee, EmployeeFields, EmployeeSummary, TemporaryCredentials } from "@/types/stage3";
 
 const empty: EmployeeFields = { first_name: "", last_name: "", middle_name: null, position: "" };
 const name = (e: EmployeeSummary) => [e.last_name, e.first_name, e.middle_name].filter(Boolean).join(" ");
+const normalizeFields = (value: EmployeeFields) => JSON.stringify({ ...value, middle_name: value.middle_name || null });
 
 function Form({ initial = empty, busy, submit, cancel }: { initial?: EmployeeFields; busy: boolean; submit: (fields: EmployeeFields) => Promise<void>; cancel?: () => void }) {
   const [fields, setFields] = useState(initial);
   const submitting = useRef(false);
+  const [baseline, setBaseline] = useState(() => normalizeFields(initial));
+  const dirty = normalizeFields(fields) !== baseline;
+  const confirmLeave = useUnsavedChanges(dirty);
   function set(key: keyof EmployeeFields, value: string) { setFields((old) => ({ ...old, [key]: value })); }
   async function save(event: React.FormEvent) {
     event.preventDefault(); if (submitting.current) return;
     submitting.current = true;
-    try { await submit({ first_name: fields.first_name.trim(), last_name: fields.last_name.trim(), middle_name: fields.middle_name?.trim() || null, position: fields.position.trim() }); }
+    try {
+      const value = { first_name: fields.first_name.trim(), last_name: fields.last_name.trim(), middle_name: fields.middle_name?.trim() || null, position: fields.position.trim() };
+      await submit(value);
+      setBaseline(normalizeFields(value));
+    }
     finally { submitting.current = false; }
   }
   return <form className="card section-card" onSubmit={(event) => void save(event)}><div className="form-grid">
     {([["last_name", "Фамилия"], ["first_name", "Имя"], ["middle_name", "Отчество (необязательно)"], ["position", "Должность"]] as const).map(([key, label]) => <label key={key}>{label}<Input required={key !== "middle_name"} maxLength={100} value={fields[key] ?? ""} onChange={(event) => set(key, event.target.value)} /></label>)}
-  </div><div className="action-row"><Button disabled={busy}>{busy ? "Сохранение..." : "Сохранить"}</Button>{cancel && <Button type="button" variant="secondary" onClick={cancel}>Отмена</Button>}</div></form>;
+  </div><div className="action-row"><Button disabled={busy}>{busy ? "Сохранение..." : "Сохранить"}</Button>{cancel && <Button type="button" variant="secondary" onClick={() => { if (confirmLeave()) cancel(); }}>Отмена</Button>}</div></form>;
 }
 
 export function EmployeesPage() { return <AuthGate route="dashboard"><EmployeesContent /></AuthGate>; }
@@ -103,7 +112,7 @@ function Detail({ id }: { id: string }) {
       void change(() => item.status === "active" ? employeesApi.archive(id) : employeesApi.restore(id), item.status === "active" ? "Карточка архивирована." : "Карточка восстановлена. Доступ остаётся заблокированным, если был выдан.");
     }}>{item.status === "active" ? "Архивировать" : "Восстановить"}</Button>}</div>}
     {item.account && <section className="card section-card section-space"><h2>Доступ администратора</h2><p>Логин: <strong>{item.account.username}</strong> · {item.account.status === "active" ? "Активен" : "Заблокирован"}{item.account.must_change_password ? " · Требуется смена пароля" : ""}</p>
-      {director && <div className="action-row"><Button variant="secondary" disabled={busy} onClick={() => void revealAccount(() => employeesApi.resetPassword(id), "Временный пароль обновлён. Действующие сессии завершены.")}>Сбросить пароль</Button><Button variant="secondary" disabled={busy} onClick={() => void updateAccount(() => item.account?.status === "active" ? employeesApi.block(id) : employeesApi.unblock(id), item.account?.status === "active" ? "Доступ заблокирован." : "Доступ восстановлен.")}>{item.account.status === "active" ? "Заблокировать" : "Разблокировать"}</Button></div>}
+      {director && <div className="action-row"><Button variant="secondary" disabled={busy} onClick={() => { if (window.confirm("Сбросить пароль? Все действующие сеансы сотрудника будут завершены.")) void revealAccount(() => employeesApi.resetPassword(id), "Временный пароль обновлён. Действующие сессии завершены."); }}>Сбросить пароль</Button><Button variant="secondary" disabled={busy} onClick={() => { const blocking = item.account?.status === "active"; if (!blocking || window.confirm("Заблокировать аккаунт сотрудника? Все действующие сеансы будут завершены.")) void updateAccount(() => blocking ? employeesApi.block(id) : employeesApi.unblock(id), blocking ? "Доступ заблокирован." : "Доступ восстановлен."); }}>{item.account.status === "active" ? "Заблокировать" : "Разблокировать"}</Button></div>}
     </section>}
     {director && !item.account && item.status === "active" && <div className="section-space"><Button disabled={busy} onClick={() => void revealAccount(() => employeesApi.createAccount(id), "Доступ выдан. Сохраните реквизиты сейчас.")}>Выдать доступ администратора</Button></div>}
     {credentials && <section className="card section-card section-space" aria-label="Одноразовые реквизиты"><h2>Временные реквизиты</h2><p>Логин: <strong>{credentials.account.username}</strong></p><p>Временный пароль: <strong>{credentials.temporary_password}</strong></p><p>Пароль появится только сейчас. Передайте его сотруднику безопасным способом.</p><Button variant="secondary" onClick={() => setCredentials(null)}>Закрыть и скрыть пароль</Button></section>}

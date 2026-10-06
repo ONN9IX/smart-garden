@@ -96,6 +96,10 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   // Reset revokes both the current session and all older credentials.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(employeeUrl);
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Все действующие сеансы");
+    await dialog.accept();
+  });
   await page.getByRole("button", { name: "Сбросить пароль" }).click();
   const resetCredentials = page.getByRole("region", { name: "Одноразовые реквизиты" });
   const resetTemporary = await resetCredentials.getByText("Временный пароль:").locator("strong").innerText();
@@ -115,6 +119,10 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   const resetAdminPassword = await rotate(resetAdminPage, "admin-reset-stage3");
 
   // DIRECTOR block lifecycle revokes the new session and prevents login.
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Все действующие сеансы");
+    await dialog.accept();
+  });
   await page.getByRole("button", { name: "Заблокировать" }).click();
   await expect(page.getByText("Доступ заблокирован.")).toBeVisible();
   expect((await resetAdminPage.request.get(`${apiBase}/auth/me`)).status()).toBe(401);
@@ -150,6 +158,10 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await expect(page.getByRole("button", { name: "Разблокировать" })).toBeVisible();
   await page.getByRole("button", { name: "Разблокировать" }).click();
   await expect(page.getByText("Доступ восстановлен.")).toBeVisible();
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Все действующие сеансы");
+    await dialog.accept();
+  });
   await page.getByRole("button", { name: "Заблокировать" }).click();
   await expect(page.getByText("Доступ заблокирован.")).toBeVisible();
 
@@ -178,11 +190,11 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await page.goto("/attendance");
   await page.getByLabel("Дата").fill(attendanceDay);
   let row = page.locator(".attendance-list form").filter({ hasText: childLabel });
-  await expect(row.locator("p").first()).toContainText("Без отметки");
+  await expect(row.locator("p").first()).toContainText("Не отмечен");
   await row.getByLabel("Отметка").selectOption("present");
   await row.getByLabel("Приход").fill("08:30");
   await row.getByRole("button", { name: "Сохранить отметку" }).click();
-  await expect(row.locator("p").first()).toContainText("Присутствует");
+  await expect(row.locator("p").first()).toContainText("В саду");
   await row.getByLabel("Отметка").selectOption("absent");
   await row.getByRole("button", { name: "Сохранить отметку" }).click();
   await expect(row.locator("p").first()).toContainText("Отсутствует");
@@ -206,7 +218,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await expect(page.getByLabel("Статус")).toHaveValue("all");
   await expect(page.getByLabel("Ребёнок")).toHaveValue("");
   row = page.locator(".attendance-list form").filter({ hasText: childLabel });
-  await expect(row.locator("p").first()).toContainText("Без отметки");
+  await expect(row.locator("p").first()).toContainText("Не отмечен");
   await expect(row.locator("p").first()).not.toContainText("08:30");
 
   await page.getByLabel("Дата").fill(attendanceDay);

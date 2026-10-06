@@ -268,6 +268,48 @@ def test_management_admin_permissions_and_operational_access(client, db, users):
     assert client.post(f"{MGMT}/management/notifications/{other_notification.id}/read").status_code == 404
 
 
+def test_new_task_notifies_only_active_assignee_in_same_tenant(client, db, users):
+    organization, other, _, _ = users
+    _director(client, db, users)
+    employee, group, teacher, _ = _foundation_teacher(client, db, users)
+    assert teacher is not None
+    unrelated = User(
+        organization_id=organization.id,
+        username="unrelated-task-teacher",
+        password_hash=hash_password(TEST_PASSWORD),
+        role="TEACHER",
+        status="active",
+        must_change_password=False,
+    )
+    foreign = User(
+        organization_id=other.id,
+        username="foreign-task-teacher",
+        password_hash=hash_password(TEST_PASSWORD),
+        role="TEACHER",
+        status="active",
+        must_change_password=False,
+    )
+    db.add_all([unrelated, foreign])
+    db.flush()
+
+    created = client.post(f"{TEACHER}/tasks", json={
+        "assignee_employee_id": str(employee.id),
+        "group_id": str(group.id),
+        "title": "Проверить уведомление",
+    })
+    assert created.status_code == 201, created.text
+    task_id = UUID(created.json()["id"])
+    rows = list(db.scalars(select(Notification).where(
+        Notification.entity_type == "teacher_task",
+        Notification.entity_id == task_id,
+    )))
+    assert len(rows) == 1
+    assert rows[0].kind == "teacher_task.assigned"
+    assert rows[0].recipient_user_id == teacher.id
+    assert rows[0].organization_id == organization.id
+    assert rows[0].recipient_user_id not in {unrelated.id, foreign.id}
+
+
 def test_management_tenant_and_schema_boundaries(client, db, users, monkeypatch):
     for feature in ("diary", "polls", "incidents", "photos", "document_notices"):
         monkeypatch.setitem(PRODUCT_FEATURES, feature, True)

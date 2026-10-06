@@ -18,6 +18,7 @@ from app.models.attendance import Attendance
 from app.models.audit_event import AuditEvent
 from app.models.child import Child
 from app.models.child_guardian import ChildGuardian
+from app.models.communication import CommunicationThread
 from app.models.document_notice import DocumentNotice
 from app.models.employee import Employee
 from app.models.group import Group
@@ -241,6 +242,7 @@ def test_teacher_daily_groups_attendance_schedule_and_security(client, db, cabin
     assert "birth_date" not in roster[0]
     guardians = client.get(f"/api/v1/teacher/groups/{world.assigned.id}/guardians").json()
     assert {item["id"] for item in guardians} == {str(world.guardian.id)}
+    assert guardians[0]["can_message"] is True
 
     day = datetime.now(UTC).date().isoformat()
     listed = client.get(f"/api/v1/teacher/attendance?date={day}&group_id={world.assigned.id}")
@@ -283,6 +285,24 @@ def test_teacher_communication_participants_and_relation_revocation(client, db, 
         "body": "Синтетическое сообщение",
     })
     assert sent.status_code == 201 and sent.json()["sender_user_id"] == str(world.teacher.id)
+    assert sent.json()["sender_name"] == "Воспитательница Синтетическая"
+    assert sent.json()["sender_role"] == "TEACHER"
+    teacher_only = client.get(
+        f"/api/v1/teacher/groups/{world.assigned.id}/communication-thread",
+        params={"audience": "teachers"},
+    )
+    assert teacher_only.status_code == 200
+    parent_only = CommunicationThread(
+        organization_id=world.organization.id,
+        thread_type="group",
+        group_id=world.assigned.id,
+        audience="parents",
+    )
+    db.add(parent_only)
+    db.flush()
+    assert client.get(
+        f"/api/v1/teacher/communications/threads/{parent_only.id}/messages",
+    ).status_code == 404
     direct = client.post("/api/v1/teacher/communications/direct", json={
         "child_id": str(world.child.id), "guardian_id": str(world.guardian.id),
     })
@@ -291,9 +311,35 @@ def test_teacher_communication_participants_and_relation_revocation(client, db, 
     assert client.post("/api/v1/teacher/communications/direct", json={
         "child_id": str(world.child.id), "guardian_id": str(world.unrelated_guardian.id),
     }).status_code == 404
+    assert client.get(f"/api/v1/teacher/communications/threads/{direct_id}/messages").status_code == 200
+    parent_notifications_before = set(db.scalars(select(Notification.id).where(
+        Notification.recipient_user_id == world.parent.id,
+        Notification.kind == "communication.message",
+    )))
+    world.parent.status = "blocked"
+    db.flush()
+    assert client.get(f"/api/v1/teacher/communications/threads/{direct_id}/messages").status_code == 404
+    assert client.post(
+        f"/api/v1/teacher/communications/threads/{direct_id}/messages",
+        json={"body": "Недоступное сообщение"},
+    ).status_code == 404
+    guardians = client.get(f"/api/v1/teacher/groups/{world.assigned.id}/guardians").json()
+    guardian = next(item for item in guardians if item["id"] == str(world.guardian.id))
+    assert guardian["can_message"] is False
+    parent_notifications_after = set(db.scalars(select(Notification.id).where(
+        Notification.recipient_user_id == world.parent.id,
+        Notification.kind == "communication.message",
+    )))
+    assert parent_notifications_after == parent_notifications_before
+    world.parent.status = "active"
+    db.flush()
 
     with TestClient(app) as parent_client:
         assert _login(parent_client, world.parent.username).status_code == 200
+        visible_threads = parent_client.get("/api/v1/parent/communications/threads").json()
+        assert thread_id in {item["id"] for item in visible_threads}
+        assert teacher_only.json()["id"] not in {item["id"] for item in visible_threads}
+        assert str(parent_only.id) in {item["id"] for item in visible_threads}
         assert parent_client.get(f"/api/v1/parent/communications/threads/{direct_id}/messages").status_code == 200
         parent_message = parent_client.post(
             f"/api/v1/parent/communications/threads/{direct_id}/messages",
@@ -310,6 +356,28 @@ def test_teacher_communication_participants_and_relation_revocation(client, db, 
     details = list(db.scalars(select(AuditEvent.details).where(AuditEvent.action == "teacher_message.create")))
     assert "Синтетическое сообщение" not in str(details)
     assert "Ответ родителя" not in str(details)
+
+
+def test_guardian_without_parent_account_has_safe_messaging_state(client, db, cabinet_world):
+    world = cabinet_world
+    db.add(ChildGuardian(
+        organization_id=world.organization.id,
+        child_id=world.child.id,
+        guardian_id=world.unrelated_guardian.id,
+        relation_type="other",
+        status="active",
+    ))
+    db.flush()
+    assert _login(client, world.teacher.username).status_code == 200
+    guardians = client.get(f"/api/v1/teacher/groups/{world.assigned.id}/guardians")
+    unavailable = next(item for item in guardians.json() if item["id"] == str(world.unrelated_guardian.id))
+    assert unavailable["can_message"] is False
+    response = client.post("/api/v1/teacher/communications/direct", json={
+        "child_id": str(world.child.id),
+        "guardian_id": str(world.unrelated_guardian.id),
+    })
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "PARENT_ACCOUNT_UNAVAILABLE"
 
 
 def test_teacher_diary_announcements_polls_incidents_tasks_notices(client, db, cabinet_world, monkeypatch):

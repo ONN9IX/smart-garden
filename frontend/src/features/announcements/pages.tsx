@@ -44,18 +44,25 @@ function AnnouncementsContent() {
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const loadVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++loadVersion.current;
     setLoading(true); setError("");
     try {
       const [result, groupList] = await Promise.all([
         announcementsApi.list(status, targetType || undefined, groupId || undefined),
         groupsApi.list("active"),
       ]);
+      if (version !== loadVersion.current) return;
       setItems(result.items);
       setGroups(groupList.items);
     }
-    catch (reason) { setError(userMessage(reason)); }
-    finally { setLoading(false); }
+    catch (reason) {
+      if (version === loadVersion.current) setError(userMessage(reason));
+    }
+    finally {
+      if (version === loadVersion.current) setLoading(false);
+    }
   }, [groupId, status, targetType]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
 

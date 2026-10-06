@@ -140,9 +140,10 @@ def parent_today(db: Session, actor: User, child_id: UUID) -> ParentTodayRespons
 def guardians(db: Session, actor: User, group_id: UUID) -> list[GuardianContext]:
     access.teacher_group(db, actor, group_id)
     rows = db.execute(
-        select(Guardian, ChildGuardian.child_id, ChildGuardian.relation_type)
+        select(Guardian, ChildGuardian.child_id, ChildGuardian.relation_type, User.status)
         .join(ChildGuardian, ChildGuardian.guardian_id == Guardian.id)
         .join(Child, Child.id == ChildGuardian.child_id)
+        .outerjoin(User, User.id == Guardian.user_id)
         .where(
             Guardian.organization_id == actor.organization_id,
             Guardian.status == "active",
@@ -157,7 +158,8 @@ def guardians(db: Session, actor: User, group_id: UUID) -> list[GuardianContext]
         id=guardian.id, child_id=child_id, first_name=guardian.first_name,
         last_name=guardian.last_name, middle_name=guardian.middle_name,
         relation_type=relation_type, phone=guardian.phone, email=guardian.email,
-    ) for guardian, child_id, relation_type in rows]
+        can_message=guardian.user_id is not None and user_status == "active",
+    ) for guardian, child_id, relation_type, user_status in rows]
 
 
 def list_attendance(db: Session, actor: User, day: date, group_id: UUID) -> list[AttendanceRow]:

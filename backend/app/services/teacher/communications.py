@@ -21,14 +21,37 @@ from app.services.teacher import access
 
 def _thread_response(item: CommunicationThread) -> ThreadResponse:
     return ThreadResponse(
-        id=item.id, thread_type=item.thread_type, group_id=item.group_id,
+        id=item.id, thread_type=item.thread_type, group_id=item.group_id, audience=item.audience,
         child_id=item.child_id, guardian_id=item.guardian_id, created_at=item.created_at,
     )
 
 
-def _message_response(item: CommunicationMessage) -> MessageResponse:
+def _sender_presentation(db: Session, actor: User, sender_user_id: UUID) -> tuple[str, str]:
+    sender = db.scalar(select(User).where(
+        User.id == sender_user_id, User.organization_id == actor.organization_id,
+    ))
+    if sender is None:
+        raise AppError(404, "NOT_FOUND")
+    if sender.role == "TEACHER":
+        profile = db.scalar(select(Employee).where(
+            Employee.user_id == sender.id, Employee.organization_id == actor.organization_id,
+        ))
+    elif sender.role == "PARENT":
+        profile = db.scalar(select(Guardian).where(
+            Guardian.user_id == sender.id, Guardian.organization_id == actor.organization_id,
+        ))
+    else:
+        profile = None
+    if profile is not None:
+        return sender.role, f"{profile.last_name} {profile.first_name}"
+    return sender.role, {"DIRECTOR": "Директор", "ADMIN": "Администратор"}.get(sender.role, "Пользователь")
+
+
+def _message_response(db: Session, actor: User, item: CommunicationMessage) -> MessageResponse:
+    sender_role, sender_name = _sender_presentation(db, actor, item.sender_user_id)
     return MessageResponse(
         id=item.id, thread_id=item.thread_id, sender_user_id=item.sender_user_id,
+        sender_role=sender_role, sender_name=sender_name,
         body=item.body, created_at=item.created_at,
     )
 
@@ -69,16 +92,19 @@ def parent_threads(db: Session, actor: User) -> list[ThreadResponse]:
     return result
 
 
-def group_thread(db: Session, actor: User, group_id: UUID) -> ThreadResponse:
+def group_thread(db: Session, actor: User, group_id: UUID, audience: str = "all") -> ThreadResponse:
     access.teacher_group(db, actor, group_id)
+    if audience not in {"all", "teachers"}:
+        raise AppError(404, "NOT_FOUND")
     thread = db.scalar(select(CommunicationThread).where(
         CommunicationThread.organization_id == actor.organization_id,
         CommunicationThread.thread_type == "group",
         CommunicationThread.group_id == group_id,
+        CommunicationThread.audience == audience,
     ))
     if thread is None:
         thread = CommunicationThread(
-            organization_id=actor.organization_id, thread_type="group", group_id=group_id,
+            organization_id=actor.organization_id, thread_type="group", group_id=group_id, audience=audience,
         )
         db.add(thread)
         db.commit()
@@ -91,7 +117,6 @@ def teacher_direct(db: Session, actor: User, child_id: UUID, guardian_id: UUID) 
     guardian = db.scalar(
         select(Guardian)
         .join(ChildGuardian, ChildGuardian.guardian_id == Guardian.id)
-        .join(User, User.id == Guardian.user_id)
         .where(
             Guardian.id == guardian_id,
             Guardian.organization_id == actor.organization_id,
@@ -99,13 +124,18 @@ def teacher_direct(db: Session, actor: User, child_id: UUID, guardian_id: UUID) 
             ChildGuardian.organization_id == actor.organization_id,
             ChildGuardian.child_id == child.id,
             ChildGuardian.status == "active",
-            User.organization_id == actor.organization_id,
-            User.role == "PARENT",
-            User.status == "active",
         )
     )
     if guardian is None:
         raise AppError(404, "NOT_FOUND")
+    parent_user = db.scalar(select(User).where(
+        User.id == guardian.user_id,
+        User.organization_id == actor.organization_id,
+        User.role == "PARENT",
+        User.status == "active",
+    ))
+    if parent_user is None:
+        raise AppError(409, "PARENT_ACCOUNT_UNAVAILABLE")
     return _direct(db, actor, child, guardian)
 
 
@@ -125,7 +155,7 @@ def _direct(db: Session, actor: User, child: Child, guardian: Guardian) -> Threa
     if thread is None:
         thread = CommunicationThread(
             organization_id=actor.organization_id, thread_type="direct", group_id=child.group_id,
-            child_id=child.id, guardian_id=guardian.id,
+            child_id=child.id, guardian_id=guardian.id, audience="all",
         )
         db.add(thread)
         db.commit()
@@ -148,7 +178,7 @@ def _messages(db: Session, actor: User, thread_id: UUID) -> list[MessageResponse
         CommunicationMessage.organization_id == actor.organization_id,
         CommunicationMessage.thread_id == thread_id,
     ).order_by(CommunicationMessage.created_at, CommunicationMessage.id))
-    return [_message_response(item) for item in items]
+    return [_message_response(db, actor, item) for item in items]
 
 
 def teacher_send(db: Session, actor: User, thread_id: UUID, body: str) -> MessageResponse:
@@ -178,7 +208,7 @@ def _send(db: Session, actor: User, thread: CommunicationThread, body: str) -> M
         ))
     db.commit()
     db.refresh(message)
-    return _message_response(message)
+    return _message_response(db, actor, message)
 
 
 def _recipient_ids(db: Session, actor: User, thread: CommunicationThread) -> set[UUID]:
@@ -196,26 +226,42 @@ def _recipient_ids(db: Session, actor: User, thread: CommunicationThread) -> set
         )
     ))
     if thread.thread_type == "group":
-        recipients.update(db.scalars(
+        if thread.audience in {"all", "parents"}:
+            recipients.update(db.scalars(
+                select(User.id)
+                .join(Guardian, Guardian.user_id == User.id)
+                .join(ChildGuardian, ChildGuardian.guardian_id == Guardian.id)
+                .join(Child, Child.id == ChildGuardian.child_id)
+                .where(
+                    User.organization_id == actor.organization_id,
+                    User.role == "PARENT", User.status == "active",
+                    Guardian.organization_id == actor.organization_id, Guardian.status == "active",
+                    ChildGuardian.organization_id == actor.organization_id, ChildGuardian.status == "active",
+                    Child.organization_id == actor.organization_id,
+                    Child.group_id == thread.group_id, Child.status == "active",
+                )
+            ))
+        if thread.audience == "parents":
+            recipients = {recipient for recipient in recipients if db.scalar(
+                select(User.role).where(User.id == recipient)
+            ) == "PARENT"}
+        elif thread.audience == "teachers":
+            recipients = {recipient for recipient in recipients if db.scalar(
+                select(User.role).where(User.id == recipient)
+            ) == "TEACHER"}
+    elif thread.guardian_id is not None:
+        parent_id = db.scalar(
             select(User.id)
             .join(Guardian, Guardian.user_id == User.id)
-            .join(ChildGuardian, ChildGuardian.guardian_id == Guardian.id)
-            .join(Child, Child.id == ChildGuardian.child_id)
             .where(
+                Guardian.id == thread.guardian_id,
+                Guardian.organization_id == actor.organization_id,
+                Guardian.status == "active",
                 User.organization_id == actor.organization_id,
-                User.role == "PARENT", User.status == "active",
-                Guardian.organization_id == actor.organization_id, Guardian.status == "active",
-                ChildGuardian.organization_id == actor.organization_id, ChildGuardian.status == "active",
-                Child.organization_id == actor.organization_id,
-                Child.group_id == thread.group_id, Child.status == "active",
+                User.role == "PARENT",
+                User.status == "active",
             )
-        ))
-    elif thread.guardian_id is not None:
-        parent_id = db.scalar(select(Guardian.user_id).where(
-            Guardian.id == thread.guardian_id,
-            Guardian.organization_id == actor.organization_id,
-            Guardian.status == "active",
-        ))
+        )
         if parent_id is not None:
             recipients.add(parent_id)
     recipients.discard(actor.id)

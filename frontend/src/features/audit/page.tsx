@@ -45,13 +45,43 @@ const detailLabels: Record<string, string> = {
   requires_ack: "Требуется подтверждение", category: "Категория", scope: "Область согласия",
 };
 const actorRole: Record<string, string> = { DIRECTOR: "Директор", ADMIN: "Администратор", TEACHER: "Воспитатель", PARENT: "Родитель" };
+const detailValueLabels: Record<string, string> = {
+  active: "Активно", archived: "Архивировано", blocked: "Заблокировано",
+  present: "В саду", absent: "Отсутствует", unknown: "Не отмечено",
+  mother: "Мама", father: "Папа", legal_guardian: "Опекун", other: "Другое",
+  DIRECTOR: "Директор", ADMIN: "Администратор", TEACHER: "Воспитатель", PARENT: "Родитель",
+};
+const entityLabels: Record<string, string> = {
+  group: "Группа", child: "Ребёнок", guardian: "Представитель", child_guardian: "Связь ребёнка и представителя",
+  employee: "Сотрудник", user_account: "Аккаунт", attendance: "Посещаемость", announcement: "Объявление",
+  teacher_assignment: "Назначение воспитателя", group_schedule_item: "Расписание", communication_message: "Сообщение",
+  child_diary_entry: "Запись дневника", poll: "Опрос", incident: "Событие", teacher_task: "Задача воспитателя",
+  notification: "Уведомление", document_notice: "Документ", photo_consent: "Согласие на фото", photo_asset: "Фото",
+  organization: "Организация",
+};
+const actionNouns: Record<string, string> = {
+  create: "Создание", update: "Изменение", archive: "Архивация", restore: "Восстановление",
+  reset_password: "Сброс пароля", reset: "Сброс пароля", block: "Блокировка", unblock: "Разблокировка",
+  status: "Изменение статуса", cancel: "Отмена", close: "Закрытие", vote: "Голосование", read: "Прочтение",
+  issue: "Выдача", ack: "Подтверждение", record: "Фиксация", withdraw: "Отзыв", restrict: "Ограничение",
+  remove: "Удаление", settings_update: "Изменение настроек",
+};
+function actionLabel(value: string) {
+  const [entity, action] = value.split(".");
+  if (value === "teacher_account.create") return "Создание аккаунта воспитателя";
+  if (value === "account.create") return "Создание аккаунта";
+  if (value === "teacher_assignment.create") return "Назначение воспитателя";
+  const noun = actionNouns[action];
+  return noun ? `${noun}: ${entityLabels[entity] ?? entity}` : value;
+}
 
 function detailValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "object" && value !== null) {
-    return Object.entries(value).map(([key, item]) => `${key}: ${item ?? "—"}`).join("; ");
+    return Object.entries(value).map(([key, item]) => `${key}: ${detailValue(item)}`).join("; ");
   }
-  return value === null || value === undefined ? "—" : String(value);
+  if (value === null || value === undefined) return "—";
+  return detailValueLabels[String(value)] ?? String(value);
 }
 
 function AuditDetails({ event }: { event: AuditEvent }) {
@@ -104,10 +134,10 @@ function AuditContent() {
       <p>Неизменяемая история критичных действий в вашем детском саду.</p></div>
     <div className="filter-row">
       <label>Объект <select className="input" value={entityType} onChange={(event) => { resetPage(); setEntityType(event.target.value); }}>
-        <option value="">Все объекты</option>{entityTypes.map((value) => <option key={value}>{value}</option>)}
+        <option value="">Все объекты</option>{entityTypes.map((value) => <option key={value} value={value}>{entityLabels[value] ?? value}</option>)}
       </select></label>
       <label>Действие <select className="input" value={action} onChange={(event) => { resetPage(); setAction(event.target.value); }}>
-        <option value="">Все действия</option>{actions.map((value) => <option key={value}>{value}</option>)}
+        <option value="">Все действия</option>{actions.map((value) => <option key={value} value={value}>{actionLabel(value)}</option>)}
       </select></label>
       <label>С даты <Input type="date" value={dateFrom} onChange={(event) => { resetPage(); setDateFrom(event.target.value); }} /></label>
       <label>По дату <Input type="date" value={dateTo} onChange={(event) => { resetPage(); setDateTo(event.target.value); }} /></label>
@@ -124,7 +154,7 @@ function AuditContent() {
           <tbody>{items.map((event) => <tr key={event.id}>
             <td>{new Date(event.created_at).toLocaleString("ru-RU")}</td>
             <td>{event.actor.username}<br /><span className="muted">{actorRole[event.actor.role]}</span></td>
-            <td>{event.action}</td><td>{event.entity_type}</td>
+            <td>{actionLabel(event.action)}</td><td>{entityLabels[event.entity_type] ?? event.entity_type}</td>
             <td className="audit-id">{event.entity_id ?? "—"}</td><td><AuditDetails event={event} /></td>
           </tr>)}</tbody>
         </table></div>}

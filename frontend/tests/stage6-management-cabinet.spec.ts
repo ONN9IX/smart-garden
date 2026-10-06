@@ -83,7 +83,7 @@ async function mockCabinet(page: Page, role: "DIRECTOR" | "ADMIN") {
     }]} : {});
     if (path.endsWith("/teacher-management/communications/groups/" + groupId + "/messages")) return reply(route, method === "GET" ? { items: [{
       id: "ffffffff-ffff-4fff-8fff-ffffffffffff", thread_id: "12121212-1212-4121-8121-121212121212",
-      group_id: groupId, sender_user_id: teacherUserId, body: "Синтетическое сообщение", created_at: "2026-10-01T09:00:00Z",
+      group_id: groupId, sender_user_id: teacherUserId, sender_role: "TEACHER", sender_name: "Воспитатель Анна", audience: "all", body: "Синтетическое сообщение", created_at: "2026-10-01T09:00:00Z",
     }]} : {});
     if (path.endsWith("/teacher-management/diary")) return reply(route, { items: [{
       id: "13131313-1313-4131-8131-131313131313", child_id: childId, group_id: groupId, date: "2026-10-01",

@@ -34,6 +34,8 @@
 .conversationButton { width: 100%; text-align: left; }
 .messageBubble { display: grid; gap: .2rem; }
 .messageBubble small { color: #6a7a70; }
+.ownMessage { justify-content: flex-end; text-align: right; }
+.ownMessage .messageBubble { background: #e8f4ec; border-radius: 12px; padding: .65rem .8rem; }
 .photo { max-width: 100%; max-height: 240px; border-radius: 12px; }
 .error { color: #9f2929; background: #fff0f0; border-radius: 10px; padding: .75rem; }
 .success { color: #175b31; background: #edf8f0; border-radius: 10px; padding: .75rem; }

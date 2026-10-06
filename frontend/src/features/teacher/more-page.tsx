@@ -5,9 +5,11 @@ import { featureEnabled } from "@/config/product-features";
 import { userMessage } from "@/lib/api/client";
 import { teacherApi } from "@/lib/api/teacher";
 import type { DocumentNotice, Notification, TeacherTask } from "@/types/teacher";
+import { notificationKindLabels } from "@/lib/presentation";
 import { styles, TeacherPageFrame } from "./shared";
 
 function notificationLabel(item: Notification) {
+  if (notificationKindLabels[item.kind]) return notificationKindLabels[item.kind];
   if (item.entity_type === "teacher_task") return "Задача требует внимания";
   if (item.entity_type.includes("communication") || item.entity_type.includes("message")) return "Новое сообщение";
   if (item.entity_type.includes("announcement")) return "Новое объявление";

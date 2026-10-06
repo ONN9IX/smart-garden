@@ -68,14 +68,14 @@ function ParentContent() {
 
   return <main className={`${styles.stack} ${styles.parentShell}`}>
     <header className={`${styles.card} ${styles.parentHeader}`}>
-      <div className={styles.parentHeaderMain}><div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> Умный сад</div><h1>Кабинет родителя</h1><p className={styles.muted}>{current.organization.name} · {current.user.username}</p></div>
+      <div className={styles.parentHeaderMain}><div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> ПРОМАКС</div><h1>Кабинет родителя</h1><p className={styles.muted}>{current.organization.name} · {current.user.username}</p></div>
       <button className={styles.buttonSecondary} onClick={() => void logout()}>Выйти</button>
     </header>
     {error && <p className={styles.error}>{error}</p>}
     <nav className={styles.tabs} aria-label="Разделы кабинета">{tabs.filter(([, , feature]) => !feature || featureEnabled(feature)).map(([item, label]) => <button aria-pressed={tab === item} className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{label}</button>)}</nav>
     {tab === "today" && <Today linkedChildren={children} />}
     {tab === "announcements" && <Announcements items={announcements} />}
-    {tab === "messages" && <Messages threads={threads} linkedChildren={children} reload={load} />}
+    {tab === "messages" && <Messages threads={threads} linkedChildren={children} reload={load} currentUserId={current.user.id} />}
     {featureEnabled("diary") && tab === "diary" && <Diary linkedChildren={children} />}
     {featureEnabled("polls") && tab === "polls" && <Polls items={polls} reload={load} />}
     {featureEnabled("photos") && tab === "photos" && <Photos linkedChildren={children} />}
@@ -112,7 +112,7 @@ function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
       : `${styles.statusPill} ${styles.statusUnknown}`;
 
   return <section className={styles.card}>
-    <h2>Сегодня</h2>
+    <h2>{data ? `Группа ${data.group.name}` : "Сегодня"}</h2>
     <div className={styles.toolbar}>
       <label>Ребёнок<select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
     </div>
@@ -120,7 +120,7 @@ function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
     {!data && !error && <p className={styles.muted}>Загружаем данные дня…</p>}
     {data && <div className={styles.stack}>
       <div className={styles.todaySummary}>
-        <article className={`${styles.card} ${styles.todayIdentity}`}><strong>{data.child.last_name} {data.child.first_name}</strong><br/><small>Группа: {data.group.name}</small></article>
+        <article className={`${styles.card} ${styles.todayIdentity}`}><small>Ежедневная информация</small><br/><strong>{data.child.last_name} {data.child.first_name}</strong></article>
         <article className={styles.card}><span className={attendanceClass}>{attendanceLabel}</span><br/><small>{data.attendance.arrival_time ? `Приход: ${data.attendance.arrival_time.slice(0, 5)}` : "Отметку ставит воспитатель"}{data.attendance.departure_time ? ` · Уход: ${data.attendance.departure_time.slice(0, 5)}` : ""}</small></article>
       </div>
       <div><strong className={styles.scheduleTitle}>Расписание на сегодня</strong>{data.schedule.length === 0
@@ -134,8 +134,8 @@ function Announcements({ items }: { items: Announcement[] }) {
   return <section className={styles.card}><h2>Объявления</h2>{items.length === 0 ? <p className={styles.muted}>Новых объявлений нет.</p> : <ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span><strong>{item.title}</strong><br/>{item.body}</span><small>{new Date(item.created_at).toLocaleDateString("ru-RU")}</small></li>)}</ul>}</section>;
 }
 
-function Messages({ threads, linkedChildren, reload }: {
-  threads: Thread[]; linkedChildren: ChildSummary[]; reload: () => Promise<unknown>;
+function Messages({ threads, linkedChildren, reload, currentUserId }: {
+  threads: Thread[]; linkedChildren: ChildSummary[]; reload: () => Promise<unknown>; currentUserId: string;
 }) {
   const [threadId, setThreadId] = useState(threads[0]?.id || "");
   const [childId, setChildId] = useState(linkedChildren[0]?.id || "");
@@ -177,7 +177,7 @@ function Messages({ threads, linkedChildren, reload }: {
         return <button key={thread.id} className={`${thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} ${styles.conversationButton}`} onClick={() => setThreadId(thread.id)}>{label}</button>;
       })}
     </section>
-    <section className={styles.card}><h2>Сообщения</h2>{visibleMessages.length === 0 ? <p className={styles.muted}>Выберите диалог или откройте новый.</p> : <ul className={styles.list}>{visibleMessages.map((message) => <li className={styles.row} key={message.id}><span className={styles.messageBubble}><span>{message.body}</span></span></li>)}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim()}>Отправить</button></form></section>
+    <section className={styles.card}><h2>Сообщения</h2>{visibleMessages.length === 0 ? <p className={styles.muted}>Выберите диалог или откройте новый.</p> : <ul className={styles.list}>{visibleMessages.map((message) => { const own = message.sender_user_id === currentUserId; return <li className={`${styles.row} ${own ? styles.ownMessage : ""}`} key={message.id}><span className={styles.messageBubble}><strong>{own ? "Вы" : message.sender_name}</strong><span>{message.body}</span></span></li>; })}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => setBody(event.target.value)} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim()}>Отправить</button></form></section>
   </div>;
 }
 
