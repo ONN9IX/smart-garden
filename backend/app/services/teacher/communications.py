@@ -250,11 +250,18 @@ def _recipient_ids(db: Session, actor: User, thread: CommunicationThread) -> set
                 select(User.role).where(User.id == recipient)
             ) == "TEACHER"}
     elif thread.guardian_id is not None:
-        parent_id = db.scalar(select(Guardian.user_id).where(
-            Guardian.id == thread.guardian_id,
-            Guardian.organization_id == actor.organization_id,
-            Guardian.status == "active",
-        ))
+        parent_id = db.scalar(
+            select(User.id)
+            .join(Guardian, Guardian.user_id == User.id)
+            .where(
+                Guardian.id == thread.guardian_id,
+                Guardian.organization_id == actor.organization_id,
+                Guardian.status == "active",
+                User.organization_id == actor.organization_id,
+                User.role == "PARENT",
+                User.status == "active",
+            )
+        )
         if parent_id is not None:
             recipients.add(parent_id)
     recipients.discard(actor.id)
