@@ -311,6 +311,28 @@ def test_teacher_communication_participants_and_relation_revocation(client, db, 
     assert client.post("/api/v1/teacher/communications/direct", json={
         "child_id": str(world.child.id), "guardian_id": str(world.unrelated_guardian.id),
     }).status_code == 404
+    assert client.get(f"/api/v1/teacher/communications/threads/{direct_id}/messages").status_code == 200
+    parent_notifications_before = set(db.scalars(select(Notification.id).where(
+        Notification.recipient_user_id == world.parent.id,
+        Notification.kind == "communication.message",
+    )))
+    world.parent.status = "blocked"
+    db.flush()
+    assert client.get(f"/api/v1/teacher/communications/threads/{direct_id}/messages").status_code == 404
+    assert client.post(
+        f"/api/v1/teacher/communications/threads/{direct_id}/messages",
+        json={"body": "Недоступное сообщение"},
+    ).status_code == 404
+    guardians = client.get(f"/api/v1/teacher/groups/{world.assigned.id}/guardians").json()
+    guardian = next(item for item in guardians if item["id"] == str(world.guardian.id))
+    assert guardian["can_message"] is False
+    parent_notifications_after = set(db.scalars(select(Notification.id).where(
+        Notification.recipient_user_id == world.parent.id,
+        Notification.kind == "communication.message",
+    )))
+    assert parent_notifications_after == parent_notifications_before
+    world.parent.status = "active"
+    db.flush()
 
     with TestClient(app) as parent_client:
         assert _login(parent_client, world.parent.username).status_code == 200
