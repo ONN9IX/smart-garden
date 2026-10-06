@@ -51,7 +51,7 @@ test("employee create and edit retain input after save failure", async ({ page }
   });
   await page.getByRole("link", { name: "К сотрудникам" }).click();
   await expect(page).toHaveURL(/\/employees\/new$/);
-  await page.locator("form").evaluate((form: HTMLFormElement) => form.requestSubmit());
+  await page.getByRole("button", { name: "Сохранить" }).dispatchEvent("click");
   await expect(page).toHaveURL(new RegExp(`/employees/${employeeId}$`));
   await page.getByRole("button", { name: "Изменить" }).click();
   await page.getByLabel("Должность").fill("Новая должность");
