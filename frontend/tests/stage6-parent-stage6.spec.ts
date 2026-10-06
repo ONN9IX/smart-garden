@@ -35,7 +35,7 @@ test("parent sees daily child overview and only enabled modules", async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/parent");
   await expect(page.getByRole("heading", { name: "Кабинет родителя" })).toBeVisible();
-  await expect(page.getByText("ПРОМАКС", { exact: true })).toBeVisible();
+  await expect(page.locator(".auth-brand")).toContainText("ПРОМАКС");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await expect(page.getByRole("button", { name: "Сегодня" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("heading", { name: "Группа Ромашка" })).toBeVisible();
