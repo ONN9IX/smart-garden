@@ -28,13 +28,13 @@ test("employee create and edit retain input after save failure", async ({ page }
     if (pathname.endsWith("/employees") && method === "POST") {
       createAttempts += 1;
       if (createAttempts === 1) return failure(route);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       return reply(route, employee, 201);
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "PATCH") {
       editAttempts += 1;
       if (editAttempts === 1) return failure(route);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       return reply(route, { ...employee, position: "Новая должность" });
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, employee);
