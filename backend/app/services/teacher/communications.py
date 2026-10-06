@@ -117,7 +117,6 @@ def teacher_direct(db: Session, actor: User, child_id: UUID, guardian_id: UUID) 
     guardian = db.scalar(
         select(Guardian)
         .join(ChildGuardian, ChildGuardian.guardian_id == Guardian.id)
-        .join(User, User.id == Guardian.user_id)
         .where(
             Guardian.id == guardian_id,
             Guardian.organization_id == actor.organization_id,
@@ -125,12 +124,17 @@ def teacher_direct(db: Session, actor: User, child_id: UUID, guardian_id: UUID) 
             ChildGuardian.organization_id == actor.organization_id,
             ChildGuardian.child_id == child.id,
             ChildGuardian.status == "active",
-            User.organization_id == actor.organization_id,
-            User.role == "PARENT",
-            User.status == "active",
         )
     )
     if guardian is None:
+        raise AppError(404, "NOT_FOUND")
+    parent_user = db.scalar(select(User).where(
+        User.id == guardian.user_id,
+        User.organization_id == actor.organization_id,
+        User.role == "PARENT",
+        User.status == "active",
+    ))
+    if parent_user is None:
         raise AppError(409, "PARENT_ACCOUNT_UNAVAILABLE")
     return _direct(db, actor, child, guardian)
 
