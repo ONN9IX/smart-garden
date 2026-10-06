@@ -190,7 +190,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await page.goto("/attendance");
   await page.getByLabel("Дата").fill(attendanceDay);
   let row = page.locator(".attendance-list form").filter({ hasText: childLabel });
-  await expect(row.locator("p").first()).toContainText("Без отметки");
+  await expect(row.locator("p").first()).toContainText("Не отмечен");
   await row.getByLabel("Отметка").selectOption("present");
   await row.getByLabel("Приход").fill("08:30");
   await row.getByRole("button", { name: "Сохранить отметку" }).click();
@@ -218,7 +218,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await expect(page.getByLabel("Статус")).toHaveValue("all");
   await expect(page.getByLabel("Ребёнок")).toHaveValue("");
   row = page.locator(".attendance-list form").filter({ hasText: childLabel });
-  await expect(row.locator("p").first()).toContainText("Без отметки");
+  await expect(row.locator("p").first()).toContainText("Не отмечен");
   await expect(row.locator("p").first()).not.toContainText("08:30");
 
   await page.getByLabel("Дата").fill(attendanceDay);
