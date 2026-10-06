@@ -22,16 +22,20 @@ async function mockAuth(page: Page) {
 test("employee create and edit retain input after save failure", async ({ page }) => {
   await mockAuth(page);
   let createAttempts = 0; let editAttempts = 0;
-  await page.route("**/api/v1/employees**", (route) => {
+  await page.route("**/api/v1/employees**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
     if (pathname.endsWith("/employees") && method === "POST") {
       createAttempts += 1;
-      return createAttempts === 1 ? failure(route) : reply(route, employee, 201);
+      if (createAttempts === 1) return failure(route);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return reply(route, employee, 201);
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "PATCH") {
       editAttempts += 1;
-      return editAttempts === 1 ? failure(route) : reply(route, { ...employee, position: "Новая должность" });
+      if (editAttempts === 1) return failure(route);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return reply(route, { ...employee, position: "Новая должность" });
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, employee);
     return reply(route, { items: [] });
@@ -51,8 +55,8 @@ test("employee create and edit retain input after save failure", async ({ page }
   });
   await page.getByRole("link", { name: "К сотрудникам" }).click();
   await expect(page).toHaveURL(/\/employees\/new$/);
-  await Promise.all([
-    page.waitForURL(new RegExp(`/employees/${employeeId}/** QA3-02 UI regression with synthetic API responses; real API coverage remains in stage3.spec.ts. */
+  await page.getByRole("button", { name: "Сохранить" }).click({ force: true });
+  await expect(page).toHaveURL(new RegExp(`/employees/${employeeId}/** QA3-02 UI regression with synthetic API responses; real API coverage remains in stage3.spec.ts. */
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const employeeId = "11111111-1111-4111-8111-111111111111";
@@ -76,16 +80,20 @@ async function mockAuth(page: Page) {
 test("employee create and edit retain input after save failure", async ({ page }) => {
   await mockAuth(page);
   let createAttempts = 0; let editAttempts = 0;
-  await page.route("**/api/v1/employees**", (route) => {
+  await page.route("**/api/v1/employees**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
     if (pathname.endsWith("/employees") && method === "POST") {
       createAttempts += 1;
-      return createAttempts === 1 ? failure(route) : reply(route, employee, 201);
+      if (createAttempts === 1) return failure(route);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return reply(route, employee, 201);
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "PATCH") {
       editAttempts += 1;
-      return editAttempts === 1 ? failure(route) : reply(route, { ...employee, position: "Новая должность" });
+      if (editAttempts === 1) return failure(route);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return reply(route, { ...employee, position: "Новая должность" });
     }
     if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, employee);
     return reply(route, { items: [] });
@@ -105,9 +113,7 @@ test("employee create and edit retain input after save failure", async ({ page }
   });
   await page.getByRole("link", { name: "К сотрудникам" }).click();
   await expect(page).toHaveURL(/\/employees\/new$/);
-)),
-    page.getByRole("button", { name: "Сохранить" }).click({ force: true }),
-  ]);
+));
   await page.getByRole("button", { name: "Изменить" }).click();
   await page.getByLabel("Должность").fill("Новая должность");
   await page.getByRole("button", { name: "Сохранить" }).click();
