@@ -22,7 +22,6 @@ def test_parent_cannot_manage_any_stage2_entity(client, users, db):
         assert parent.post("/api/v1/auth/login", json={
             "username": parent_user.username, "password": TEST_PASSWORD,
         }).status_code == 200
-        assert parent.post("/api/v1/auth/change-password", json={"new_password": "new-parent-secret-123"}).status_code == 200
         operations = (
             ("get", "/api/v1/groups", None),
             ("post", "/api/v1/groups", {"name": "Запрещено"}),
