@@ -39,7 +39,7 @@ app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)
 app.add_middleware(
     CORSMiddleware, allow_origins=settings.allowed_origins, allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type"],
+    allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type", "Idempotency-Key"],
 )
 
 
