@@ -44,6 +44,8 @@ def _eligible_employee(db: Session, actor: User, employee_id: UUID) -> Employee:
     ))
     if account is None:
         raise AppError(409, "EMPLOYEE_ACCOUNT_NOT_FOUND")
+    if employee.category != "teacher":
+        raise AppError(409, "EMPLOYEE_CATEGORY_CONFLICT", "employee_id")
     return employee
 
 

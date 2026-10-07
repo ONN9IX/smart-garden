@@ -24,18 +24,22 @@ def test_employee_crud_archive_and_validation(client, users):
     _login(client)
     response = client.post(ROOT, json={
         "first_name": " Анна ", "last_name": " Тестовая ", "middle_name": " ", "position": " Воспитатель ",
+        "category": "teacher", "phone": "  +7 999 111-22-33  ", "email": " ANA@EXAMPLE.TEST ",
     })
     assert response.status_code == 201
     employee = response.json()
     assert employee["first_name"] == "Анна" and employee["middle_name"] is None
     assert employee["position"] == "Воспитатель" and employee["account"] is None
+    assert employee["category"] == "teacher" and employee["phone"] == "+7 999 111-22-33"
+    assert employee["email"] == "ana@example.test"
     assert "organization_id" not in employee and "user_id" not in employee
     path = f"{ROOT}/{employee['id']}"
-    assert client.post(ROOT, json={"first_name": "Тест", "last_name": "Тест", "position": "Сотрудник", "organization_id": str(other.id)}).status_code == 400
+    assert client.post(ROOT, json={"first_name": "Тест", "last_name": "Тест", "position": "Сотрудник", "category": "other", "organization_id": str(other.id)}).status_code == 400
+    assert client.post(ROOT, json={"first_name": "Тест", "last_name": "Тест", "position": "Сотрудник"}).status_code == 400
     assert client.patch(path, json={}).status_code == 400
     assert client.patch(path, json={"position": None}).status_code == 400
     assert client.patch(path, json={"position": " Помощник "}).json()["position"] == "Помощник"
-    assert [item["id"] for item in client.get(f"{ROOT}?q=анна").json()["items"]] == [employee["id"]]
+    assert [item["id"] for item in client.get(f"{ROOT}?q=анна&category=teacher").json()["items"]] == [employee["id"]]
     assert client.post(f"{path}/archive").json()["status"] == "archived"
     assert client.post(f"{path}/archive").status_code == 200
     assert client.get(ROOT).json()["items"] == []
@@ -51,7 +55,7 @@ def test_director_blocks_linked_admin_atomically_and_admin_cannot_archive(client
     _login(client)
     employee = Employee(
         organization_id=organization.id, user_id=admin.id,
-        first_name="Тестовый", last_name="Администратор", position="Администратор", status="active",
+        first_name="Тестовый", last_name="Администратор", position="Администратор", category="administrator", status="active",
     )
     db.add(employee)
     db.flush()
@@ -74,6 +78,29 @@ def test_director_blocks_linked_admin_atomically_and_admin_cannot_archive(client
         assert admin.status == "blocked"
 
 
+def test_category_never_changes_account_role_and_active_account_category_is_protected(client, db, users):
+    organization, _, director, admin = users
+    director.must_change_password = False
+    db.flush()
+    _login(client, "director-test")
+    employee = Employee(
+        organization_id=organization.id, user_id=admin.id,
+        first_name="Тестовый", last_name="Администратор", position="Администратор",
+        category="administrator", status="active",
+    )
+    db.add(employee)
+    db.flush()
+    path = f"{ROOT}/{employee.id}"
+
+    conflict = client.patch(path, json={"category": "other"})
+    assert conflict.status_code == 409
+    assert employee.category == "administrator" and admin.role == "ADMIN"
+
+    assert client.post(f"{path}/account/block").status_code == 200
+    changed = client.patch(path, json={"category": "other"})
+    assert changed.status_code == 200
+    assert changed.json()["category"] == "other"
+    assert admin.role == "ADMIN" and admin.status == "blocked"
 def test_employee_foreign_tenant_and_parent_denied(client, db, users):
     organization, other, _, _ = users
     _login(client)
@@ -102,7 +129,7 @@ def test_employee_foreign_tenant_and_parent_denied(client, db, users):
     db.flush()
     client.cookies.set("smart_garden_session", token, path="/api/v1")
     assert client.get(ROOT).status_code == 403
-    assert client.post(ROOT, json={"first_name": "Тест", "last_name": "Тест", "position": "Тест"}).status_code == 403
+    assert client.post(ROOT, json={"first_name": "Тест", "last_name": "Тест", "position": "Тест", "category": "other"}).status_code == 403
 
 
 def test_employee_openapi_and_forbidden_fields(client):

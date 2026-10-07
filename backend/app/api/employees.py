@@ -30,9 +30,10 @@ Database = Annotated[Session, Depends(get_db)]
 def list_employees(
     user: Manager, db: Database,
     status: Literal["active", "archived", "all"] = Query("active"),
+    category: Literal["teacher", "administrator", "other"] | None = Query(None),
     q: str | None = Query(None, max_length=100),
 ) -> EmployeeList:
-    return EmployeeList(items=employees.list_employees(db, user, status, q))
+    return EmployeeList(items=employees.list_employees(db, user, status, q, category))
 
 
 @router.post("", response_model=EmployeeResponse, status_code=201)

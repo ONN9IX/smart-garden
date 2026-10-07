@@ -15,6 +15,7 @@ from app.schemas.child import (
     ChildPatch,
     ChildResponse,
     ChildSummary,
+    ChildTransfer,
     GroupSummary,
 )
 from app.services import audit
@@ -107,9 +108,29 @@ def update_child(db: Session, user: User, child_id: UUID, payload: ChildPatch) -
         validate_birth_date(data["birth_date"])
     if "group_id" in data:
         active_group(db, user, data["group_id"])
+        if data["group_id"] != child.group_id:
+            raise AppError(409, "CHILD_TRANSFER_REQUIRED", "group_id")
     for field, value in data.items():
         setattr(child, field, value)
     audit.write(db, user, "child.update", "child", child.id, {"changed_fields": sorted(data)})
+    db.commit()
+    db.refresh(child)
+    return detail(child)
+
+
+def transfer_child(db: Session, user: User, child_id: UUID, payload: ChildTransfer) -> ChildResponse:
+    child = db.scalar(select(Child).where(
+        Child.id == child_id, Child.organization_id == user.organization_id,
+    ).with_for_update())
+    if child is None:
+        raise AppError(404, "NOT_FOUND")
+    if child.status != "active":
+        raise AppError(409, "CHILD_ARCHIVED")
+    group = active_group(db, user, payload.group_id)
+    if child.group_id == group.id:
+        return detail(child)
+    child.group_id = group.id
+    audit.write(db, user, "child.update", "child", child.id, {"changed_fields": ["group_id"]})
     db.commit()
     db.refresh(child)
     return detail(child)

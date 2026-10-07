@@ -73,6 +73,7 @@ def list_guardians(db: Session, user: User, status: str, q: str | None) -> list[
         stmt = stmt.where(or_(
             Guardian.first_name.ilike(pattern), Guardian.last_name.ilike(pattern),
             Guardian.middle_name.ilike(pattern),
+            Guardian.phone.ilike(pattern), Guardian.email.ilike(pattern),
             func.concat(Guardian.last_name, " ", Guardian.first_name, " ", func.coalesce(Guardian.middle_name, "")).ilike(pattern),
         ))
     return [summary(guardian) for guardian in db.scalars(stmt.order_by(Guardian.last_name, Guardian.first_name, Guardian.id))]

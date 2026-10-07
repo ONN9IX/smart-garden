@@ -27,7 +27,7 @@ async function createAccount(
 ) {
   const collection = kind === "employee" ? "employees" : "guardians";
   const fields = kind === "employee"
-    ? { first_name: "Аудит", last_name: `Сотрудник${suffix}`, middle_name: null, position: "Администратор" }
+    ? { first_name: "Аудит", last_name: `Сотрудник${suffix}`, middle_name: null, position: "Администратор", category: "administrator" }
     : { first_name: "Аудит", last_name: `Родитель${suffix}`, middle_name: null, phone: null, email: null };
   const recordResponse = await context.request.post(`${apiBase}/${collection}`, { data: fields });
   expect(recordResponse.status()).toBe(201);

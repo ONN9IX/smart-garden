@@ -7,7 +7,7 @@ const groupB = "33333333-3333-4333-8333-333333333333";
 const childA = "44444444-4444-4444-8444-444444444444";
 const childB = "55555555-5555-4555-8555-555555555555";
 const account = { id: "66666666-6666-4666-8666-666666666666", username: "staff-synthetic", role: "ADMIN", status: "active", must_change_password: true };
-const employee = { id: employeeId, first_name: "Тест", last_name: "Синтетический", middle_name: null, position: "Сотрудник", status: "active", account: null as typeof account | null, archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
+const employee = { id: employeeId, first_name: "Тест", last_name: "Синтетический", middle_name: null, position: "Сотрудник", category: "administrator" as const, phone: null, email: null, status: "active", account: null as typeof account | null, archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
 const cors = { "access-control-allow-origin": "http://localhost:3000", "access-control-allow-credentials": "true", "access-control-allow-methods": "GET,POST,PATCH,OPTIONS", "access-control-allow-headers": "content-type" };
 const reply = (route: Route, body: object, status = 200) => route.fulfill({ status, contentType: "application/json", headers: cors, body: JSON.stringify(body) });
 const failure = (route: Route) => reply(route, { error: { code: "INTERNAL_ERROR", message: "Hidden server details", field: null } }, 500);
@@ -17,11 +17,14 @@ async function mockAuth(page: Page) {
     user: { id: "77777777-7777-4777-8777-777777777777", username: "director-synthetic", role: "DIRECTOR", status: "active", must_change_password: false },
     organization: { id: "88888888-8888-4888-8888-888888888888", name: "Синтетический сад" },
   }));
+  await page.route("**/api/v1/management/people/duplicates", (route) => reply(route, { matches: [] }));
+  await page.route("**/api/v1/management/employees/**", (route) => reply(route, { employee_id: employeeId, assignments: [], open_tasks: 0, overdue_tasks: 0 }));
 }
 
 test("employee create and edit retain input after save failure", async ({ page }) => {
   await mockAuth(page);
   let createAttempts = 0; let editAttempts = 0;
+  let currentEmployee = employee;
   await page.route("**/api/v1/employees**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
@@ -35,9 +38,10 @@ test("employee create and edit retain input after save failure", async ({ page }
       editAttempts += 1;
       if (editAttempts === 1) return failure(route);
       await new Promise((resolve) => setTimeout(resolve, 500));
-      return reply(route, { ...employee, position: "Новая должность" });
+      currentEmployee = { ...employee, position: "Новая должность" };
+      return reply(route, currentEmployee);
     }
-    if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, employee);
+    if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, currentEmployee);
     return reply(route, { items: [] });
   });
   await page.goto("/employees/new");
@@ -64,7 +68,7 @@ test("employee create and edit retain input after save failure", async ({ page }
   await expect(page.getByLabel("Должность")).toHaveValue("Новая должность");
   await page.getByRole("button", { name: "Сохранить" }).click({ force: true });
   await expect(page.getByRole("heading", { name: "Синтетический Тест" })).toBeVisible();
-  await expect(page.getByText("Новая должность", { exact: true })).toBeVisible();
+  await expect(page.locator("dd").filter({ hasText: "Новая должность" })).toBeVisible();
   expect([createAttempts, editAttempts]).toEqual([2, 2]);
 });
 

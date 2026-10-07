@@ -29,8 +29,10 @@ class Employee(Base):
         CheckConstraint("length(btrim(first_name)) > 0", name="ck_employees_first_name_nonempty"),
         CheckConstraint("length(btrim(last_name)) > 0", name="ck_employees_last_name_nonempty"),
         CheckConstraint("length(btrim(position)) > 0", name="ck_employees_position_nonempty"),
+        CheckConstraint("category IN ('teacher', 'administrator', 'other')", name="ck_employees_category"),
         UniqueConstraint("user_id", name="uq_employees_user_id"),
         Index("ix_employees_organization_status", "organization_id", "status"),
+        Index("ix_employees_organization_status_category", "organization_id", "status", "category"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -40,6 +42,9 @@ class Employee(Base):
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     middle_name: Mapped[str | None] = mapped_column(String(100))
     position: Mapped[str] = mapped_column(String(100), nullable=False)
+    category: Mapped[str] = mapped_column(String(16), nullable=False, default="other")
+    phone: Mapped[str | None] = mapped_column(String(32))
+    email: Mapped[str | None] = mapped_column(String(254))
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -18,7 +18,7 @@ def _director(client, users):
 
 
 def _employee(client):
-    response = client.post(ROOT, json={"first_name": "Ирина", "last_name": "Пример", "position": "Администратор"})
+    response = client.post(ROOT, json={"first_name": "Ирина", "last_name": "Пример", "position": "Администратор", "category": "administrator"})
     assert response.status_code == 201
     return response.json()["id"]
 

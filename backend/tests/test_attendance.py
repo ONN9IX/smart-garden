@@ -59,7 +59,7 @@ def test_day_upsert_patch_and_group_snapshot(client, db, users):
     assert client.post(ROOT, json={**payload, "arrival_time": "08:30+03:00"}).status_code == 400
     assert client.patch(f"{ROOT}/{record_id}", json={"arrival_time": "08:30+03:00"}).status_code == 400
 
-    assert client.patch(f"/api/v1/children/{child}", json={"group_id": second}).status_code == 200
+    assert client.post(f"/api/v1/children/{child}/transfer", json={"group_id": second}).status_code == 200
     assert client.get(ROOT, params={"date": DAY, "group_id": first}).json()["items"][0]["record_id"] == record_id
     assert client.get(ROOT, params={"date": DAY, "group_id": second}).json()["items"] == []
     assert client.post(f"/api/v1/children/{child}/archive").status_code == 200

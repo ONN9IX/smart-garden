@@ -59,7 +59,7 @@ def _director(client, users):
 def _employee_and_group(db, users, suffix=""):
     employee = Employee(
         organization_id=users[0].id, first_name="Тестовая", last_name=f"Воспитательница{suffix}",
-        position="Воспитатель", status="active",
+        position="Воспитатель", category="teacher", status="active",
     )
     group = Group(organization_id=users[0].id, name=f"Группа Foundation{suffix}", status="active")
     db.add_all([employee, group])
@@ -137,7 +137,7 @@ def test_teacher_assignment_management_roles_and_tenant_boundaries(client, db, u
     foreign_group = Group(organization_id=other.id, name="Чужая группа", status="active")
     foreign_employee = Employee(
         organization_id=other.id, first_name="Чужая", last_name="Воспитательница",
-        position="Воспитатель", status="active",
+        position="Воспитатель", category="teacher", status="active",
     )
     db.add_all([foreign_group, foreign_employee])
     db.flush()
@@ -167,7 +167,7 @@ def test_teacher_assignment_management_roles_and_tenant_boundaries(client, db, u
 
     admin_employee = Employee(
         organization_id=organization.id, user_id=admin.id, first_name="Тестовый",
-        last_name="Администратор", position="Администратор", status="active",
+        last_name="Администратор", position="Администратор", category="administrator", status="active",
     )
     db.add(admin_employee)
     db.flush()
@@ -187,6 +187,7 @@ def test_teacher_identity_requires_active_link_assignment_and_group(client, db, 
     assert _login(client, orphan.username).status_code == 403
     employee, group = _employee_and_group(db, users, "-3")
     employee.user_id = orphan.id
+    employee.category = "teacher"
     db.add(TeacherGroupAssignment(
         organization_id=organization.id, employee_id=employee.id, group_id=group.id,
         status="active", assigned_by=director.id,

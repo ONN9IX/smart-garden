@@ -16,6 +16,7 @@ from app.schemas.child import (
     ChildList,
     ChildPatch,
     ChildResponse,
+    ChildTransfer,
 )
 from app.schemas.relation import RelationCreate, RelationPatch
 from app.services import children, relations
@@ -47,6 +48,11 @@ def get_child(child_id: UUID, user: Manager, db: Database) -> ChildResponse:
 @router.patch("/{child_id}", response_model=ChildResponse)
 def update_child(child_id: UUID, payload: ChildPatch, user: Manager, db: Database) -> ChildResponse:
     return children.update_child(db, user, child_id, payload)
+
+
+@router.post("/{child_id}/transfer", response_model=ChildResponse)
+def transfer_child(child_id: UUID, payload: ChildTransfer, user: Manager, db: Database) -> ChildResponse:
+    return children.transfer_child(db, user, child_id, payload)
 
 
 @router.post("/{child_id}/archive", response_model=ChildResponse)

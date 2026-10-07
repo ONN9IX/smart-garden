@@ -268,7 +268,7 @@ def _teacher_projection(db: Session, actor: User, employee: Employee) -> Teacher
         employee_status=employee.status,
         account=account_view,
         assignments=assignments,
-        eligible_for_teacher_account=employee.status == "active" and employee.user_id is None,
+        eligible_for_teacher_account=employee.status == "active" and employee.user_id is None and employee.category == "teacher",
     )
 
 

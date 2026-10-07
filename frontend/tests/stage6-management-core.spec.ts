@@ -42,6 +42,10 @@ async function mockManagement(page: Page, role: "DIRECTOR" | "ADMIN" = "DIRECTOR
       { id: groupId, name: "Солнышко", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
       { id: "55555555-5555-4555-8555-555555555555", name: "Ромашка", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
     ]});
+    if (path.endsWith("/management/groups/overview")) return reply(route, { items: [
+      { group: { id: groupId, name: "Солнышко", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }, active_children: 3, present: 1, absent: 1, unknown: 1, active_teacher_names: [], has_active_weekly_schedule: true, open_tasks: 0, overdue_tasks: 0 },
+      { group: { id: "55555555-5555-4555-8555-555555555555", name: "Ромашка", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }, active_children: 0, present: 0, absent: 0, unknown: 0, active_teacher_names: [], has_active_weekly_schedule: true, open_tasks: 0, overdue_tasks: 0 },
+    ]});
     if (path.endsWith("/children")) return reply(route, { items: [{
       id: childId, first_name: "Ребёнок", last_name: "Синтетический", middle_name: null,
       birth_date: "2021-01-01", status: "active", group: { id: groupId, name: "Солнышко", status: "active" },
@@ -52,7 +56,7 @@ async function mockManagement(page: Page, role: "DIRECTOR" | "ADMIN" = "DIRECTOR
     }]});
     if (path.endsWith("/employees")) return reply(route, { items: [{
       id: employeeId, first_name: "Админ", last_name: "Синтетический", middle_name: null,
-      position: "Администратор", status: "active", account: role === "DIRECTOR"
+      position: "Администратор", category: "administrator", phone: null, email: null, status: "active", account: role === "DIRECTOR"
         ? { id: "66666666-6666-4666-8666-666666666666", username: "admin-synthetic", role: "ADMIN", status: "active", must_change_password: false }
         : null,
     }]});
@@ -85,7 +89,7 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
   await expect(page.getByText("Солнышко", { exact: true })).toBeVisible();
 
   await page.goto("/groups");
-  await page.getByLabel("Поиск по названию").fill("ром");
+  await page.getByLabel("Поиск по группе или воспитателю").fill("ром");
   await expect(page.getByText("Ромашка", { exact: true })).toBeVisible();
   await expect(page.getByText("Солнышко", { exact: true })).toHaveCount(0);
 
@@ -98,9 +102,9 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
   await expect(page.getByText("Синтетический Родитель")).toBeVisible();
 
   await page.goto("/employees");
-  await page.getByLabel("Поиск по имени или должности").fill("администратор");
+  await page.getByLabel("Поиск по ФИО, должности или контактам").fill("администратор");
   await expect(page.getByText("Синтетический Админ")).toBeVisible();
-  await expect(page.getByText(/ADMIN: активен/)).toBeVisible();
+  await expect(page.getByText(/Доступ администратора: активен/)).toBeVisible();
 
   await page.goto("/attendance");
   await expect(page.getByRole("heading", { name: "Посещаемость" })).toBeVisible();

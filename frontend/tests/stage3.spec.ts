@@ -63,6 +63,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await page.getByLabel("Фамилия").fill(employeeLastName);
   await page.getByLabel("Имя").fill("Тестовый");
   await page.getByLabel("Должность").fill("Администратор");
+  await page.getByLabel("Категория *").selectOption("administrator");
   await page.getByRole("button", { name: "Сохранить" }).click();
   await expect(page).toHaveURL(/\/employees\/[a-f0-9-]+$/);
   const employeeUrl = page.url();
@@ -70,7 +71,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await page.getByRole("button", { name: "Изменить" }).click();
   await page.getByLabel("Должность").fill("Старший администратор");
   await page.getByRole("button", { name: "Сохранить" }).click();
-  await expect(page.getByText("Старший администратор", { exact: true })).toBeVisible();
+  await expect(page.locator("dd").filter({ hasText: "Старший администратор" })).toBeVisible();
 
   await page.getByRole("button", { name: "Выдать доступ администратора" }).click();
   const credentials = page.getByRole("region", { name: "Одноразовые реквизиты" });
@@ -120,7 +121,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
 
   // DIRECTOR block lifecycle revokes the new session and prevents login.
   page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("Все действующие сеансы");
+    expect(dialog.message()).toContain("завершить все действующие сеансы");
     await dialog.accept();
   });
   await page.getByRole("button", { name: "Заблокировать" }).click();
@@ -137,7 +138,8 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   let archivePrompt = "";
   page.once("dialog", async (dialog) => { archivePrompt = dialog.message(); await dialog.accept(); });
   await page.getByRole("button", { name: "Архивировать" }).click();
-  expect(archivePrompt).toContain("Архивировать сотрудника");
+  expect(archivePrompt).toContain("активные назначения воспитателя будут архивированы");
+  expect(archivePrompt).toContain("Восстановление карточки не вернёт назначения и доступ автоматически.");
   await expect(page.getByRole("button", { name: "Восстановить" })).toBeVisible();
   let restoreRequests = 0;
   const countRestore = (request: Request) => {
@@ -147,19 +149,19 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   let restorePrompt = "";
   page.once("dialog", async (dialog) => { restorePrompt = dialog.message(); await dialog.dismiss(); });
   await page.getByRole("button", { name: "Восстановить" }).click();
-  expect(restorePrompt).toContain("не разблокирует связанного User автоматически");
+  expect(restorePrompt).toContain("Назначения останутся архивными");
   expect(restoreRequests).toBe(0);
   await expect(page.getByRole("button", { name: "Восстановить" })).toBeVisible();
   page.once("dialog", async (dialog) => { restorePrompt = dialog.message(); await dialog.accept(); });
   await page.getByRole("button", { name: "Восстановить" }).click();
-  await expect(page.getByText("Карточка восстановлена. Доступ остаётся заблокированным, если был выдан.")).toBeVisible();
+  await expect(page.getByText("Карточка восстановлена отдельно. Назначения и доступ нужно восстанавливать отдельно.")).toBeVisible();
   page.off("request", countRestore);
   expect(restoreRequests).toBe(1);
   await expect(page.getByRole("button", { name: "Разблокировать" })).toBeVisible();
   await page.getByRole("button", { name: "Разблокировать" }).click();
-  await expect(page.getByText("Доступ восстановлен.")).toBeVisible();
+  await expect(page.getByText("Доступ восстановлен отдельно.")).toBeVisible();
   page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("Все действующие сеансы");
+    expect(dialog.message()).toContain("завершить все действующие сеансы");
     await dialog.accept();
   });
   await page.getByRole("button", { name: "Заблокировать" }).click();
@@ -177,11 +179,13 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await expect(page).toHaveURL(/\/groups\/[a-f0-9-]+$/);
   const groupBId = page.url().split("/").pop()!;
   await page.goto("/children/new");
-  await page.getByLabel("Фамилия").fill("Тестовый");
-  await page.getByLabel("Имя").fill(childFirstName);
-  await page.getByLabel("Дата рождения").fill("2020-01-01");
-  await page.getByLabel("Группа", { exact: true }).selectOption(groupAId);
-  await page.getByRole("button", { name: "Сохранить" }).click();
+  await page.getByLabel("Фамилия *").fill("Тестовый");
+  await page.getByLabel("Имя *").fill(childFirstName);
+  await page.getByLabel("Дата рождения *").fill("2020-01-01");
+  await page.getByLabel("Группа *").selectOption(groupAId);
+  await page.getByRole("button", { name: "Далее: представители" }).click();
+  await page.getByRole("button", { name: "Далее: проверка" }).click();
+  await page.getByRole("button", { name: "Создать ребёнка и связи" }).click();
   await expect(page).toHaveURL(/\/children\/[a-f0-9-]+$/);
   const childId = page.url().split("/").pop()!;
   const childLabel = `Тестовый ${childFirstName}`;
@@ -222,7 +226,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await expect(row.locator("p").first()).not.toContainText("08:30");
 
   await page.getByLabel("Дата").fill(attendanceDay);
-  await expectSuccess(await page.request.patch(`${apiBase}/children/${childId}`, { data: { group_id: groupBId } }));
+  await expectSuccess(await page.request.post(`${apiBase}/children/${childId}/transfer`, { data: { group_id: groupBId } }));
   await page.reload();
   await page.getByLabel("Дата").fill(attendanceDay);
   await page.getByLabel("Группа").selectOption(groupAId);
@@ -264,7 +268,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await login(otherPage, "stage3-other-director-demo", otherDirectorTemporary);
   await rotate(otherPage, "other-director-stage3");
   const foreignEmployeeResponse = await expectSuccess(await otherPage.request.post(`${apiBase}/employees`, { data: {
-    first_name: "Другой", last_name: `Сотрудник${suffix}`, middle_name: null, position: "Администратор",
+    first_name: "Другой", last_name: `Сотрудник${suffix}`, middle_name: null, position: "Администратор", category: "administrator",
   } }));
   const foreignEmployee = await foreignEmployeeResponse.json() as { id: string };
   const foreignGroupResponse = await expectSuccess(await otherPage.request.post(`${apiBase}/groups`, { data: { name: `Чужая группа ${suffix}` } }));

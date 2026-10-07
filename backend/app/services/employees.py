@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.models.auth_session import AuthSession
 from app.models.employee import Employee
+from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.user import User
 from app.schemas.employee import (
     EmployeeAccountSummary,
@@ -44,6 +45,7 @@ def summary(employee: Employee) -> EmployeeListItem:
     return EmployeeListItem(
         id=employee.id, first_name=employee.first_name, last_name=employee.last_name,
         middle_name=employee.middle_name, position=employee.position,
+        category=employee.category, phone=employee.phone, email=employee.email,
         status=employee.status, account=account_summary(employee),
     )
 
@@ -55,16 +57,21 @@ def detail(employee: Employee) -> EmployeeResponse:
     )
 
 
-def list_employees(db: Session, actor: User, status: str, q: str | None) -> list[EmployeeListItem]:
+def list_employees(
+    db: Session, actor: User, status: str, q: str | None, category: str | None = None,
+) -> list[EmployeeListItem]:
     query = select(Employee).where(Employee.organization_id == actor.organization_id)
     if status != "all":
         query = query.where(Employee.status == status)
+    if category is not None:
+        query = query.where(Employee.category == category)
     if q:
         pattern = f"%{q.strip()}%"
         query = query.where(or_(
             Employee.first_name.ilike(pattern), Employee.last_name.ilike(pattern),
             Employee.middle_name.ilike(pattern),
             func.concat(Employee.last_name, " ", Employee.first_name, " ", func.coalesce(Employee.middle_name, "")).ilike(pattern),
+            Employee.position.ilike(pattern), Employee.phone.ilike(pattern), Employee.email.ilike(pattern),
         ))
     return [summary(item) for item in db.scalars(query.order_by(Employee.last_name, Employee.first_name, Employee.id))]
 
@@ -82,6 +89,26 @@ def create_employee(db: Session, actor: User, payload: EmployeeCreate) -> Employ
 def update_employee(db: Session, actor: User, employee_id: UUID, payload: EmployeePatch) -> EmployeeResponse:
     employee = get_employee(db, actor, employee_id)
     data = payload.model_dump(exclude_unset=True)
+    new_category = data.get("category")
+    if new_category is not None and new_category != employee.category:
+        if new_category != "teacher" and db.scalar(select(TeacherGroupAssignment.id).where(
+            TeacherGroupAssignment.organization_id == actor.organization_id,
+            TeacherGroupAssignment.employee_id == employee.id,
+            TeacherGroupAssignment.status == "active",
+        ).limit(1)):
+            raise AppError(409, "EMPLOYEE_CATEGORY_CONFLICT", "category")
+        if employee.user_id is not None:
+            account = db.scalar(select(User).where(
+                User.id == employee.user_id, User.organization_id == actor.organization_id,
+            ))
+            if account is None:
+                raise AppError(409, "EMPLOYEE_ACCOUNT_NOT_FOUND")
+            if account.status == "active" and (
+                (account.role == "TEACHER" and new_category != "teacher")
+                or (account.role == "ADMIN" and new_category != "administrator")
+                or account.role not in {"TEACHER", "ADMIN"}
+            ):
+                raise AppError(409, "EMPLOYEE_CATEGORY_CONFLICT", "category")
     for field, value in data.items():
         setattr(employee, field, value)
     audit.write(db, actor, "employee.update", "employee", employee.id, {"changed_fields": sorted(data)})
@@ -92,17 +119,35 @@ def update_employee(db: Session, actor: User, employee_id: UUID, payload: Employ
 
 def archive_employee(db: Session, actor: User, employee_id: UUID) -> EmployeeResponse:
     employee = get_employee(db, actor, employee_id, lock=True)
+    linked = None
     if employee.user_id is not None:
         if actor.role != "DIRECTOR":
             raise AppError(403, "FORBIDDEN")
-        linked = employee.user
+        linked = db.scalar(select(User).where(
+            User.id == employee.user_id, User.organization_id == actor.organization_id,
+        ).with_for_update(of=User))
         if linked is None or linked.organization_id != actor.organization_id or linked.role not in {"ADMIN", "TEACHER"}:
             raise AppError(403, "FORBIDDEN")
+
+    now = utc_now()
+    assignments = list(db.scalars(select(TeacherGroupAssignment).where(
+        TeacherGroupAssignment.organization_id == actor.organization_id,
+        TeacherGroupAssignment.employee_id == employee.id,
+        TeacherGroupAssignment.status == "active",
+    ).order_by(TeacherGroupAssignment.id).with_for_update()))
+    for assignment in assignments:
+        assignment.status = "archived"
+        assignment.archived_at = now
+        audit.write(db, actor, "teacher_assignment.archive", "teacher_assignment", assignment.id, {
+            "status_before": "active", "status_after": "archived",
+        })
+
+    if linked is not None:
         account_was_active = linked.status == "active"
         linked.status = "blocked"
         db.execute(update(AuthSession).where(
             AuthSession.user_id == linked.id, AuthSession.revoked_at.is_(None),
-        ).values(revoked_at=utc_now()))
+        ).values(revoked_at=now))
         if account_was_active:
             if linked.role == "ADMIN":
                 audit.write(db, actor, "account.block", "user_account", linked.id, {
@@ -115,7 +160,7 @@ def archive_employee(db: Session, actor: User, employee_id: UUID) -> EmployeeRes
     archived = employee.status != "archived"
     if archived:
         employee.status = "archived"
-        employee.archived_at = utc_now()
+        employee.archived_at = now
         audit.write(db, actor, "employee.archive", "employee", employee.id, {
             "status_before": "active", "status_after": "archived",
         })

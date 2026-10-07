@@ -51,6 +51,8 @@ def create(db: Session, actor: User, employee_id: UUID) -> EmployeeTemporaryCred
     employee = get_employee(db, actor, employee_id, lock=True)
     if employee.status != "active":
         raise AppError(409, "EMPLOYEE_ARCHIVED")
+    if employee.category != "administrator":
+        raise AppError(409, "EMPLOYEE_CATEGORY_CONFLICT", "category")
     if employee.user_id is not None:
         raise AppError(409, "EMPLOYEE_ACCOUNT_ALREADY_EXISTS")
     temporary = generate_temporary_password()

@@ -38,11 +38,13 @@ test("director creates records; parent changes password and cannot manage them",
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/children/new");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.getByLabel("Фамилия").fill("Тестовый");
-  await page.getByLabel("Имя").fill(childName);
-  await page.getByLabel("Дата рождения").fill("2020-01-01");
-  await page.getByLabel("Группа", { exact: true }).selectOption({ label: groupName });
-  await page.getByRole("button", { name: "Сохранить" }).click();
+  await page.getByLabel("Фамилия *").fill("Тестовый");
+  await page.getByLabel("Имя *").fill(childName);
+  await page.getByLabel("Дата рождения *").fill("2020-01-01");
+  await page.getByLabel("Группа *").selectOption({ label: groupName });
+  await page.getByRole("button", { name: "Далее: представители" }).click();
+  await page.getByRole("button", { name: "Далее: проверка" }).click();
+  await page.getByRole("button", { name: "Создать ребёнка и связи" }).click();
   await expect(page).toHaveURL(/\/children\/[a-f0-9-]+$/);
   const childUrl = page.url();
   await expect(page.getByRole("heading", { name: `Тестовый ${childName}` })).toBeVisible();

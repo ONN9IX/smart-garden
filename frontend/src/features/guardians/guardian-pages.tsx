@@ -81,10 +81,10 @@ function GuardiansContent() {
     finally { setLoading(false); }
   }, [status]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
-  const visible = items.filter((guardian) => fullName(guardian).toLocaleLowerCase("ru").includes(search.trim().toLocaleLowerCase("ru")));
+  const visible = items.filter((guardian) => `${fullName(guardian)} ${guardian.phone ?? ""} ${guardian.email ?? ""}`.toLocaleLowerCase("ru").includes(search.trim().toLocaleLowerCase("ru")));
   return <AppShell><div className="page-heading"><span className="eyebrow">Управление</span><h1>Родители и законные представители</h1><p>Контакты только в объёме, нужном для работы сада.</p><Link className="button button-primary" href="/guardians/new">Добавить представителя</Link></div>
     <div className="filter-row"><label>Статус <select className="input" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}><option value="active">Активные</option><option value="archived">Архив</option><option value="all">Все</option></select></label>
-      <label>Поиск по имени <Input value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
+      <label>Поиск по имени и контактам <Input value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
     {error && <Alert>{error}</Alert>}{loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : visible.length === 0 ? <p className="empty-state">Представители не найдены.</p> : <ul className="record-list">{visible.map((guardian) => <li key={guardian.id}><Link href={`/guardians/${guardian.id}`} className="record-link"><strong>{fullName(guardian)}</strong><span className="muted">{guardian.phone ?? guardian.email ?? "Контакты не указаны"} · {guardian.account ? `Аккаунт: ${guardian.account.status === "active" ? "активен" : "заблокирован"}` : "Без аккаунта"} · {guardian.status === "active" ? "Активен" : "Архив"}</span></Link></li>)}</ul>}
   </AppShell>;
 }
@@ -156,11 +156,16 @@ function GuardianDetail({ id }: { id: string }) {
     {loading ? <div className="section-space"><Loading /></div> : error && !guardian ? <div className="section-space"><Alert>{error}</Alert><Button variant="secondary" onClick={() => void load()}>Повторить</Button></div> : guardian && <>
       <div className="page-heading section-space"><span className="eyebrow">Представитель · {guardian.status === "active" ? "Активен" : "Архив"}</span><h1>{fullName(guardian)}</h1></div>
       {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
-      {editing ? <GuardianForm key={guardian.updated_at} initial={{ first_name: guardian.first_name, last_name: guardian.last_name, middle_name: guardian.middle_name, phone: guardian.phone, email: guardian.email }} busy={busy} submit={save} cancel={() => setEditing(false)} /> : <section className="card section-card">
-        <p>Телефон: {guardian.phone ?? "Не указан"}</p><p>Email: {guardian.email ?? "Не указан"}</p>
+      <nav className="profile-section-links" aria-label="Разделы профиля представителя"><a href="#guardian-overview">Основное</a><a href="#guardian-children">Дети</a><a href="#guardian-contacts">Контакты</a><a href="#guardian-documents">Документы</a><a href="#guardian-history">История</a></nav>
+      {editing ? <GuardianForm key={guardian.updated_at} initial={{ first_name: guardian.first_name, last_name: guardian.last_name, middle_name: guardian.middle_name, phone: guardian.phone, email: guardian.email }} busy={busy} submit={save} cancel={() => setEditing(false)} /> : <section id="guardian-overview" className="profile-section card section-card">
+        <h2>Основная информация</h2><p>Статус: {guardian.status === "active" ? "Активен" : "Архив"}</p>
         <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить</Button><Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{guardian.status === "active" ? "Архивировать" : "Восстановить"}</Button></div>
       </section>}
-      <GuardianRelations guardian={guardian} refresh={load} />
+      <section id="guardian-contacts" className="profile-section card"><h2>Контакты</h2><p>Телефон: {guardian.phone ?? "Не указан"}</p><p>Email: {guardian.email ?? "Не указан"}</p></section>
+      <section id="guardian-children" className="profile-section card"><h2>Связанные дети</h2>{guardian.children.length ? <ul className="record-list">{guardian.children.map(({ relation_id, relation_type, relation_status, child }) => <li key={relation_id}><Link className="record-link" href={`/children/${child.id}`}><strong>{fullName(child)}</strong><span className="muted">{child.group.name} · {RELATION_LABELS[relation_type]} · {relation_status === "active" ? "Связь активна" : "Связь в архиве"}</span></Link></li>)}</ul> : <p className="empty-state">Связанных детей пока нет.</p>}</section>
+      <section className="profile-section card"><h2>Управление связями</h2><GuardianRelations guardian={guardian} refresh={load} /></section>
+      <section id="guardian-documents" className="profile-section card"><h2>Документы</h2><p className="muted">Защищённые документы не подключены к этому профилю.</p></section>
+      <section id="guardian-history" className="profile-section card"><h2>История</h2><p>Карточка создана {guardian.created_at.slice(0, 10)}. Статус: {guardian.status === "active" ? "Активен" : "Архив"}.</p></section>
       <AccountPanel guardian={guardian} onAccountChange={(account) => setGuardian((previous) => previous ? { ...previous, account } : previous)} />
     </>}
   </AppShell>;
