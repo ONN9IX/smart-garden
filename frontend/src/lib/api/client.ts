@@ -33,6 +33,7 @@ type ApiErrorCode =
   | "EMPLOYEE_ARCHIVED"
   | "EMPLOYEE_ACCOUNT_ALREADY_EXISTS"
   | "EMPLOYEE_ACCOUNT_NOT_FOUND"
+  | "ROLE_CHANGE_NOT_ALLOWED"
   | "INVALID_ATTENDANCE_DATE"
   | "INVALID_ATTENDANCE_TIME"
   | "ARRIVAL_REQUIRED"
@@ -65,6 +66,7 @@ const errorMessages: Partial<Record<ApiErrorCode, string>> = {
   EMPLOYEE_ARCHIVED: "Карточка сотрудника в архиве.",
   EMPLOYEE_ACCOUNT_ALREADY_EXISTS: "Доступ уже выдан.",
   EMPLOYEE_ACCOUNT_NOT_FOUND: "Учётная запись сотрудника не найдена.",
+  ROLE_CHANGE_NOT_ALLOWED: "Изменение роли недоступно",
   INVALID_ATTENDANCE_DATE: "Дата не может быть в будущем.",
   INVALID_ATTENDANCE_TIME: "Проверьте время прихода и ухода.",
   ARRIVAL_REQUIRED: "Сначала отметьте приход ребёнка.",
