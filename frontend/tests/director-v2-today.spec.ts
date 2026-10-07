@@ -65,7 +65,7 @@ test("DIRECTOR gets the v2 navigation and a single-read exception-first Today", 
     await expect(page.getByRole("link", { name: new RegExp(label) })).toBeVisible();
   }
   await expect(page.getByRole("heading", { name: "Группы сегодня" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Солнышко" })).toHaveAttribute("href", `/groups/${ids.group}`);
+  await expect(page.getByRole("link", { name: "Солнышко", exact: true })).toHaveAttribute("href", `/groups/${ids.group}`);
   await expect(page.getByText("Ромашка: нет активного воспитателя")).toBeVisible();
   await expect(page.getByText("Ромашка: нет недельного расписания")).toBeVisible();
   await expect(page.getByText("Просрочено задач: 1")).toBeVisible();

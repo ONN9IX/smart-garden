@@ -81,7 +81,7 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
   await mockManagement(page, "DIRECTOR");
 
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: "Сегодня" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Сегодня", exact: true })).toBeVisible();
   await expect(page.getByText("Солнышко", { exact: true })).toBeVisible();
 
   await page.goto("/groups");
@@ -130,7 +130,7 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
 test("ADMIN keeps management core but cannot open Audit", async ({ page }) => {
   await mockManagement(page, "ADMIN");
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: "Сегодня" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Сегодня", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Аудит" })).toHaveCount(0);
 
   await page.goto("/employees");
