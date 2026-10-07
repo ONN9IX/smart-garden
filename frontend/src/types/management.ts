@@ -5,6 +5,17 @@ export type ManagementAttentionItem = {
   count: number | null;
 };
 
+export type ManagementTodayGroup = {
+  group_id: string;
+  group_name: string;
+  active_children: number;
+  present: number;
+  absent: number;
+  unknown: number;
+  has_active_teacher: boolean;
+  has_active_weekly_schedule: boolean;
+};
+
 export type ManagementToday = {
   date: string;
   active_children: number;
@@ -18,6 +29,7 @@ export type ManagementToday = {
   overdue_tasks: number;
   open_incidents: number;
   unread_notifications: number;
+  groups: ManagementTodayGroup[];
   attention_items: ManagementAttentionItem[];
 };
 

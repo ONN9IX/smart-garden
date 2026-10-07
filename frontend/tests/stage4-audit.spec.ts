@@ -59,8 +59,8 @@ test("Stage 4 Dashboard, Announcements and immutable Audit", async ({ page, brow
   await login(page, "stage4-director-demo", directorPassword);
   await rotate(page, "director-stage4");
   await expect(page.getByRole("link", { name: "Объявления" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Аудит" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Оперативная сводка" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Журнал действий" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Сегодня", exact: true })).toBeVisible();
   const dashboardResponse = await page.context().request.get(`${apiBase}/dashboard/summary`);
   expect(dashboardResponse.status()).toBe(200);
   const dashboard = await dashboardResponse.json() as {
@@ -71,7 +71,7 @@ test("Stage 4 Dashboard, Announcements and immutable Audit", async ({ page, brow
   for (const key of ["active_children", "present", "absent", "unknown"] as const) {
     expect(dashboard[key]).toBe(dashboard.groups.reduce((total, group) => total + group[key], 0));
   }
-  await expect(page.getByText("Без отметки", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Не отмечены", { exact: true }).first()).toBeVisible();
   await page.goto("/groups");
   await page.getByLabel("Название группы").fill(groupName);
   await page.getByRole("button", { name: "Создать группу" }).click();
@@ -149,8 +149,8 @@ test("Stage 4 Dashboard, Announcements and immutable Audit", async ({ page, brow
   await login(adminPage, adminCredentials.account.username, adminCredentials.temporary_password);
   await rotate(adminPage, "admin-stage4");
   await expect(adminPage.getByRole("link", { name: "Объявления" })).toBeVisible();
-  await expect(adminPage.getByRole("heading", { name: "Оперативная сводка" })).toBeVisible();
-  await expect(adminPage.getByRole("link", { name: "Аудит" })).toHaveCount(0);
+  await expect(adminPage.getByRole("heading", { name: "Сегодня", exact: true })).toBeVisible();
+  await expect(adminPage.getByRole("link", { name: "Журнал действий" })).toHaveCount(0);
   await adminPage.goto("/audit");
   await expect(adminPage).toHaveURL(/\/403$/);
   expect((await adminPage.request.get(`${apiBase}/audit`)).status()).toBe(403);

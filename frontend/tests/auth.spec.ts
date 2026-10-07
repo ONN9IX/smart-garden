@@ -20,10 +20,10 @@ test("temporary DIRECTOR password, protected routes, rotation, refresh and logou
   await page.getByLabel("Повторите новый пароль", { exact: true }).fill(newPassword);
   await page.getByRole("button", { name: "Сохранить пароль" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole("main")).toContainText("Директор");
-  await expect(page.getByRole("main")).toContainText("Детский сад «Солнышко»");
+  await expect(page.locator(".header-user")).toContainText("Директор");
+  await expect(page.locator(".management-organization")).toContainText("Детский сад «Солнышко»");
   await page.reload();
-  await expect(page.getByRole("main")).toContainText("director-demo");
+  await expect(page.locator(".header-user")).toContainText("director-demo");
   await page.getByRole("button", { name: "Выйти" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto("/dashboard");
@@ -47,5 +47,5 @@ test("ADMIN role comes from the backend", async ({ page }) => {
   await page.getByLabel("Повторите новый пароль", { exact: true }).fill(newPassword);
   await page.getByRole("button", { name: "Сохранить пароль" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole("main")).toContainText("Администратор");
+  await expect(page.locator(".header-user")).toContainText("Администратор");
 });
