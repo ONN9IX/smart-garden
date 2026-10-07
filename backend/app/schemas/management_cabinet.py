@@ -20,6 +20,17 @@ class ManagementAttentionItem(BaseModel):
     count: int | None = None
 
 
+class ManagementTodayGroup(BaseModel):
+    group_id: UUID
+    group_name: str
+    active_children: int
+    present: int
+    absent: int
+    unknown: int
+    has_active_teacher: bool
+    has_active_weekly_schedule: bool
+
+
 class ManagementToday(BaseModel):
     date: date
     active_children: int
@@ -33,6 +44,7 @@ class ManagementToday(BaseModel):
     overdue_tasks: int
     open_incidents: int
     unread_notifications: int
+    groups: list[ManagementTodayGroup]
     attention_items: list[ManagementAttentionItem]
 
 

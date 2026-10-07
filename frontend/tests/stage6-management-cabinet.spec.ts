@@ -65,7 +65,8 @@ async function mockCabinet(page: Page, role: "DIRECTOR" | "ADMIN") {
       date: "2026-10-01", active_children: 1, present: 1, absent: 0, unknown: 0,
       active_groups: 1, active_employees: 1, groups_without_active_teacher_assignment: 0,
       open_tasks: 1, overdue_tasks: 0, open_incidents: 1, unread_notifications: 1,
-      attention_items: [{ kind: "incidents_open", entity_type: "incident", entity_id: incidentId, count: 1 }],
+      groups: [{ group_id: groupId, group_name: "Солнышко", active_children: 1, present: 1, absent: 0, unknown: 0, has_active_teacher: true, has_active_weekly_schedule: true }],
+      attention_items: [{ kind: "notifications_unread", entity_type: "notification", entity_id: notificationId, count: 1 }],
     });
     if (path.endsWith("/groups")) return reply(route, { items: [group()] });
     if (path.endsWith("/children")) return reply(route, { items: [{
@@ -138,7 +139,7 @@ async function expectNoOverflow(page: Page) {
 test("DIRECTOR can traverse the complete Stage 6 management cabinet", async ({ page }) => {
   await mockCabinet(page, "DIRECTOR");
   const routes: Array<[string, string]> = [
-    ["/dashboard", "Оперативная сводка"],
+    ["/dashboard", "Сегодня"],
     ["/teachers", "Воспитатели"],
     ["/schedule", "Расписание"],
     ["/tasks", "Задачи воспитателей"],
@@ -155,7 +156,7 @@ test("DIRECTOR can traverse the complete Stage 6 management cabinet", async ({ p
 
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Требует внимания" })).toBeVisible();
-  await expect(page.getByText("Открытые задачи", { exact: true })).toBeVisible();
+  await expect(page.getByText("Задачи сада", { exact: true })).toBeVisible();
 
   await page.goto("/teachers");
   await expect(page.getByRole("button", { name: "Сбросить пароль" })).toBeVisible();
@@ -189,6 +190,7 @@ test("ADMIN gets operations but no privileged teacher-account, assignment, Audit
 
   await page.goto("/dashboard");
   await expect(page.getByRole("link", { name: "Аудит" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Журнал действий" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Настройки" })).toHaveCount(0);
 
   await page.goto("/audit");

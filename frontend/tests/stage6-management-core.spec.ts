@@ -31,6 +31,13 @@ async function mockManagement(page: Page, role: "DIRECTOR" | "ADMIN" = "DIRECTOR
       active_groups: 1, active_employees: 1,
       groups: [{ id: groupId, name: "Солнышко", active_children: 3, present: 1, absent: 1, unknown: 1 }],
     });
+    if (path.endsWith("/management/today")) return reply(route, {
+      date: "2026-09-30", active_children: 3, present: 1, absent: 1, unknown: 1,
+      active_groups: 1, active_employees: 1, groups_without_active_teacher_assignment: 0,
+      open_tasks: 0, overdue_tasks: 0, open_incidents: 0, unread_notifications: 0,
+      groups: [{ group_id: groupId, group_name: "Солнышко", active_children: 3, present: 1, absent: 1, unknown: 1, has_active_teacher: true, has_active_weekly_schedule: true }],
+      attention_items: [{ kind: "attendance_missing", entity_type: "attendance", entity_id: groupId, count: 1 }],
+    });
     if (path.endsWith("/groups")) return reply(route, { items: [
       { id: groupId, name: "Солнышко", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
       { id: "55555555-5555-4555-8555-555555555555", name: "Ромашка", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
@@ -74,7 +81,7 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
   await mockManagement(page, "DIRECTOR");
 
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: "Оперативная сводка" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Сегодня" })).toBeVisible();
   await expect(page.getByText("Солнышко", { exact: true })).toBeVisible();
 
   await page.goto("/groups");
@@ -123,7 +130,7 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
 test("ADMIN keeps management core but cannot open Audit", async ({ page }) => {
   await mockManagement(page, "ADMIN");
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: "Оперативная сводка" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Сегодня" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Аудит" })).toHaveCount(0);
 
   await page.goto("/employees");

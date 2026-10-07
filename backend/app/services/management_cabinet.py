@@ -7,7 +7,6 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.core.product_features import feature_enabled
 from app.models.child import Child
 from app.models.child_diary_entry import ChildDiaryEntry
 from app.models.communication import CommunicationMessage, CommunicationThread
@@ -40,6 +39,7 @@ from app.schemas.management_cabinet import (
     ManagementSettingsPatch,
     ManagementSettingsResponse,
     ManagementToday,
+    ManagementTodayGroup,
     NotificationList,
     NotificationResponse,
     PhotoConsentCreate,
@@ -133,17 +133,16 @@ def _active_assignment(db: Session, actor: User, employee_id: UUID, group_id: UU
 
 def management_today(db: Session, actor: User) -> ManagementToday:
     base = dashboard.summary(db, actor)
-    active_group_ids = list(db.scalars(select(Group.id).where(
-        Group.organization_id == actor.organization_id,
-        Group.status == "active",
-    )))
     assigned_group_ids = set(db.scalars(
         select(TeacherGroupAssignment.group_id)
+        .join(Group, Group.id == TeacherGroupAssignment.group_id)
         .join(Employee, Employee.id == TeacherGroupAssignment.employee_id)
         .join(User, User.id == Employee.user_id)
         .where(
             TeacherGroupAssignment.organization_id == actor.organization_id,
             TeacherGroupAssignment.status == "active",
+            Group.organization_id == actor.organization_id,
+            Group.status == "active",
             Employee.organization_id == actor.organization_id,
             Employee.status == "active",
             User.organization_id == actor.organization_id,
@@ -151,7 +150,32 @@ def management_today(db: Session, actor: User) -> ManagementToday:
             User.status == "active",
         )
     ))
-    without_teacher = [group_id for group_id in active_group_ids if group_id not in assigned_group_ids]
+    scheduled_group_ids = set(db.scalars(
+        select(GroupScheduleItem.group_id)
+        .join(Group, Group.id == GroupScheduleItem.group_id)
+        .where(
+            GroupScheduleItem.organization_id == actor.organization_id,
+            GroupScheduleItem.status == "active",
+            Group.organization_id == actor.organization_id,
+            Group.status == "active",
+        )
+        .distinct()
+    ))
+    groups = [
+        ManagementTodayGroup(
+            group_id=group.id,
+            group_name=group.name,
+            active_children=group.active_children,
+            present=group.present,
+            absent=group.absent,
+            unknown=group.unknown,
+            has_active_teacher=group.id in assigned_group_ids,
+            has_active_weekly_schedule=group.id in scheduled_group_ids,
+        )
+        for group in base.groups
+    ]
+    without_teacher = [group for group in groups if not group.has_active_teacher]
+    without_schedule = [group for group in groups if not group.has_active_weekly_schedule]
     open_tasks = db.scalar(select(func.count(TeacherTask.id)).where(
         TeacherTask.organization_id == actor.organization_id,
         TeacherTask.status.in_(("open", "in_progress")),
@@ -163,12 +187,8 @@ def management_today(db: Session, actor: User) -> ManagementToday:
         TeacherTask.due_at.is_not(None),
         TeacherTask.due_at < now,
     )) or 0
+    # OFF module state is intentionally not part of the active Today projection.
     open_incidents = 0
-    if feature_enabled("incidents"):
-        open_incidents = db.scalar(select(func.count(Incident.id)).where(
-            Incident.organization_id == actor.organization_id,
-            Incident.status == "open",
-        )) or 0
     unread = db.scalar(select(func.count(Notification.id)).where(
         Notification.organization_id == actor.organization_id,
         Notification.recipient_user_id == actor.id,
@@ -176,18 +196,22 @@ def management_today(db: Session, actor: User) -> ManagementToday:
     )) or 0
 
     attention: list[ManagementAttentionItem] = []
-    if base.unknown:
-        attention.append(ManagementAttentionItem(kind="attendance_missing", entity_type="attendance", count=base.unknown))
+    attention.extend(
+        ManagementAttentionItem(kind="attendance_missing", entity_type="attendance", entity_id=group.group_id, count=group.unknown)
+        for group in groups if group.unknown
+    )
+    attention.extend(
+        ManagementAttentionItem(kind="group_without_teacher", entity_type="group", entity_id=group.group_id)
+        for group in without_teacher
+    )
+    attention.extend(
+        ManagementAttentionItem(kind="group_without_schedule", entity_type="group", entity_id=group.group_id)
+        for group in without_schedule
+    )
     if overdue_tasks:
         attention.append(ManagementAttentionItem(kind="tasks_overdue", entity_type="teacher_task", count=overdue_tasks))
-    if open_incidents:
-        attention.append(ManagementAttentionItem(kind="incidents_open", entity_type="incident", count=open_incidents))
     if unread:
         attention.append(ManagementAttentionItem(kind="notifications_unread", entity_type="notification", count=unread))
-    attention.extend(
-        ManagementAttentionItem(kind="group_without_teacher", entity_type="group", entity_id=group_id)
-        for group_id in without_teacher
-    )
     return ManagementToday(
         date=base.date,
         active_children=base.active_children,
@@ -201,6 +225,7 @@ def management_today(db: Session, actor: User) -> ManagementToday:
         overdue_tasks=overdue_tasks,
         open_incidents=open_incidents,
         unread_notifications=unread,
+        groups=groups,
         attention_items=attention,
     )
 

@@ -12,6 +12,7 @@ import { ROLE_LABELS } from "@/types/auth";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ManagementNav } from "@/components/layout/management-nav";
+import { ManagementMobileNav } from "@/components/layout/management-mobile-nav";
 import { TeacherNav } from "@/components/layout/teacher-nav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!current || current.user.role === "PARENT") return null;
   const isTeacher = current.user.role === "TEACHER";
+  const managementRole = current.user.role === "DIRECTOR" || current.user.role === "ADMIN" ? current.user.role : null;
+  const isManagement = managementRole !== null;
   if (disabledRoute) return null;
 
   async function logout() {
@@ -45,21 +48,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  return <div className="app-shell">
+  return <div className={`app-shell${isManagement ? " management-shell" : ""}`}>
     <header className="app-header">
       <Link href={isTeacher ? "/teacher" : "/dashboard"} className="brand" aria-label="ПРОМАКС — главная"><span className="brand-mark" aria-hidden="true">✳</span> ПРОМАКС</Link>
+      {isManagement && <span className="organization-name management-organization">{current.organization.name}</span>}
       <div className="header-actions">
-        <span className="organization-name">{current.organization.name}</span>
+        {!isManagement && <span className="organization-name">{current.organization.name}</span>}
         <div className="header-user"><strong>{current.user.username}</strong><span>{ROLE_LABELS[current.user.role] ?? "Пользователь"}</span></div>
         <Button variant="secondary" onClick={() => void logout()} disabled={busy}>{busy ? "Выход..." : "Выйти"}</Button>
       </div>
     </header>
     {error && <div className="shell-alert"><Alert>{error}</Alert></div>}
     <div className="app-body">
-      <aside className="sidebar" aria-label="Основное меню">
+      <aside className={`sidebar${isManagement ? " management-sidebar" : ""}`} aria-label="Основное меню">
         {isTeacher ? <TeacherNav /> : <ManagementNav role={current.user.role} />}
       </aside>
       <main className="main-content">{children}</main>
     </div>
+    {managementRole && <ManagementMobileNav role={managementRole} username={current.user.username}
+      roleLabel={ROLE_LABELS[managementRole] ?? "Пользователь"} />}
   </div>;
 }

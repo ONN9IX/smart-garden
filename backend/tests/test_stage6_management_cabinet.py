@@ -1,19 +1,24 @@
 """Stage 6 DIRECTOR/ADMIN cabinet integration, tenant/RBAC and privacy coverage."""
 
-from datetime import date
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
 
+from app.core.organization_time import organization_today
 from app.core.product_features import PRODUCT_FEATURES
 from app.core.security import hash_password
+from app.models.attendance import Attendance
 from app.models.audit_event import AuditEvent
 from app.models.child import Child
 from app.models.child_diary_entry import ChildDiaryEntry
 from app.models.employee import Employee
 from app.models.group import Group
+from app.models.group_schedule_item import GroupScheduleItem
 from app.models.guardian import Guardian
 from app.models.notification import Notification
+from app.models.teacher_group_assignment import TeacherGroupAssignment
+from app.models.teacher_task import TeacherTask
 from app.models.user import User
 from tests.conftest import TEST_PASSWORD
 
@@ -266,6 +271,126 @@ def test_management_admin_permissions_and_operational_access(client, db, users):
     db.commit()
     assert str(other_notification.id) not in client.get(f"{MGMT}/management/notifications", params={"status": "all"}).text
     assert client.post(f"{MGMT}/management/notifications/{other_notification.id}/read").status_code == 404
+
+
+def test_management_today_aggregate_is_tenant_scoped_and_uses_active_assignments(client, db, users):
+    organization, other, director, admin = users
+    _director(client, db, users)
+    groups = [
+        Group(organization_id=organization.id, name=name, status=status)
+        for name, status in (
+            ("Группа с активным воспитателем", "active"),
+            ("Группа с архивным сотрудником", "active"),
+            ("Группа с аккаунтом администратора", "active"),
+            ("Группа с архивным назначением", "active"),
+            ("Группа без расписания", "active"),
+            ("Архивная группа без расписания", "archived"),
+        )
+    ]
+    foreign_group = Group(organization_id=other.id, name="Чужая группа", status="active")
+    db.add_all([*groups, foreign_group])
+    db.flush()
+
+    today = organization_today(organization)
+    children = []
+    for index, group in enumerate([*groups[:5], foreign_group]):
+        child = Child(
+            organization_id=group.organization_id,
+            group_id=group.id,
+            first_name=f"Ребёнок {index}",
+            last_name="Синтетический",
+            birth_date=date(2021, 1, 1),
+            status="active",
+        )
+        children.append(child)
+    db.add_all(children)
+    db.flush()
+    db.add(Attendance(
+        organization_id=organization.id,
+        child_id=children[0].id,
+        group_id=groups[0].id,
+        date=today,
+        status="present",
+        created_by=director.id,
+        updated_by=director.id,
+    ))
+
+    valid_teacher = User(
+        organization_id=organization.id, username="today-valid-teacher", password_hash=hash_password(TEST_PASSWORD),
+        role="TEACHER", status="active", must_change_password=False,
+    )
+    admin_account = User(
+        organization_id=organization.id, username="today-admin-account", password_hash=hash_password(TEST_PASSWORD),
+        role="ADMIN", status="active", must_change_password=False,
+    )
+    archived_employee_teacher = User(
+        organization_id=organization.id, username="today-archived-employee-teacher", password_hash=hash_password(TEST_PASSWORD),
+        role="TEACHER", status="active", must_change_password=False,
+    )
+    archived_assignment_teacher = User(
+        organization_id=organization.id, username="today-archived-assignment-teacher", password_hash=hash_password(TEST_PASSWORD),
+        role="TEACHER", status="active", must_change_password=False,
+    )
+    db.add_all([valid_teacher, admin_account, archived_employee_teacher, archived_assignment_teacher])
+    db.flush()
+    employees = [
+        Employee(organization_id=organization.id, user_id=valid_teacher.id, first_name="Активный", last_name="Воспитатель", position="Воспитатель", status="active"),
+        Employee(organization_id=organization.id, user_id=archived_employee_teacher.id, first_name="Архивный", last_name="Сотрудник", position="Воспитатель", status="archived"),
+        Employee(organization_id=organization.id, user_id=admin_account.id, first_name="Не воспитатель", last_name="Сотрудник", position="Администратор", status="active"),
+        Employee(organization_id=organization.id, user_id=archived_assignment_teacher.id, first_name="Без назначения", last_name="Сотрудник", position="Воспитатель", status="active"),
+    ]
+    db.add_all(employees)
+    db.flush()
+    db.add_all([
+        TeacherGroupAssignment(organization_id=organization.id, employee_id=employees[0].id, group_id=groups[0].id, status="active", assigned_by=director.id),
+        TeacherGroupAssignment(organization_id=organization.id, employee_id=employees[1].id, group_id=groups[1].id, status="active", assigned_by=director.id),
+        TeacherGroupAssignment(organization_id=organization.id, employee_id=employees[2].id, group_id=groups[2].id, status="active", assigned_by=director.id),
+        TeacherGroupAssignment(organization_id=organization.id, employee_id=employees[3].id, group_id=groups[3].id, status="archived", assigned_by=director.id),
+    ])
+    db.add_all([
+        GroupScheduleItem(organization_id=organization.id, group_id=groups[0].id, weekday=1, start_time=time(9), end_time=time(10), title="Активное расписание", status="active", created_by=director.id, updated_by=director.id),
+        GroupScheduleItem(organization_id=organization.id, group_id=groups[1].id, weekday=2, start_time=time(9), end_time=time(10), title="Архивное расписание", status="archived", created_by=director.id, updated_by=director.id),
+        GroupScheduleItem(organization_id=organization.id, group_id=groups[5].id, weekday=3, start_time=time(9), end_time=time(10), title="Расписание архива", status="active", created_by=director.id, updated_by=director.id),
+    ])
+    db.add(TeacherTask(
+        organization_id=organization.id, assignee_employee_id=employees[0].id, group_id=groups[0].id,
+        title="Просроченная синтетическая задача", status="open", due_at=datetime.now(UTC) - timedelta(days=1),
+        created_by=director.id,
+    ))
+    db.commit()
+
+    response = client.get(f"{MGMT}/management/today")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["active_children"] == 5
+    assert payload["present"] == 1
+    assert payload["unknown"] == 4
+    assert payload["active_groups"] == 5
+    assert payload["open_tasks"] == payload["overdue_tasks"] == 1
+    assert payload["open_incidents"] == 0
+    projection = {group["group_name"]: group for group in payload["groups"]}
+    assert set(projection) == {group.name for group in groups[:5]}
+    assert projection[groups[0].name]["has_active_teacher"] is True
+    assert projection[groups[0].name]["has_active_weekly_schedule"] is True
+    assert projection[groups[1].name]["has_active_teacher"] is False
+    assert projection[groups[1].name]["has_active_weekly_schedule"] is False
+    assert projection[groups[2].name]["has_active_teacher"] is False
+    assert projection[groups[3].name]["has_active_teacher"] is False
+    assert projection[groups[4].name]["has_active_teacher"] is False
+    assert projection[groups[4].name]["has_active_weekly_schedule"] is False
+    attention_ids = {item["entity_id"] for item in payload["attention_items"] if item["entity_type"] == "group"}
+    assert str(groups[4].id) in attention_ids
+    assert str(groups[5].id) not in attention_ids
+    assert str(foreign_group.id) not in str(payload)
+    assert "incidents_open" not in {item["kind"] for item in payload["attention_items"]}
+
+    _logout(client)
+    admin.must_change_password = False
+    db.commit()
+    _login(client, admin.username)
+    admin_payload = client.get(f"{MGMT}/management/today").json()
+    assert {group["group_name"] for group in admin_payload["groups"]} == set(projection)
+    assert str(foreign_group.id) not in str(admin_payload)
 
 
 def test_new_task_notifies_only_active_assignee_in_same_tenant(client, db, users):
