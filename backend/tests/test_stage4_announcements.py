@@ -11,7 +11,6 @@ from app.models.group import Group
 from app.models.guardian import Guardian
 from app.models.user import User
 from app.services import audit
-
 from tests.conftest import TEST_PASSWORD
 
 ROOT = "/api/v1/announcements"
