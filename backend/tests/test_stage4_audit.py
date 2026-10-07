@@ -186,8 +186,8 @@ def test_director_filters_pagination_tenant_and_append_only(client, db, users):
     assert client.get(f"{ROOT}/{foreign.id}").status_code == 404
     first_page = client.get(ROOT, params={"limit": 1}).json()
     second_page = client.get(ROOT, params={"offset": 1, "limit": 1}).json()
-    assert first_page["items"][0]["id"] == str(own.id)
-    assert second_page["items"][0]["id"] == str(older.id)
+    assert first_page["items"][0]["id"] == str(teacher_event.id)
+    assert second_page["items"][0]["id"] == str(own.id)
     assert second_page["offset"] == 1
     assert str(foreign.id) not in client.get(ROOT, params={"limit": 100}).text
     assert client.get(ROOT, params={"limit": 101}).status_code == 400
