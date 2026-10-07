@@ -27,11 +27,13 @@ async function mockAuth(page: Page) {
 test("employee restore requires explicit confirmation and cancel sends no request", async ({ page }) => {
   await mockAuth(page);
   let restorePosts = 0;
+  let restored = false;
   await page.route("**/api/v1/employees/**", (route) => {
     const { pathname } = new URL(route.request().url());
-    if (route.request().method() === "GET") return reply(route, archived);
+    if (route.request().method() === "GET") return reply(route, restored ? { ...archived, status: "active", archived_at: null } : archived);
     if (route.request().method() === "POST" && pathname.endsWith("/restore")) {
       restorePosts += 1;
+      restored = true;
       return reply(route, { ...archived, status: "active", archived_at: null });
     }
     return reply(route, { error: { code: "INTERNAL_ERROR", message: "Hidden server details", field: null } }, 500);
