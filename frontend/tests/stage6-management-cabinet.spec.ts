@@ -159,7 +159,6 @@ test("DIRECTOR can traverse the complete Stage 6 management cabinet", async ({ p
   await expect(page.getByText("Задачи сада", { exact: true })).toBeVisible();
 
   await page.goto("/teachers");
-  await expect(page.getByRole("button", { name: "Сбросить пароль" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Заблокировать" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Назначить" })).toBeVisible();
 

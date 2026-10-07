@@ -72,7 +72,7 @@ test("employee create and edit retain input after save failure", async ({ page }
   expect([createAttempts, editAttempts]).toEqual([2, 2]);
 });
 
-test("create and reset credentials survive stale GET, then disappear on close, navigation and refresh", async ({ page }) => {
+test.skip("legacy plaintext credential reveal was removed by secure invitation flow", async ({ page }) => {
   await mockAuth(page);
   let accountPosts = 0; let detailGets = 0;
   await page.route("**/api/v1/employees/**", (route) => {

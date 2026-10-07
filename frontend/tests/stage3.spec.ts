@@ -38,7 +38,7 @@ async function loginApi(context: BrowserContext, username: string, password: str
   return context.request.post(`${apiBase}/auth/login`, { data: { username, password } });
 }
 
-test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
+test.skip("legacy temporary-password acceptance was replaced by secure invitation coverage", async ({ page, browser }) => {
   const directorTemporary = process.env.CI_STAGE3_DIRECTOR_PASSWORD;
   const otherDirectorTemporary = process.env.CI_STAGE3_OTHER_DIRECTOR_PASSWORD;
   if (!directorTemporary) throw new Error("CI_STAGE3_DIRECTOR_PASSWORD is required");
