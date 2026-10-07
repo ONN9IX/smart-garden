@@ -5,7 +5,7 @@ from datetime import timedelta
 from threading import Barrier
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
@@ -145,34 +145,54 @@ def test_competing_token_replacements_leave_only_newest_effective(migrations):
         setup.add(user); setup.flush()
         guardian = Guardian(organization_id=organization.id, user_id=user.id, first_name="Тест", last_name="Конкуренция", email="race@example.test", status="active")
         setup.add(guardian); setup.commit()
-        user_id, guardian_id = user.id, guardian.id
+        organization_id, user_id, guardian_id = organization.id, user.id, guardian.id
 
-    barrier = Barrier(2)
-    def replace() -> tuple[str, int]:
-        with SessionLocal() as session:
-            target = session.get(User, user_id)
-            backend_pid = session.scalar(select(func.pg_backend_pid()))
-            barrier.wait()
-            _, raw = account_access._create_token(session, target, "password_reset", guardian_id=guardian_id)
-            session.commit()
-            return raw, backend_pid
+    try:
+        barrier = Barrier(2)
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = [executor.submit(replace) for _ in range(2)]
-        results = [future.result(timeout=10) for future in futures]
-    issued = [raw for raw, _ in results]
-    assert len({backend_pid for _, backend_pid in results}) == 2
+        def replace() -> tuple[str, int]:
+            with SessionLocal() as session:
+                target = session.get(User, user_id)
+                backend_pid = session.scalar(select(func.pg_backend_pid()))
+                barrier.wait()
+                _, raw = account_access._create_token(
+                    session, target, "password_reset", guardian_id=guardian_id,
+                )
+                session.commit()
+                return raw, backend_pid
 
-    with SessionLocal() as verify:
-        grants = verify.scalars(select(AccountAccessToken).where(
-            AccountAccessToken.user_id == user_id,
-            AccountAccessToken.purpose == "password_reset",
-        )).all()
-        effective = [grant for grant in grants if grant.used_at is None and grant.revoked_at is None]
-        assert len(grants) == 2 and len(effective) == 1
-        effective_raw = next(raw for raw in issued if account_access.token_digest(raw) == effective[0].token_digest)
-        stale_raw = next(raw for raw in issued if raw != effective_raw)
-        account_access.complete_password_action(verify, effective_raw, "new-password-12345", "password_reset")
-        with pytest.raises(AppError) as error:
-            account_access.complete_password_action(verify, stale_raw, "other-password-12345", "password_reset")
-        assert getattr(error.value, "code", None) == "ACCESS_LINK_INVALID"
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(replace) for _ in range(2)]
+            results = [future.result(timeout=10) for future in futures]
+        issued = [raw for raw, _ in results]
+        assert len({backend_pid for _, backend_pid in results}) == 2
+
+        with SessionLocal() as verify:
+            grants = verify.scalars(select(AccountAccessToken).where(
+                AccountAccessToken.user_id == user_id,
+                AccountAccessToken.purpose == "password_reset",
+            )).all()
+            effective = [grant for grant in grants if grant.used_at is None and grant.revoked_at is None]
+            assert len(grants) == 2 and len(effective) == 1
+            effective_raw = next(
+                raw for raw in issued
+                if account_access.token_digest(raw) == effective[0].token_digest
+            )
+            stale_raw = next(raw for raw in issued if raw != effective_raw)
+            account_access.complete_password_action(
+                verify, effective_raw, "new-password-12345", "password_reset",
+            )
+            with pytest.raises(AppError) as error:
+                account_access.complete_password_action(
+                    verify, stale_raw, "other-password-12345", "password_reset",
+                )
+            assert getattr(error.value, "code", None) == "ACCESS_LINK_INVALID"
+    finally:
+        # This test must commit across independent connections to exercise the
+        # database lock, so it cannot rely on the per-test rollback fixture.
+        with SessionLocal() as cleanup:
+            cleanup.execute(delete(AccountAccessToken).where(AccountAccessToken.user_id == user_id))
+            cleanup.execute(delete(Guardian).where(Guardian.id == guardian_id))
+            cleanup.execute(delete(User).where(User.id == user_id))
+            cleanup.execute(delete(Organization).where(Organization.id == organization_id))
+            cleanup.commit()
