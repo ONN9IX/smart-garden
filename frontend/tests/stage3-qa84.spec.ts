@@ -24,6 +24,7 @@ async function mockAuth(page: Page) {
 test("employee create and edit retain input after save failure", async ({ page }) => {
   await mockAuth(page);
   let createAttempts = 0; let editAttempts = 0;
+  let currentEmployee = employee;
   await page.route("**/api/v1/employees**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
@@ -37,9 +38,10 @@ test("employee create and edit retain input after save failure", async ({ page }
       editAttempts += 1;
       if (editAttempts === 1) return failure(route);
       await new Promise((resolve) => setTimeout(resolve, 500));
-      return reply(route, { ...employee, position: "Новая должность" });
+      currentEmployee = { ...employee, position: "Новая должность" };
+      return reply(route, currentEmployee);
     }
-    if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, employee);
+    if (pathname.endsWith(`/${employeeId}`) && method === "GET") return reply(route, currentEmployee);
     return reply(route, { items: [] });
   });
   await page.goto("/employees/new");
