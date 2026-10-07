@@ -84,10 +84,7 @@ export interface GuardianListItem extends GuardianSummary {
   account: ParentAccountSummary | null;
 }
 
-export interface TemporaryCredentials {
-  account: ParentAccountSummary;
-  temporary_password: string;
-}
+export interface InvitationResult { username: string; role: "PARENT" | "TEACHER" | "ADMIN"; status: "pending" | "sent" | "failed"; }
 
 export interface ListResponse<T> { items: T[] }
 

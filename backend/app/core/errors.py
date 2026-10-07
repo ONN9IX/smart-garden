@@ -37,6 +37,11 @@ MESSAGES = {
     "INVALID_ATTENDANCE_DATE": "Дата посещаемости не может быть в будущем.",
     "INVALID_ATTENDANCE_TIME": "Проверьте время прихода и ухода.",
     "ANNOUNCEMENT_ARCHIVED": "Объявление находится в архиве.",
+    "ACCOUNT_EMAIL_REQUIRED": "Укажите корректный email в карточке.",
+    "ACCOUNT_ALREADY_ACTIVATED": "Учётная запись уже активирована.",
+    "ACCESS_LINK_INVALID": "Ссылка недействительна или срок её действия истёк.",
+    "ROLE_CHANGE_NOT_ALLOWED": "Такое изменение роли запрещено.",
+    "BULK_CONFIRMATION_REQUIRED": "Подтвердите массовую отправку приглашений.",
 }
 
 

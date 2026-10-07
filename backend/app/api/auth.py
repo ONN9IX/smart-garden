@@ -15,6 +15,12 @@ from app.core.security import hash_password, valid_password, verify_password
 from app.db.session import get_db
 from app.models.auth_session import AuthSession
 from app.models.user import User
+from app.schemas.account_access import (
+    AccountActionResponse,
+    ForgotPasswordRequest,
+    PasswordActionRequest,
+    PublicMessageResponse,
+)
 from app.schemas.auth import (
     AuthResponse,
     ChangePasswordRequest,
@@ -25,6 +31,7 @@ from app.schemas.auth import (
     SuccessResponse,
     UserResponse,
 )
+from app.services import account_access
 from app.services.auth import (
     COOKIE_NAME,
     authenticate_credentials,
@@ -61,6 +68,24 @@ def login(payload: LoginRequest, response: Response, db: Annotated[Session, Depe
     db.commit()
     set_session_cookie(response, token)
     return auth_response(user)
+
+
+@router.post("/forgot-password", response_model=PublicMessageResponse, summary="Запросить восстановление доступа")
+def forgot_password(payload: ForgotPasswordRequest, db: Annotated[Session, Depends(get_db)]) -> PublicMessageResponse:
+    account_access.request_password_reset(db, payload.identifier)
+    return PublicMessageResponse(message="Если аккаунт найден и для него доступно восстановление, мы отправили ссылку на email.")
+
+
+@router.post("/activate", response_model=AccountActionResponse, responses=COMMON_ERRORS)
+def activate(payload: PasswordActionRequest, db: Annotated[Session, Depends(get_db)]) -> AccountActionResponse:
+    account_access.complete_password_action(db, payload.token, payload.new_password, "activation")
+    return AccountActionResponse()
+
+
+@router.post("/reset-password", response_model=AccountActionResponse, responses=COMMON_ERRORS)
+def reset_password(payload: PasswordActionRequest, db: Annotated[Session, Depends(get_db)]) -> AccountActionResponse:
+    account_access.complete_password_action(db, payload.token, payload.new_password, "password_reset")
+    return AccountActionResponse()
 
 
 @router.get("/me", response_model=AuthResponse, responses=COMMON_ERRORS, summary="Текущий пользователь и детский сад")

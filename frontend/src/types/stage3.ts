@@ -3,7 +3,7 @@ export type EmployeeAccount = { id: string; username: string; role: "ADMIN" | "T
 export type EmployeeFields = { first_name: string; last_name: string; middle_name: string | null; position: string; category: EmployeeCategory; phone: string | null; email: string | null };
 export type EmployeeSummary = EmployeeFields & { id: string; status: "active" | "archived"; account: EmployeeAccount | null };
 export type Employee = EmployeeSummary & { archived_at: string | null; created_at: string; updated_at: string };
-export type TemporaryCredentials = { account: EmployeeAccount; temporary_password: string };
+export type InvitationResult = { username: string; role: "PARENT" | "TEACHER" | "ADMIN"; status: "pending" | "sent" | "failed" };
 export type AttendanceStatus = "present" | "absent" | "unknown";
 export type AttendanceRow = {
   record_id: string | null; date: string;

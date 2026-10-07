@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import Link from "next/link";
 
 export default function LoginPage() {
   return <AuthGate route="login"><LoginForm /></AuthGate>;
@@ -50,10 +51,11 @@ function LoginForm() {
     <h1 id="login-title">Вход в систему</h1>
     <p className="muted">Рабочий кабинет детского сада</p>
     <form onSubmit={(event) => void submit(event)}>
-      <FormField id="username" label="Логин"><Input id="username" name="username" autoComplete="username" autoFocus required value={username} onChange={(event) => setUsername(event.target.value)} /></FormField>
+      <FormField id="username" label="Логин или email"><Input id="username" name="username" autoComplete="username" autoFocus required value={username} onChange={(event) => setUsername(event.target.value)} /></FormField>
       <FormField id="password" label="Пароль"><PasswordInput id="password" name="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></FormField>
       {error && <Alert>{error}</Alert>}
       <Button className="full-width" type="submit" disabled={busy}>{busy ? "Вход..." : "Войти"}</Button>
+      <p><Link className="text-link" href="/forgot-password">Забыли пароль?</Link></p>
     </form>
   </section></main>;
 }

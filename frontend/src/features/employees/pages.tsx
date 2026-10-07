@@ -16,7 +16,7 @@ import { managementPeopleApi } from "@/lib/api/management-people";
 import { userMessage } from "@/lib/api/client";
 import { fullName } from "@/lib/people-names";
 import type { DuplicateMatch } from "@/types/people";
-import type { Employee, EmployeeCategory, EmployeeFields, EmployeeSummary, TemporaryCredentials } from "@/types/stage3";
+import type { Employee, EmployeeCategory, EmployeeFields, EmployeeSummary, InvitationResult } from "@/types/stage3";
 
 const CATEGORY_LABELS: Record<EmployeeCategory, string> = {
   teacher: "Воспитатель",
@@ -137,7 +137,6 @@ function EmployeeDetail({ id }: { id: string }) {
   const director = current?.user.role === "DIRECTOR";
   const [item, setItem] = useState<Employee | null>(null);
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof managementPeopleApi.employeeProfile>> | null>(null);
-  const [credentials, setCredentials] = useState<TemporaryCredentials | null>(null);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -157,14 +156,14 @@ function EmployeeDetail({ id }: { id: string }) {
     catch (reason) { setError(userMessage(reason)); return false; }
     finally { setBusy(false); }
   }
-  async function revealAccount(operation: () => Promise<TemporaryCredentials>, success: string) {
-    setBusy(true); setError(""); setMessage(""); setCredentials(null);
-    try { const result = await operation(); setItem((currentItem) => currentItem && { ...currentItem, account: result.account }); setCredentials(result); setMessage(success); }
+  async function inviteAccount(operation: () => Promise<InvitationResult>, success: string) {
+    setBusy(true); setError(""); setMessage("");
+    try { const result = await operation(); setMessage(result.status === "sent" ? `${success} Логин: ${result.username}` : "Доступ сохранён, но письмо отправить не удалось."); await load(); }
     catch (reason) { setError(userMessage(reason)); }
     finally { setBusy(false); }
   }
   async function updateAccount(operation: () => Promise<NonNullable<Employee["account"]>>, success: string) {
-    setBusy(true); setError(""); setMessage(""); setCredentials(null);
+    setBusy(true); setError(""); setMessage("");
     try { const result = await operation(); setItem((currentItem) => currentItem && { ...currentItem, account: result }); setMessage(success); }
     catch (reason) { setError(userMessage(reason)); }
     finally { setBusy(false); }
@@ -172,8 +171,7 @@ function EmployeeDetail({ id }: { id: string }) {
   const teacher = item?.category === "teacher";
   const teacherAccount = item?.account?.role === "TEACHER";
   const hasAccountActions = director && item && item.status === "active" && (Boolean(item.account) || teacher || item.category === "administrator");
-  const accountCreate = teacher ? employeesApi.createTeacherAccount : employeesApi.createAccount;
-  const accountReset = teacherAccount ? employeesApi.resetTeacherPassword : employeesApi.resetPassword;
+  const accountInvite = teacher ? employeesApi.resendTeacherInvite : (employeeId: string) => employeesApi.resendInvite(employeeId, "ADMIN");
   const accountBlock = teacherAccount ? employeesApi.blockTeacherAccount : employeesApi.block;
   const accountUnblock = teacherAccount ? employeesApi.unblockTeacherAccount : employeesApi.unblock;
 
@@ -197,11 +195,10 @@ function EmployeeDetail({ id }: { id: string }) {
         <section className="profile-section card"><h2>Задачи</h2><p>Открытые: {profile?.open_tasks ?? 0} · Просроченные: {profile?.overdue_tasks ?? 0}</p><Link className="text-link" href={`/tasks?assignee_employee_id=${encodeURIComponent(id)}`}>Открыть задачи</Link></section>
         <section className="profile-section card"><h2>Документы</h2><p>Документы будут доступны после подключения защищённого хранилища.</p></section>
         {item.account ? <section className="profile-section card"><h2>Аккаунт</h2><p>Тип: {item.account.role === "TEACHER" ? "Воспитатель" : "Администратор"} · Логин: <strong>{item.account.username}</strong> · {item.account.status === "active" ? "Активен" : "Заблокирован"}{item.account.must_change_password ? " · Требуется смена пароля" : ""}</p>{item.status === "active" && <p className="muted">Восстановление карточки не меняет состояние аккаунта.</p>}
-        {hasAccountActions && <div className="action-row"><Button variant="secondary" disabled={busy} onClick={() => { if (window.confirm("Сбросить пароль? Все действующие сеансы сотрудника будут завершены.")) void revealAccount(() => accountReset(id), "Временный пароль обновлён; действующие сеансы завершены."); }}>Сбросить пароль</Button><Button variant="secondary" disabled={busy} onClick={() => { const blocking = item.account?.status === "active"; if (!blocking || window.confirm("Заблокировать аккаунт сотрудника и завершить все действующие сеансы?")) void updateAccount(() => blocking ? accountBlock(id) : accountUnblock(id), blocking ? "Доступ заблокирован." : "Доступ восстановлен отдельно."); }}>{item.account.status === "active" ? "Заблокировать" : "Разблокировать"}</Button></div>}
-        </section> : hasAccountActions && <section className="profile-section card"><h2>Аккаунт</h2><p>Аккаунт создаётся отдельно от карточки и категории сотрудника.</p><Button disabled={busy} onClick={() => void revealAccount(() => accountCreate(id), "Доступ выдан. Сохраните реквизиты сейчас.")}>{teacher ? "Выдать доступ воспитателя" : "Выдать доступ администратора"}</Button></section>}
+        {hasAccountActions && <div className="action-row">{item.account.must_change_password && <Button variant="secondary" disabled={busy} onClick={() => void inviteAccount(() => accountInvite(id), "Приглашение отправлено.")}>Отправить приглашение снова</Button>}<Button variant="secondary" disabled={busy} onClick={() => { const blocking = item.account?.status === "active"; if (!blocking || window.confirm("Заблокировать аккаунт сотрудника и завершить все действующие сеансы?")) void updateAccount(() => blocking ? accountBlock(id) : accountUnblock(id), blocking ? "Доступ заблокирован." : "Доступ восстановлен отдельно."); }}>{item.account.status === "active" ? "Заблокировать" : "Разблокировать"}</Button>{director && <Button variant="secondary" disabled={busy} onClick={() => { const next = item.account?.role === "TEACHER" ? "ADMIN" : "TEACHER"; if (window.confirm(`Изменить роль на ${next}?`)) void employeesApi.changeRole(id, next).then(load); }}>Изменить роль</Button>}</div>}
+        </section> : hasAccountActions && <section className="profile-section card"><h2>Аккаунт</h2><p>Пользователь задаст пароль по одноразовой ссылке из письма.</p><Button disabled={busy} onClick={() => void inviteAccount(() => employeesApi.createAccount(id, teacher ? "TEACHER" : "ADMIN"), "Приглашение отправлено.")}>Создать доступ</Button></section>}
         <section className="profile-section card"><h2>История</h2>{director ? <Link className="text-link" href="/audit">Открыть журнал действий</Link> : <p>Журнал действий доступен директору.</p>}</section>
       </>}
-      {credentials && <section className="card section-card section-space" aria-label="Одноразовые реквизиты"><h2>Временные реквизиты</h2><p>Логин: <strong>{credentials.account.username}</strong></p><p>Временный пароль: <strong>{credentials.temporary_password}</strong></p><p>Пароль показывается только сейчас.</p><Button variant="secondary" onClick={() => setCredentials(null)}>Закрыть и скрыть пароль</Button></section>}
     </>}
   </AppShell>;
 }

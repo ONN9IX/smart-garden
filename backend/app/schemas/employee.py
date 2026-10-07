@@ -101,11 +101,6 @@ class EmployeeAccountSummary(BaseModel):
     must_change_password: bool
 
 
-class EmployeeTemporaryCredentials(BaseModel):
-    account: EmployeeAccountSummary
-    temporary_password: str
-
-
 class EmployeeListItem(BaseModel):
     id: UUID
     first_name: str

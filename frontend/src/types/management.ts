@@ -62,14 +62,9 @@ export type TeacherProjection = {
 export type TeacherProjectionList = { items: TeacherProjection[] };
 
 export type TemporaryTeacherCredentials = {
-  account: {
-    id: string;
-    username: string;
-    role: "TEACHER";
-    status: "active" | "blocked";
-    must_change_password: boolean;
-  };
-  temporary_password: string;
+  username: string;
+  role: "TEACHER";
+  status: "pending" | "sent" | "failed";
 };
 
 export type FoundationAssignment = {

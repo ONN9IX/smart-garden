@@ -1,5 +1,6 @@
 """Import all tables so Alembic receives complete metadata."""
 
+from app.models.account_access_token import AccountAccessToken
 from app.models.announcement import Announcement
 from app.models.attendance import Attendance
 from app.models.audit_event import AuditEvent
@@ -23,6 +24,7 @@ from app.models.teacher_task import TeacherTask
 from app.models.user import User
 
 __all__ = [
+    "AccountAccessToken",
     "Announcement", "Attendance", "AuditEvent", "AuthSession", "Child", "ChildDiaryEntry", "ChildGuardian",
     "CommunicationMessage", "CommunicationThread", "DocumentNotice", "Employee", "Group", "GroupScheduleItem",
     "Guardian", "Incident", "Notification", "Organization", "PhotoAsset", "PhotoAssetChild", "PhotoConsent",

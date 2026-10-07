@@ -77,6 +77,16 @@ class Settings(BaseSettings):
     secret_key: str
     auth_session_ttl_seconds: int = 3600
     cors_origins: str = "http://localhost:3000"
+    email_delivery: Literal["disabled", "smtp"] = "disabled"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_tls: bool = True
+    public_app_base_url: str | None = None
+    activation_ttl_seconds: int = 86400
+    reset_ttl_seconds: int = 3600
 
     @field_validator("database_url")
     @classmethod
@@ -85,7 +95,7 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must use PostgreSQL with psycopg")
         return value
 
-    @field_validator("auth_session_ttl_seconds")
+    @field_validator("auth_session_ttl_seconds", "activation_ttl_seconds", "reset_ttl_seconds")
     @classmethod
     def positive_ttl(cls, value: int) -> int:
         if value < 60:
@@ -105,6 +115,12 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Shared environments require explicit non-development CORS origins"
                 )
+            if self.email_delivery == "smtp" and not all(
+                (self.smtp_host, self.smtp_username, self.smtp_password, self.smtp_from, self.public_app_base_url)
+            ):
+                raise ValueError("Enabled SMTP delivery requires complete configuration")
+        if self.smtp_port < 1 or self.smtp_port > 65535:
+            raise ValueError("SMTP_PORT must be valid")
         return self
 
     @property

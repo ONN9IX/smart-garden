@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { Employee, EmployeeFields, EmployeeSummary, TemporaryCredentials, EmployeeAccount } from "@/types/stage3";
+import type { Employee, EmployeeFields, EmployeeSummary, InvitationResult, EmployeeAccount } from "@/types/stage3";
 
 const path = (id: string) => `/employees/${encodeURIComponent(id)}`;
 export const employeesApi = {
@@ -14,12 +14,13 @@ export const employeesApi = {
   update: (id: string, fields: Partial<EmployeeFields>) => api.patch<Employee>(path(id), fields),
   archive: (id: string) => api.post<Employee>(`${path(id)}/archive`),
   restore: (id: string) => api.post<Employee>(`${path(id)}/restore`),
-  createAccount: (id: string) => api.post<TemporaryCredentials>(`${path(id)}/account`),
-  resetPassword: (id: string) => api.post<TemporaryCredentials>(`${path(id)}/account/reset-password`),
+  createAccount: (id: string, role: "TEACHER" | "ADMIN") => api.post<InvitationResult>(`${path(id)}/account`, { role }),
+  resendInvite: (id: string, role: "TEACHER" | "ADMIN") => api.post<InvitationResult>(`${path(id)}/account/resend`, { role }),
+  changeRole: (id: string, role: "TEACHER" | "ADMIN") => api.post<{ success: true }>(`${path(id)}/account/role`, { role }),
   block: (id: string) => api.post<EmployeeAccount>(`${path(id)}/account/block`),
   unblock: (id: string) => api.post<EmployeeAccount>(`${path(id)}/account/unblock`),
-  createTeacherAccount: (id: string) => api.post<TemporaryCredentials>(`/teacher-management/employees/${encodeURIComponent(id)}/account`),
-  resetTeacherPassword: (id: string) => api.post<TemporaryCredentials>(`/teacher-management/employees/${encodeURIComponent(id)}/account/reset-password`),
+  createTeacherAccount: (id: string) => api.post<InvitationResult>(`/teacher-management/employees/${encodeURIComponent(id)}/account`),
+  resendTeacherInvite: (id: string) => api.post<InvitationResult>(`/teacher-management/employees/${encodeURIComponent(id)}/account/resend`),
   blockTeacherAccount: (id: string) => api.post<EmployeeAccount>(`/teacher-management/employees/${encodeURIComponent(id)}/account/block`),
   unblockTeacherAccount: (id: string) => api.post<EmployeeAccount>(`/teacher-management/employees/${encodeURIComponent(id)}/account/unblock`),
 };

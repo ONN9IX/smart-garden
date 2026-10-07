@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.account_access import router as account_access_router
 from app.api.announcements import router as announcements_router
 from app.api.attendance import router as attendance_router
 from app.api.audit import router as audit_router
@@ -64,6 +65,7 @@ async def unexpected_error(request: Request, error: Exception) -> JSONResponse:
 
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(account_access_router, prefix="/api/v1")
 app.include_router(groups_router, prefix="/api/v1")
 app.include_router(children_router, prefix="/api/v1")
 app.include_router(guardians_router, prefix="/api/v1")

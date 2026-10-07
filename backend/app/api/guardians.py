@@ -10,6 +10,7 @@ from app.api.error_responses import MANAGEMENT_ERRORS
 from app.core.permissions import require_role
 from app.db.session import get_db
 from app.models.user import User
+from app.schemas.account_access import InviteResponse
 from app.schemas.guardian import (
     GuardianCreate,
     GuardianList,
@@ -17,8 +18,7 @@ from app.schemas.guardian import (
     GuardianResponse,
     ParentAccountSummary,
 )
-from app.schemas.parent_account import TemporaryCredentials
-from app.services import guardians, parent_accounts
+from app.services import account_access, guardians, parent_accounts
 
 router = APIRouter(prefix="/guardians", tags=["Представители"], responses=MANAGEMENT_ERRORS)
 Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
@@ -55,14 +55,14 @@ def restore_guardian(guardian_id: UUID, user: Manager, db: Database) -> Guardian
     return guardians.restore_guardian(db, user, guardian_id)
 
 
-@router.post("/{guardian_id}/account", response_model=TemporaryCredentials, status_code=201)
-def create_parent_account(guardian_id: UUID, user: Manager, db: Database) -> TemporaryCredentials:
-    return parent_accounts.create(db, user, guardian_id)
+@router.post("/{guardian_id}/account", response_model=InviteResponse, status_code=201)
+def create_parent_account(guardian_id: UUID, user: Manager, db: Database) -> InviteResponse:
+    return account_access.invite_guardian(db, user, guardian_id)
 
 
-@router.post("/{guardian_id}/account/reset-password", response_model=TemporaryCredentials)
-def reset_parent_password(guardian_id: UUID, user: Manager, db: Database) -> TemporaryCredentials:
-    return parent_accounts.reset_password(db, user, guardian_id)
+@router.post("/{guardian_id}/account/resend", response_model=InviteResponse)
+def resend_parent_invite(guardian_id: UUID, user: Manager, db: Database) -> InviteResponse:
+    return account_access.invite_guardian(db, user, guardian_id)
 
 
 @router.post("/{guardian_id}/account/block", response_model=ParentAccountSummary)

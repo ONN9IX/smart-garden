@@ -8,8 +8,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    username: str = Field(min_length=3, max_length=64)
+    identifier: str = Field(min_length=3, max_length=254, alias="username")
     password: str = Field(min_length=1, max_length=128)
+
+    @property
+    def username(self) -> str:
+        return self.identifier
 
 
 class ChangePasswordRequest(BaseModel):

@@ -10,13 +10,14 @@ from app.api.error_responses import MANAGEMENT_ERRORS
 from app.core.permissions import require_role
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.employee import EmployeeAccountSummary, EmployeeTemporaryCredentials
+from app.schemas.account_access import InviteResponse
+from app.schemas.employee import EmployeeAccountSummary
 from app.schemas.teacher_management import (
     TeacherAssignmentCreate,
     TeacherAssignmentList,
     TeacherAssignmentResponse,
 )
-from app.services import teacher_accounts, teacher_assignments
+from app.services import account_access, teacher_accounts, teacher_assignments
 
 router = APIRouter(prefix="/teacher-management", tags=["Кабинет воспитателя — управление"], responses=MANAGEMENT_ERRORS)
 Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
@@ -24,14 +25,14 @@ Director = Annotated[User, Depends(require_role("DIRECTOR"))]
 Database = Annotated[Session, Depends(get_db)]
 
 
-@router.post("/employees/{employee_id}/account", response_model=EmployeeTemporaryCredentials, status_code=201)
-def create_account(employee_id: UUID, user: Director, db: Database) -> EmployeeTemporaryCredentials:
-    return teacher_accounts.create(db, user, employee_id)
+@router.post("/employees/{employee_id}/account", response_model=InviteResponse, status_code=201)
+def create_account(employee_id: UUID, user: Director, db: Database) -> InviteResponse:
+    return account_access.invite_employee(db, user, employee_id, "TEACHER")
 
 
-@router.post("/employees/{employee_id}/account/reset-password", response_model=EmployeeTemporaryCredentials)
-def reset_account_password(employee_id: UUID, user: Director, db: Database) -> EmployeeTemporaryCredentials:
-    return teacher_accounts.reset_password(db, user, employee_id)
+@router.post("/employees/{employee_id}/account/resend", response_model=InviteResponse)
+def resend_account_invite(employee_id: UUID, user: Director, db: Database) -> InviteResponse:
+    return account_access.invite_employee(db, user, employee_id, "TEACHER")
 
 
 @router.post("/employees/{employee_id}/account/block", response_model=EmployeeAccountSummary)

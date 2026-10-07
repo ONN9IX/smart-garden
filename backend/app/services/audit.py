@@ -48,6 +48,7 @@ _ALLOWED_ACTIONS = {
     "user_account": {
         "account.create", "account.reset_password", "account.block", "account.unblock",
         "teacher_account.create", "teacher_account.reset", "teacher_account.block", "teacher_account.unblock",
+        "account.invite", "account.role_change", "account.revoke_sessions",
     },
     "attendance": {"attendance.create", "attendance.update"},
     "announcement": {
