@@ -24,7 +24,7 @@ for (const [path, heading, endpoint] of [
     await expect(page).toHaveURL(new RegExp(`${path}$`));
     expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
-    await page.getByLabel("Новый пароль").fill("safe-browser-password-123");
+    await page.getByLabel("Новый пароль", { exact: true }).fill("safe-browser-password-123");
     await page.getByLabel("Повторите новый пароль").fill("different-browser-password-123");
     await page.getByRole("button", { name: "Сохранить пароль" }).click();
     await expect(page.getByText("Пароли не совпадают.")).toBeVisible();
@@ -73,8 +73,10 @@ test("employee category only preselects a visibly confirmed access role", async 
   await page.route("**/api/v1/management/employees/e1/profile", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ assignments: [], open_tasks: 0, overdue_tasks: 0 }) }));
   await page.route("**/api/v1/employees/e1/account", (route) => { createCalls++; createBody = route.request().postData() ?? ""; return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ username: "staff-one", role: "TEACHER", status: "sent" }) }); });
   await page.goto("/employees/e1");
-  await expect(page.getByLabel("Роль доступа")).toHaveValue("TEACHER");
-  await expect(page.getByText("Педагог (TEACHER)")).toBeVisible();
+  const roleSelect = page.getByLabel("Роль доступа");
+  await expect(roleSelect).toBeVisible();
+  await expect(roleSelect).toHaveValue("TEACHER");
+  await expect(roleSelect.locator("option:checked")).toHaveText("Педагог (TEACHER)");
   expect(createCalls).toBe(0);
   await page.getByRole("button", { name: "Создать доступ с выбранной ролью" }).click();
   expect(JSON.parse(createBody)).toEqual({ role: "TEACHER" });
