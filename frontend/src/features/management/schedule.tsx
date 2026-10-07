@@ -81,6 +81,10 @@ function ScheduleContent() {
     setError(""); setMessage("");
   }
 
+  function groupName(id: string) {
+    return groups.find((group) => group.id === id)?.name ?? "Группа";
+  }
+
   async function edit(event: React.FormEvent) {
     event.preventDefault();
     if (!editGroupId || !editTitle.trim()) return;
@@ -109,7 +113,7 @@ function ScheduleContent() {
       <label>Название <Input required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
     </div><Button disabled={busy || !groupId}>{busy ? "Сохранение..." : "Добавить"}</Button></form>
     {loading ? <Loading /> : items.length === 0 ? <p className="empty-state">События расписания не найдены.</p> : <ul className="record-list">{items.map((item) => <li key={item.id}><div className="record-link">
-      <strong>{item.group_name} · {weekdayLabels[item.weekday]} · {item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)} · {item.title}</strong>
+      <strong>{groupName(item.group_id)} · {weekdayLabels[item.weekday]} · {item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)} · {item.title}</strong>
       <span className="muted">{item.status === "active" ? "Активно" : "Архив"}</span>
       {item.status === "active" && <span className="action-row"><Button variant="secondary" disabled={busy} onClick={() => startEdit(item)}>Изменить</Button><Button variant="secondary" disabled={busy} onClick={() => {
         if (!window.confirm("Архивировать событие расписания?")) return;
