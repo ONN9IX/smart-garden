@@ -26,9 +26,6 @@ from app.schemas.management_people import (
     EmployeeAssignmentProfile,
     EmployeeProfile,
     FamilyCreate,
-    GuardianSearchMatch,
-    GuardianSearchRequest,
-    GuardianSearchResponse,
     GroupOverviewItem,
     GroupOverviewList,
     GroupProfile,
@@ -36,8 +33,12 @@ from app.schemas.management_people import (
     GroupProfileEmployee,
     GroupProfileParent,
     GroupProfileScheduleItem,
+    GuardianSearchMatch,
+    GuardianSearchRequest,
+    GuardianSearchResponse,
 )
-from app.services import audit, children as child_service
+from app.services import audit
+from app.services import children as child_service
 from app.services.auth import utc_now
 
 

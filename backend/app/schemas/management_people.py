@@ -6,9 +6,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.child import ChildCreate, ChildGuardianResponse
-from app.schemas.guardian import GuardianCreate
+from app.schemas.child import ChildCreate
 from app.schemas.group import GroupResponse
+from app.schemas.guardian import GuardianCreate
 
 
 class FamilyGuardianInput(BaseModel):

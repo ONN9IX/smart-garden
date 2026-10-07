@@ -49,7 +49,7 @@ def test_employee_crud_archive_and_validation(client, users):
 
 
 def test_director_blocks_linked_admin_atomically_and_admin_cannot_archive(client, db, users):
-    organization, _, _, admin = users
+    organization, _, director, admin = users
     director.must_change_password = False
     db.flush()
     _login(client)

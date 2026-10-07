@@ -1,6 +1,7 @@
 """DIRECTOR-V2-B synthetic People, Family, Group projection and transfer coverage."""
 
 from datetime import date, datetime, time, timedelta, timezone
+
 from sqlalchemy import func, select
 
 from app.models.attendance import Attendance
