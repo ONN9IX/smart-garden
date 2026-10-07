@@ -69,7 +69,7 @@ def test_all_stage4_audit_actions_and_privacy(client, db, users):
 
     employee = _post(client, "/api/v1/employees", {
         "first_name": "Аудит", "last_name": "Сотрудник", "middle_name": None,
-        "position": "Администратор",
+        "position": "Администратор", "category": "administrator",
     }, 201)
     _patch(client, f"/api/v1/employees/{employee['id']}", {"position": "Старший администратор"})
     admin_credentials = _post(client, f"/api/v1/employees/{employee['id']}/account", status=201)

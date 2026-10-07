@@ -6,7 +6,6 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { featureEnabled } from "@/config/product-features";
 import { Alert } from "@/components/ui/alert";
@@ -18,6 +17,7 @@ import { AuthGate } from "@/features/auth/auth-gate";
 import { childrenApi } from "@/lib/api/children";
 import { groupsApi } from "@/lib/api/groups";
 import { ChildRelations } from "@/features/guardians/relation-controls";
+import { FamilyWizard } from "@/features/children/family-wizard";
 import { ApiError, userMessage } from "@/lib/api/client";
 import type { Child, ChildFields, ChildSummary, Group, StatusFilter } from "@/types/stage2";
 
@@ -112,28 +112,7 @@ export function NewChildPage() {
 }
 
 function NewChildContent() {
-  const router = useRouter();
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
-    try { setGroups((await groupsApi.list()).items); }
-    catch (reason) { setError(userMessage(reason)); }
-    finally { setLoading(false); }
-  }, []);
-  useEffect(() => { void Promise.resolve().then(load); }, [load]);
-  async function create(fields: ChildFields) {
-    setBusy(true); setError("");
-    try { const child = await childrenApi.create(fields); router.push(`/children/${child.id}`); }
-    catch (reason) { setError(userMessage(reason)); }
-    finally { setBusy(false); }
-  }
-  return <AppShell><Link className="text-link" href="/children">← К списку детей</Link><div className="page-heading section-space"><h1>Добавить ребёнка</h1></div>
-    {error && <Alert>{error}</Alert>}
-    {loading ? <Loading /> : error && groups.length === 0 ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : <ChildForm groups={groups} busy={busy} submit={create} />}
-  </AppShell>;
+  return <AppShell><Link className="text-link" href="/children">← К списку детей</Link><div className="page-heading section-space"><span className="eyebrow">Люди и группы</span><h1>Добавить ребёнка и семью</h1><p>Проверьте похожие карточки, добавьте представителей и создайте связанные записи одним действием.</p></div><FamilyWizard /></AppShell>;
 }
 
 export function ChildDetailPage({ id }: { id: string }) {
@@ -158,9 +137,19 @@ function ChildDetail({ id }: { id: string }) {
   }, [id]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
   async function save(fields: ChildFields) {
-    if (child && fields.group_id !== child.group.id && !window.confirm("Перевести ребёнка в выбранную группу? Доступ воспитателей изменится согласно новой группе.")) return;
+    if (child && fields.group_id !== child.group.id) { setError("Перевод между группами выполняется отдельным действием."); return; }
     setBusy(true); setError(""); setMessage("");
     try { setChild(await childrenApi.update(id, fields)); setEditing(false); setMessage("Карточка сохранена."); }
+    catch (reason) { setError(userMessage(reason)); }
+    finally { setBusy(false); }
+  }
+  async function transfer(groupId: string) {
+    if (!child || busy || groupId === child.group.id) return;
+    const destination = groups.find((group) => group.id === groupId);
+    const confirmation = `Перевести ребёнка из группы «${child.group.name}» в группу «${destination?.name ?? ""}»? Текущая группа, контекст работы и доступ воспитателей изменятся. Исторические отметки посещаемости сохранят прежнюю группу.`;
+    if (!window.confirm(confirmation)) return;
+    setBusy(true); setError(""); setMessage("");
+    try { setChild(await childrenApi.transfer(id, groupId)); setMessage("Ребёнок переведён. Исторические отметки посещаемости сохранены."); }
     catch (reason) { setError(userMessage(reason)); }
     finally { setBusy(false); }
   }
@@ -179,13 +168,19 @@ function ChildDetail({ id }: { id: string }) {
     {loading ? <div className="section-space"><Loading /></div> : error && !child ? <div className="section-space"><Alert>{error}</Alert><Button variant="secondary" onClick={() => void load()}>Повторить</Button></div> : child && <>
       <div className="page-heading section-space"><span className="eyebrow">Ребёнок · {child.status === "active" ? "Активен" : "Архив"}</span><h1>{fullName(child)}</h1><p>Дата рождения: {dateLabel(child.birth_date)} · Группа: {child.group.name}</p></div>
       {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
-      {editing ? <ChildForm key={child.updated_at} initial={{ first_name: child.first_name, last_name: child.last_name, middle_name: child.middle_name, birth_date: child.birth_date, group_id: child.group.id }} groups={groups} busy={busy} submit={save} cancel={() => setEditing(false)} /> : <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить</Button><Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{child.status === "active" ? "Архивировать" : "Восстановить"}</Button></div>}
+      {editing ? <ChildForm key={child.updated_at} initial={{ first_name: child.first_name, last_name: child.last_name, middle_name: child.middle_name, birth_date: child.birth_date, group_id: child.group.id }} groups={groups} busy={busy} submit={save} cancel={() => setEditing(false)} /> : <div className="action-row"><Button variant="secondary" onClick={() => setEditing(true)}>Изменить данные</Button>{child.status === "active" && <label>Перевести в группу<select className="input" aria-label="Перевести в группу" value={child.group.id} disabled={busy} onChange={(event) => void transfer(event.target.value)}>{groups.filter((group) => group.status === "active").map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}<Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{child.status === "active" ? "Архивировать" : "Восстановить"}</Button></div>}
+      <nav className="profile-section-links" aria-label="Разделы профиля ребёнка"><a href="#child-overview">Основное</a><a href="#child-guardians">Представители</a><a href="#child-attendance">Посещаемость</a><a href="#child-schedule">Расписание</a><a href="#child-documents">Документы</a><a href="#child-history">История</a></nav>
+      <section id="child-overview" className="profile-section card"><h2>Основная информация</h2><dl className="profile-facts"><div><dt>Дата рождения</dt><dd>{dateLabel(child.birth_date)}</dd></div><div><dt>Текущая группа</dt><dd><Link className="text-link" href={`/groups/${child.group.id}`}>{child.group.name}</Link></dd></div><div><dt>Статус</dt><dd>{child.status === "active" ? "Активен" : "Архив"}</dd></div></dl></section>
       {(featureEnabled("diary") || featureEnabled("photos") || featureEnabled("incidents")) && <section className="section-space"><h2>Операционная информация</h2><div className="action-row">
         {featureEnabled("diary") && <Link className="button button-secondary" href={`/diary?child_id=${child.id}`}>Дневник</Link>}
         {featureEnabled("photos") && <Link className="button button-secondary" href={`/photo-consents?child_id=${child.id}`}>Согласие на фото</Link>}
         {featureEnabled("incidents") && <Link className="button button-secondary" href={`/incidents?group_id=${child.group.id}`}>Происшествия группы</Link>}
       </div></section>}
-      <ChildRelations child={child} refresh={load} />
+      <section id="child-guardians" className="profile-section card"><h2>Родители и представители</h2><ChildRelations child={child} refresh={load} /></section>
+      <section id="child-attendance" className="profile-section card"><h2>Посещаемость</h2><Link className="text-link" href={`/attendance?group_id=${encodeURIComponent(child.group.id)}`}>Открыть посещаемость группы</Link></section>
+      <section id="child-schedule" className="profile-section card"><h2>Расписание</h2><Link className="text-link" href={`/schedule?group_id=${encodeURIComponent(child.group.id)}`}>Открыть расписание группы</Link></section>
+      <section id="child-documents" className="profile-section card"><h2>Документы</h2><p className="muted">Раздел документов пока не подключён. Не храните документы или их персональные данные в этом профиле.</p></section>
+      <section id="child-history" className="profile-section card"><h2>История</h2><p>Карточка создана {dateLabel(child.created_at.slice(0, 10))}. Текущий статус: {child.status === "active" ? "Активен" : "Архив"}.</p></section>
     </>}
   </AppShell>;
 }

@@ -63,6 +63,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await page.getByLabel("Фамилия").fill(employeeLastName);
   await page.getByLabel("Имя").fill("Тестовый");
   await page.getByLabel("Должность").fill("Администратор");
+  await page.getByLabel("Категория *").selectOption("administrator");
   await page.getByRole("button", { name: "Сохранить" }).click();
   await expect(page).toHaveURL(/\/employees\/[a-f0-9-]+$/);
   const employeeUrl = page.url();
@@ -147,12 +148,12 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   let restorePrompt = "";
   page.once("dialog", async (dialog) => { restorePrompt = dialog.message(); await dialog.dismiss(); });
   await page.getByRole("button", { name: "Восстановить" }).click();
-  expect(restorePrompt).toContain("не разблокирует связанного User автоматически");
+  expect(restorePrompt).toContain("Назначения останутся архивными");
   expect(restoreRequests).toBe(0);
   await expect(page.getByRole("button", { name: "Восстановить" })).toBeVisible();
   page.once("dialog", async (dialog) => { restorePrompt = dialog.message(); await dialog.accept(); });
   await page.getByRole("button", { name: "Восстановить" }).click();
-  await expect(page.getByText("Карточка восстановлена. Доступ остаётся заблокированным, если был выдан.")).toBeVisible();
+  await expect(page.getByText("Карточка восстановлена отдельно. Назначения и доступ нужно восстанавливать отдельно.")).toBeVisible();
   page.off("request", countRestore);
   expect(restoreRequests).toBe(1);
   await expect(page.getByRole("button", { name: "Разблокировать" })).toBeVisible();
@@ -264,7 +265,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await login(otherPage, "stage3-other-director-demo", otherDirectorTemporary);
   await rotate(otherPage, "other-director-stage3");
   const foreignEmployeeResponse = await expectSuccess(await otherPage.request.post(`${apiBase}/employees`, { data: {
-    first_name: "Другой", last_name: `Сотрудник${suffix}`, middle_name: null, position: "Администратор",
+    first_name: "Другой", last_name: `Сотрудник${suffix}`, middle_name: null, position: "Администратор", category: "administrator",
   } }));
   const foreignEmployee = await foreignEmployeeResponse.json() as { id: string };
   const foreignGroupResponse = await expectSuccess(await otherPage.request.post(`${apiBase}/groups`, { data: { name: `Чужая группа ${suffix}` } }));

@@ -85,7 +85,7 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
   await expect(page.getByText("Солнышко", { exact: true })).toBeVisible();
 
   await page.goto("/groups");
-  await page.getByLabel("Поиск по названию").fill("ром");
+  await page.getByLabel("Поиск по группе или воспитателю").fill("ром");
   await expect(page.getByText("Ромашка", { exact: true })).toBeVisible();
   await expect(page.getByText("Солнышко", { exact: true })).toHaveCount(0);
 
@@ -98,7 +98,7 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
   await expect(page.getByText("Синтетический Родитель")).toBeVisible();
 
   await page.goto("/employees");
-  await page.getByLabel("Поиск по имени или должности").fill("администратор");
+  await page.getByLabel("Поиск по ФИО, должности или контактам").fill("администратор");
   await expect(page.getByText("Синтетический Админ")).toBeVisible();
   await expect(page.getByText(/ADMIN: активен/)).toBeVisible();
 

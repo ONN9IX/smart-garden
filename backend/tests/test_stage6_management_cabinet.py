@@ -48,6 +48,7 @@ def _foundation_teacher(client, db, users):
         first_name="Синтетическая",
         last_name="Воспитательница",
         position="Воспитатель",
+        category="teacher",
         status="active",
     )
     group = Group(organization_id=organization.id, name="Группа управления", status="active")
@@ -334,10 +335,10 @@ def test_management_today_aggregate_is_tenant_scoped_and_uses_active_assignments
     db.add_all([valid_teacher, admin_account, archived_employee_teacher, archived_assignment_teacher])
     db.flush()
     employees = [
-        Employee(organization_id=organization.id, user_id=valid_teacher.id, first_name="Активный", last_name="Воспитатель", position="Воспитатель", status="active"),
-        Employee(organization_id=organization.id, user_id=archived_employee_teacher.id, first_name="Архивный", last_name="Сотрудник", position="Воспитатель", status="archived"),
-        Employee(organization_id=organization.id, user_id=admin_account.id, first_name="Не воспитатель", last_name="Сотрудник", position="Администратор", status="active"),
-        Employee(organization_id=organization.id, user_id=archived_assignment_teacher.id, first_name="Без назначения", last_name="Сотрудник", position="Воспитатель", status="active"),
+        Employee(organization_id=organization.id, user_id=valid_teacher.id, first_name="Активный", last_name="Воспитатель", position="Воспитатель", category="teacher", status="active"),
+        Employee(organization_id=organization.id, user_id=archived_employee_teacher.id, first_name="Архивный", last_name="Сотрудник", position="Воспитатель", category="teacher", status="archived"),
+        Employee(organization_id=organization.id, user_id=admin_account.id, first_name="Не воспитатель", last_name="Сотрудник", position="Администратор", category="administrator", status="active"),
+        Employee(organization_id=organization.id, user_id=archived_assignment_teacher.id, first_name="Без назначения", last_name="Сотрудник", position="Воспитатель", category="teacher", status="active"),
     ]
     db.add_all(employees)
     db.flush()

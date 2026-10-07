@@ -62,11 +62,11 @@ def cabinet_world(db, users):
     db.flush()
     employee = Employee(
         organization_id=organization.id, user_id=teacher.id, first_name="Синтетическая",
-        last_name="Воспитательница", position="Воспитатель", status="active",
+        last_name="Воспитательница", position="Воспитатель", category="teacher", status="active",
     )
     other_employee = Employee(
         organization_id=organization.id, user_id=other_teacher.id, first_name="Другая",
-        last_name="Воспитательница", position="Воспитатель", status="active",
+        last_name="Воспитательница", position="Воспитатель", category="teacher", status="active",
     )
     assigned = Group(organization_id=organization.id, name="Кабинет группа", status="active")
     unassigned = Group(organization_id=organization.id, name="Неназначенная группа", status="active")

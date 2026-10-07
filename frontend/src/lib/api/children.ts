@@ -12,6 +12,7 @@ export const childrenApi = {
   get: (id: string) => api.get<Child>(`/children/${encodeURIComponent(id)}`),
   create: (fields: ChildFields) => api.post<Child>("/children", fields),
   update: (id: string, fields: Partial<ChildFields>) => api.patch<Child>(`/children/${encodeURIComponent(id)}`, fields),
+  transfer: (id: string, groupId: string) => api.post<Child>(`/children/${encodeURIComponent(id)}/transfer`, { group_id: groupId }),
   archive: (id: string) => api.post<Child>(`/children/${encodeURIComponent(id)}/archive`),
   restore: (id: string) => api.post<Child>(`/children/${encodeURIComponent(id)}/restore`),
   link: (childId: string, guardianId: string, relationType: RelationType) =>

@@ -61,6 +61,11 @@ class ChildPatch(BaseModel):
         return value.strip() or None if value is not None else None
 
 
+class ChildTransfer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    group_id: UUID
+
+
 class GroupSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
