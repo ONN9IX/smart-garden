@@ -1,6 +1,7 @@
 """Add announcement create idempotency. Revision ID: 0014; down_revision: 0013."""
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0014"
