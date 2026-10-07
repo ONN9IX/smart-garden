@@ -138,7 +138,8 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   let archivePrompt = "";
   page.once("dialog", async (dialog) => { archivePrompt = dialog.message(); await dialog.accept(); });
   await page.getByRole("button", { name: "Архивировать" }).click();
-  expect(archivePrompt).toContain("Архивировать сотрудника");
+  expect(archivePrompt).toContain("активные назначения воспитателя будут архивированы");
+  expect(archivePrompt).toContain("Восстановление карточки не вернёт назначения и доступ автоматически.");
   await expect(page.getByRole("button", { name: "Восстановить" })).toBeVisible();
   let restoreRequests = 0;
   const countRestore = (request: Request) => {
