@@ -1,10 +1,11 @@
 """Delivery C secure account access integration coverage."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
-from threading import Barrier, Thread
+from threading import Barrier
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
@@ -147,19 +148,20 @@ def test_competing_token_replacements_leave_only_newest_effective(migrations):
         user_id, guardian_id = user.id, guardian.id
 
     barrier = Barrier(2)
-    issued: list[str] = []
-    def replace() -> None:
+    def replace() -> tuple[str, int]:
         with SessionLocal() as session:
             target = session.get(User, user_id)
+            backend_pid = session.scalar(select(func.pg_backend_pid()))
             barrier.wait()
             _, raw = account_access._create_token(session, target, "password_reset", guardian_id=guardian_id)
             session.commit()
-            issued.append(raw)
+            return raw, backend_pid
 
-    threads = [Thread(target=replace), Thread(target=replace)]
-    for thread in threads: thread.start()
-    for thread in threads: thread.join(timeout=10)
-    assert all(not thread.is_alive() for thread in threads) and len(issued) == 2
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(replace) for _ in range(2)]
+        results = [future.result(timeout=10) for future in futures]
+    issued = [raw for raw, _ in results]
+    assert len({backend_pid for _, backend_pid in results}) == 2
 
     with SessionLocal() as verify:
         grants = verify.scalars(select(AccountAccessToken).where(
