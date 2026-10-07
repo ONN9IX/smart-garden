@@ -33,9 +33,9 @@ def test_create_edit_filter_archive_and_duplicates(client, users):
     assert client.post("/api/v1/children", json=_child_data(group_id)).status_code == 201
     assert len(client.get(f"/api/v1/children?group_id={group_id}&q=ребён").json()["items"]) == 2
     assert client.get(f"/api/v1/children?group_id={other_id}").json()["items"] == []
-    edited = client.patch(f"/api/v1/children/{child['id']}", json={"group_id": other_id, "middle_name": " Тестович "})
+    edited = client.patch(f"/api/v1/children/{child['id']}", json={"group_id": group_id, "middle_name": " Тестович "})
     assert edited.status_code == 200
-    assert edited.json()["group"]["id"] == other_id and edited.json()["middle_name"] == "Тестович"
+    assert edited.json()["group"]["id"] == group_id and edited.json()["middle_name"] == "Тестович"
     assert client.post(f"/api/v1/children/{child['id']}/archive").json()["status"] == "archived"
     assert len(client.get("/api/v1/children").json()["items"]) == 1
     assert len(client.get("/api/v1/children?status=archived").json()["items"]) == 1

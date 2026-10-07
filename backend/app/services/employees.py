@@ -125,7 +125,7 @@ def archive_employee(db: Session, actor: User, employee_id: UUID) -> EmployeeRes
             raise AppError(403, "FORBIDDEN")
         linked = db.scalar(select(User).where(
             User.id == employee.user_id, User.organization_id == actor.organization_id,
-        ).with_for_update())
+        ).with_for_update(of=User))
         if linked is None or linked.organization_id != actor.organization_id or linked.role not in {"ADMIN", "TEACHER"}:
             raise AppError(403, "FORBIDDEN")
 

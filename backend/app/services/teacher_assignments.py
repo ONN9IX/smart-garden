@@ -38,14 +38,14 @@ def _eligible_employee(db: Session, actor: User, employee_id: UUID) -> Employee:
         raise AppError(404, "NOT_FOUND")
     if employee.status != "active":
         raise AppError(409, "EMPLOYEE_ARCHIVED")
-    if employee.category != "teacher":
-        raise AppError(409, "EMPLOYEE_CATEGORY_CONFLICT", "employee_id")
     account = db.scalar(select(User.id).where(
         User.id == employee.user_id, User.organization_id == actor.organization_id,
         User.role == "TEACHER", User.status == "active",
     ))
     if account is None:
         raise AppError(409, "EMPLOYEE_ACCOUNT_NOT_FOUND")
+    if employee.category != "teacher":
+        raise AppError(409, "EMPLOYEE_CATEGORY_CONFLICT", "employee_id")
     return employee
 
 

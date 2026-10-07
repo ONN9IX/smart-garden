@@ -107,9 +107,9 @@ def update_child(db: Session, user: User, child_id: UUID, payload: ChildPatch) -
     if "birth_date" in data:
         validate_birth_date(data["birth_date"])
     if "group_id" in data:
+        active_group(db, user, data["group_id"])
         if data["group_id"] != child.group_id:
             raise AppError(409, "CHILD_TRANSFER_REQUIRED", "group_id")
-        active_group(db, user, data["group_id"])
     for field, value in data.items():
         setattr(child, field, value)
     audit.write(db, user, "child.update", "child", child.id, {"changed_fields": sorted(data)})

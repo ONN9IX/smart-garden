@@ -237,15 +237,15 @@ def group_profile(db: Session, actor: User, group_id: UUID) -> GroupProfile:
     child_ids = [item.id for item in children_rows]
     attendance_by_child: dict[UUID, str] = {}
     if child_ids:
-        attendance_by_child = dict(db.execute(select(Attendance.child_id, Attendance.status).where(
+        attendance_by_child = {child_id: status for child_id, status in db.execute(select(Attendance.child_id, Attendance.status).where(
             Attendance.organization_id == actor.organization_id,
             Attendance.group_id == group.id,
             Attendance.child_id.in_(child_ids),
             Attendance.date == today,
-        )))
+        ))}
     guardian_count_by_child: dict[UUID, int] = {}
     if child_ids:
-        guardian_count_by_child = dict(db.execute(
+        guardian_count_by_child = {child_id: count for child_id, count in db.execute(
             select(ChildGuardian.child_id, func.count(ChildGuardian.id))
             .join(Guardian, Guardian.id == ChildGuardian.guardian_id)
             .where(
@@ -255,7 +255,7 @@ def group_profile(db: Session, actor: User, group_id: UUID) -> GroupProfile:
                 Guardian.organization_id == actor.organization_id,
                 Guardian.status == "active",
             ).group_by(ChildGuardian.child_id)
-        ))
+        )}
     children = [GroupProfileChild(
         id=item.id, first_name=item.first_name, last_name=item.last_name,
         middle_name=item.middle_name, status=item.status,
@@ -356,9 +356,9 @@ def group_overviews(db: Session, actor: User, status: str = "active") -> GroupOv
     if not group_ids:
         return GroupOverviewList(items=[])
 
-    child_counts = dict(db.execute(select(Child.group_id, func.count(Child.id)).where(
+    child_counts = {group_id: count for group_id, count in db.execute(select(Child.group_id, func.count(Child.id)).where(
         Child.organization_id == actor.organization_id, Child.group_id.in_(group_ids), Child.status == "active",
-    ).group_by(Child.group_id)))
+    ).group_by(Child.group_id))}
 
     attendance_counts: dict[UUID, dict[str, int]] = {}
     today = organization_today(actor.organization)
@@ -397,15 +397,15 @@ def group_overviews(db: Session, actor: User, status: str = "active") -> GroupOv
     ).distinct()))
 
     now = datetime.now(UTC)
-    open_task_counts = dict(db.execute(select(TeacherTask.group_id, func.count(TeacherTask.id)).where(
+    open_task_counts = {group_id: count for group_id, count in db.execute(select(TeacherTask.group_id, func.count(TeacherTask.id)).where(
         TeacherTask.organization_id == actor.organization_id, TeacherTask.group_id.in_(group_ids),
         TeacherTask.status.in_(("open", "in_progress")),
-    ).group_by(TeacherTask.group_id)))
-    overdue_task_counts = dict(db.execute(select(TeacherTask.group_id, func.count(TeacherTask.id)).where(
+    ).group_by(TeacherTask.group_id))}
+    overdue_task_counts = {group_id: count for group_id, count in db.execute(select(TeacherTask.group_id, func.count(TeacherTask.id)).where(
         TeacherTask.organization_id == actor.organization_id, TeacherTask.group_id.in_(group_ids),
         TeacherTask.status.in_(("open", "in_progress")), TeacherTask.due_at.is_not(None),
         TeacherTask.due_at < now,
-    ).group_by(TeacherTask.group_id)))
+    ).group_by(TeacherTask.group_id))}
 
     items = []
     for group in groups:
