@@ -68,7 +68,7 @@ test("employee create and edit retain input after save failure", async ({ page }
   await expect(page.getByLabel("Должность")).toHaveValue("Новая должность");
   await page.getByRole("button", { name: "Сохранить" }).click({ force: true });
   await expect(page.getByRole("heading", { name: "Синтетический Тест" })).toBeVisible();
-  await expect(page.getByText("Новая должность", { exact: true })).toBeVisible();
+  await expect(page.locator("dd").filter({ hasText: "Новая должность" })).toBeVisible();
   expect([createAttempts, editAttempts]).toEqual([2, 2]);
 });
 
