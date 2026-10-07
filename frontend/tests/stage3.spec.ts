@@ -159,7 +159,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   expect(restoreRequests).toBe(1);
   await expect(page.getByRole("button", { name: "Разблокировать" })).toBeVisible();
   await page.getByRole("button", { name: "Разблокировать" }).click();
-  await expect(page.getByText("Доступ восстановлен.")).toBeVisible();
+  await expect(page.getByText("Доступ восстановлен отдельно.")).toBeVisible();
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toContain("завершить все действующие сеансы");
     await dialog.accept();
