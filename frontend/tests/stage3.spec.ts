@@ -226,7 +226,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await expect(row.locator("p").first()).not.toContainText("08:30");
 
   await page.getByLabel("Дата").fill(attendanceDay);
-  await expectSuccess(await page.request.patch(`${apiBase}/children/${childId}`, { data: { group_id: groupBId } }));
+  await expectSuccess(await page.request.post(`${apiBase}/children/${childId}/transfer`, { data: { group_id: groupBId } }));
   await page.reload();
   await page.getByLabel("Дата").fill(attendanceDay);
   await page.getByLabel("Группа").selectOption(groupAId);
