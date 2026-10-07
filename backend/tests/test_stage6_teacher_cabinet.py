@@ -6,6 +6,9 @@ from datetime import UTC, date, datetime, time, timedelta
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+
 from app.core.organization_time import organization_today
 from app.core.product_features import PRODUCT_FEATURES
 from app.core.security import hash_password
@@ -29,8 +32,6 @@ from app.models.teacher_task import TeacherTask
 from app.models.user import User
 from app.services import attendance as attendance_service
 from app.services.teacher import photos
-from fastapi.testclient import TestClient
-from sqlalchemy import func, select
 
 from tests.conftest import TEST_PASSWORD
 
