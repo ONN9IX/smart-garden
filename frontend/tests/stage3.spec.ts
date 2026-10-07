@@ -121,7 +121,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
 
   // DIRECTOR block lifecycle revokes the new session and prevents login.
   page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("Все действующие сеансы");
+    expect(dialog.message()).toContain("завершить все действующие сеансы");
     await dialog.accept();
   });
   await page.getByRole("button", { name: "Заблокировать" }).click();
@@ -160,7 +160,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await page.getByRole("button", { name: "Разблокировать" }).click();
   await expect(page.getByText("Доступ восстановлен.")).toBeVisible();
   page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("Все действующие сеансы");
+    expect(dialog.message()).toContain("завершить все действующие сеансы");
     await dialog.accept();
   });
   await page.getByRole("button", { name: "Заблокировать" }).click();
