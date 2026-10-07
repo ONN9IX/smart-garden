@@ -71,7 +71,7 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await page.getByRole("button", { name: "Изменить" }).click();
   await page.getByLabel("Должность").fill("Старший администратор");
   await page.getByRole("button", { name: "Сохранить" }).click();
-  await expect(page.getByText("Старший администратор", { exact: true })).toBeVisible();
+  await expect(page.locator("dd").filter({ hasText: "Старший администратор" })).toBeVisible();
 
   await page.getByRole("button", { name: "Выдать доступ администратора" }).click();
   const credentials = page.getByRole("region", { name: "Одноразовые реквизиты" });
@@ -178,11 +178,13 @@ test("complete Stage 3 real browser acceptance", async ({ page, browser }) => {
   await expect(page).toHaveURL(/\/groups\/[a-f0-9-]+$/);
   const groupBId = page.url().split("/").pop()!;
   await page.goto("/children/new");
-  await page.getByLabel("Фамилия").fill("Тестовый");
-  await page.getByLabel("Имя").fill(childFirstName);
-  await page.getByLabel("Дата рождения").fill("2020-01-01");
-  await page.getByLabel("Группа", { exact: true }).selectOption(groupAId);
-  await page.getByRole("button", { name: "Сохранить" }).click();
+  await page.getByLabel("Фамилия *").fill("Тестовый");
+  await page.getByLabel("Имя *").fill(childFirstName);
+  await page.getByLabel("Дата рождения *").fill("2020-01-01");
+  await page.getByLabel("Группа *").selectOption(groupAId);
+  await page.getByRole("button", { name: "Далее: представители" }).click();
+  await page.getByRole("button", { name: "Далее: проверка" }).click();
+  await page.getByRole("button", { name: "Создать ребёнка и связи" }).click();
   await expect(page).toHaveURL(/\/children\/[a-f0-9-]+$/);
   const childId = page.url().split("/").pop()!;
   const childLabel = `Тестовый ${childFirstName}`;
