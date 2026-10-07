@@ -71,7 +71,7 @@ test("Stage 4 Dashboard, Announcements and immutable Audit", async ({ page, brow
   for (const key of ["active_children", "present", "absent", "unknown"] as const) {
     expect(dashboard[key]).toBe(dashboard.groups.reduce((total, group) => total + group[key], 0));
   }
-  await expect(page.getByText("Без отметки", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Не отмечены", { exact: true }).first()).toBeVisible();
   await page.goto("/groups");
   await page.getByLabel("Название группы").fill(groupName);
   await page.getByRole("button", { name: "Создать группу" }).click();
