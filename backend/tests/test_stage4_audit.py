@@ -3,13 +3,14 @@
 from datetime import UTC, datetime
 
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+
 from app.main import app
 from app.models.audit_event import AuditEvent
 from app.models.guardian import Guardian
 from app.models.user import User
 from app.services import audit
-from fastapi.testclient import TestClient
-from sqlalchemy import select
 
 from tests.conftest import TEST_PASSWORD
 
