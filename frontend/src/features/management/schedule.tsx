@@ -31,6 +31,12 @@ function ScheduleContent() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [editingId, setEditingId] = useState("");
+  const [editGroupId, setEditGroupId] = useState("");
+  const [editWeekday, setEditWeekday] = useState(0);
+  const [editStartTime, setEditStartTime] = useState("");
+  const [editEndTime, setEditEndTime] = useState("");
+  const [editTitle, setEditTitle] = useState("");
 
   useQueryParam("group_id", setGroupId);
 
@@ -52,6 +58,7 @@ function ScheduleContent() {
   async function create(event: React.FormEvent) {
     event.preventDefault();
     if (!groupId) return;
+    if (endTime <= startTime) { setError("Время окончания должно быть позже времени начала."); return; }
     setBusy(true); setError(""); setMessage("");
     try {
       await managementApi.createSchedule({
@@ -68,11 +75,25 @@ function ScheduleContent() {
     finally { setBusy(false); }
   }
 
-  async function edit(item: ScheduleItem) {
-    const value = window.prompt("Новое название", item.title);
-    if (value == null || !value.trim()) return;
+  function startEdit(item: ScheduleItem) {
+    setEditingId(item.id); setEditGroupId(item.group_id); setEditWeekday(item.weekday);
+    setEditStartTime(item.start_time.slice(0, 5)); setEditEndTime(item.end_time.slice(0, 5)); setEditTitle(item.title);
+    setError(""); setMessage("");
+  }
+
+  function groupName(id: string) {
+    return groups.find((group) => group.id === id)?.name ?? "Группа";
+  }
+
+  async function edit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editGroupId || !editTitle.trim()) return;
+    if (editEndTime <= editStartTime) { setError("Время окончания должно быть позже времени начала."); return; }
     setBusy(true); setError("");
-    try { await managementApi.updateSchedule(item.id, { title: value.trim() }); await load(); }
+    try {
+      await managementApi.updateSchedule(editingId, { group_id: editGroupId, weekday: editWeekday, start_time: editStartTime, end_time: editEndTime, title: editTitle.trim() });
+      setEditingId(""); setMessage("Событие расписания сохранено."); await load();
+    }
     catch (reason) { setError(userMessage(reason)); }
     finally { setBusy(false); }
   }
@@ -92,12 +113,20 @@ function ScheduleContent() {
       <label>Название <Input required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
     </div><Button disabled={busy || !groupId}>{busy ? "Сохранение..." : "Добавить"}</Button></form>
     {loading ? <Loading /> : items.length === 0 ? <p className="empty-state">События расписания не найдены.</p> : <ul className="record-list">{items.map((item) => <li key={item.id}><div className="record-link">
-      <strong>{weekdayLabels[item.weekday]} · {item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)} · {item.title}</strong>
+      <strong>{groupName(item.group_id)} · {weekdayLabels[item.weekday]} · {item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)} · {item.title}</strong>
       <span className="muted">{item.status === "active" ? "Активно" : "Архив"}</span>
-      {item.status === "active" && <span className="action-row"><Button variant="secondary" disabled={busy} onClick={() => void edit(item)}>Изменить</Button><Button variant="secondary" disabled={busy} onClick={() => {
+      {item.status === "active" && <span className="action-row"><Button variant="secondary" disabled={busy} onClick={() => startEdit(item)}>Изменить</Button><Button variant="secondary" disabled={busy} onClick={() => {
         if (!window.confirm("Архивировать событие расписания?")) return;
         void managementApi.archiveSchedule(item.id).then(load).catch((reason) => setError(userMessage(reason)));
       }}>Архивировать</Button></span>}
+      {editingId === item.id && <form className="form-grid" onSubmit={(event) => void edit(event)}>
+        <label>Группа <select aria-label="Группа события" required className="input" value={editGroupId} onChange={(event) => setEditGroupId(event.target.value)}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+        <label>День <select aria-label="День события" className="input" value={editWeekday} onChange={(event) => setEditWeekday(Number(event.target.value))}>{weekdayLabels.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
+        <label>Начало <Input aria-label="Начало события" type="time" required value={editStartTime} onChange={(event) => setEditStartTime(event.target.value)} /></label>
+        <label>Окончание <Input aria-label="Окончание события" type="time" required value={editEndTime} onChange={(event) => setEditEndTime(event.target.value)} /></label>
+        <label>Название <Input aria-label="Название события" required maxLength={160} value={editTitle} onChange={(event) => setEditTitle(event.target.value)} /></label>
+        <span className="action-row"><Button disabled={busy} type="submit">Сохранить</Button><Button type="button" variant="secondary" onClick={() => setEditingId("")}>Отмена</Button></span>
+      </form>}
     </div></li>)}</ul>}
   </>;
 }

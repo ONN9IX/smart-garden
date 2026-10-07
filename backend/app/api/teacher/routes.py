@@ -11,6 +11,7 @@ from app.core.permissions import require_role
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.attendance import (
+    AttendanceAction,
     AttendanceCreate,
     AttendanceDetail,
     AttendancePatch,
@@ -106,6 +107,16 @@ def patch_attendance(
     record_id: UUID, payload: AttendancePatch, user: Teacher, db: Database,
 ) -> AttendanceDetail:
     return cabinet.patch_attendance(db, user, record_id, payload)
+
+
+@router.post("/attendance/arrival", response_model=AttendanceDetail)
+def mark_arrival(payload: AttendanceAction, user: Teacher, db: Database) -> AttendanceDetail:
+    return cabinet.mark_arrival(db, user, payload.child_id)
+
+
+@router.post("/attendance/departure", response_model=AttendanceDetail)
+def mark_departure(payload: AttendanceAction, user: Teacher, db: Database) -> AttendanceDetail:
+    return cabinet.mark_departure(db, user, payload.child_id)
 
 
 @router.get("/schedule", response_model=list[ScheduleItemResponse])

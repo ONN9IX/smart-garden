@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -91,7 +92,21 @@ def list_announcements(
     return AnnouncementList(items=[_response(item) for item in items])
 
 
-def create_announcement(db: Session, actor: User, payload: AnnouncementCreate) -> AnnouncementResponse:
+def create_announcement(
+    db: Session,
+    actor: User,
+    payload: AnnouncementCreate,
+    *,
+    idempotency_key: str | None = None,
+) -> AnnouncementResponse:
+    if idempotency_key:
+        existing = db.scalar(select(Announcement).where(
+            Announcement.organization_id == actor.organization_id,
+            Announcement.created_by == actor.id,
+            Announcement.idempotency_key == idempotency_key,
+        ))
+        if existing is not None:
+            return _response(existing)
     if payload.group_id is not None:
         _group(db, actor, payload.group_id, active=True)
     item = Announcement(
@@ -103,14 +118,28 @@ def create_announcement(db: Session, actor: User, payload: AnnouncementCreate) -
         status="active",
         created_by=actor.id,
         updated_by=actor.id,
+        idempotency_key=idempotency_key,
     )
     db.add(item)
-    db.flush()
-    audit.write(
-        db, actor, "announcement.create", "announcement", item.id,
-        _audit_details(item.target_type, item.group_id),
-    )
-    db.commit()
+    try:
+        db.flush()
+        audit.write(
+            db, actor, "announcement.create", "announcement", item.id,
+            _audit_details(item.target_type, item.group_id),
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        if not idempotency_key:
+            raise
+        existing = db.scalar(select(Announcement).where(
+            Announcement.organization_id == actor.organization_id,
+            Announcement.created_by == actor.id,
+            Announcement.idempotency_key == idempotency_key,
+        ))
+        if existing is None:
+            raise
+        return _response(existing)
     db.refresh(item)
     return _response(item)
 

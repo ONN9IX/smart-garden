@@ -204,6 +204,18 @@ def patch_attendance(
     return attendance.update(db, actor, record_id, payload)
 
 
+def mark_arrival(db: Session, actor: User, child_id: UUID) -> AttendanceDetail:
+    child = access.teacher_child(db, actor, child_id)
+    access.teacher_group(db, actor, child.group_id)
+    return attendance.mark_arrival(db, actor, child_id)
+
+
+def mark_departure(db: Session, actor: User, child_id: UUID) -> AttendanceDetail:
+    child = access.teacher_child(db, actor, child_id)
+    access.teacher_group(db, actor, child.group_id)
+    return attendance.mark_departure(db, actor, child_id)
+
+
 def schedule(db: Session, actor: User, group_id: UUID) -> list[ScheduleItemResponse]:
     access.teacher_group(db, actor, group_id)
     items = db.scalars(select(GroupScheduleItem).where(

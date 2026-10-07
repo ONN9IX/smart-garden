@@ -85,6 +85,26 @@ def test_announcement_lifecycle_filters_and_private_audit(client, db, users):
     ))
 
 
+def test_announcement_create_is_idempotent(client, db, users):
+    _director(client, db, users)
+    headers = {"Idempotency-Key": "synthetic-retry-key"}
+    payload = {
+        "target_type": "all", "group_id": None,
+        "title": "Синтетическая повторная публикация", "body": "Один логический экземпляр",
+    }
+    first = client.post(ROOT, json=payload, headers=headers)
+    retry = client.post(ROOT, json=payload, headers=headers)
+    assert first.status_code == retry.status_code == 201
+    assert first.json()["id"] == retry.json()["id"]
+    assert db.scalar(select(func.count()).select_from(Announcement).where(
+        Announcement.idempotency_key == "synthetic-retry-key",
+    )) == 1
+    assert db.scalar(select(func.count()).select_from(AuditEvent).where(
+        AuditEvent.entity_id == first.json()["id"],
+        AuditEvent.action == "announcement.create",
+    )) == 1
+
+
 def test_announcement_validation_tenant_rbac_and_atomicity(client, db, users, monkeypatch):
     organization, other, _, admin = users
     _director(client, db, users)

@@ -155,7 +155,23 @@ def test_director_filters_pagination_tenant_and_append_only(client, db, users):
         entity_type="group", details={}, created_at=datetime(2026, 9, 26, 13, 0, tzinfo=UTC),
     )
     db.add_all([own, older, foreign])
+    teacher = User(
+        organization_id=organization.id, username="audit-teacher-synthetic",
+        password_hash=director.password_hash, role="TEACHER", status="active", must_change_password=False,
+    )
+    db.add(teacher)
+    db.flush()
+    teacher_event = AuditEvent(
+        organization_id=organization.id, actor_user_id=teacher.id, action="attendance.update",
+        entity_type="attendance", details={"before": {}, "after": {}, "changed_fields": []},
+        created_at=datetime(2026, 9, 26, 12, 30, tzinfo=UTC),
+    )
+    db.add(teacher_event)
     db.commit()
+
+    teacher_authored = client.get(ROOT, params={"actor_user_id": str(teacher.id)})
+    assert teacher_authored.status_code == 200
+    assert teacher_authored.json()["items"][0]["actor"]["role"] == "TEACHER"
 
     filtered = client.get(ROOT, params={
         "entity_type": "group", "action": "group.create", "actor_user_id": str(director.id),
@@ -170,8 +186,8 @@ def test_director_filters_pagination_tenant_and_append_only(client, db, users):
     assert client.get(f"{ROOT}/{foreign.id}").status_code == 404
     first_page = client.get(ROOT, params={"limit": 1}).json()
     second_page = client.get(ROOT, params={"offset": 1, "limit": 1}).json()
-    assert first_page["items"][0]["id"] == str(own.id)
-    assert second_page["items"][0]["id"] == str(older.id)
+    assert first_page["items"][0]["id"] == str(teacher_event.id)
+    assert second_page["items"][0]["id"] == str(own.id)
     assert second_page["offset"] == 1
     assert str(foreign.id) not in client.get(ROOT, params={"limit": 100}).text
     assert client.get(ROOT, params={"limit": 101}).status_code == 400

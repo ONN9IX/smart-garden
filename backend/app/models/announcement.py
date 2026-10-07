@@ -28,6 +28,7 @@ class Announcement(Base):
         CheckConstraint("length(btrim(body)) > 0", name="ck_announcements_body_nonempty"),
         Index("ix_announcements_organization_status_created_at", "organization_id", "status", "created_at"),
         Index("ix_announcements_organization_group", "organization_id", "group_id"),
+        Index("uq_announcements_idempotency", "organization_id", "created_by", "idempotency_key", unique=True),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -41,6 +42,7 @@ class Announcement(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     updated_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(64))
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

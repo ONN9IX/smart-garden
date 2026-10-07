@@ -3,7 +3,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 from app.api.error_responses import MANAGEMENT_ERRORS
@@ -37,8 +37,13 @@ def list_announcements(
 
 
 @router.post("", response_model=AnnouncementResponse, status_code=201)
-def create_announcement(payload: AnnouncementCreate, user: Manager, db: Database) -> AnnouncementResponse:
-    return announcements.create_announcement(db, user, payload)
+def create_announcement(
+    payload: AnnouncementCreate,
+    user: Manager,
+    db: Database,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=64)] = None,
+) -> AnnouncementResponse:
+    return announcements.create_announcement(db, user, payload, idempotency_key=idempotency_key)
 
 
 @router.get("/{announcement_id}", response_model=AnnouncementResponse)

@@ -15,7 +15,9 @@ export const announcementsApi = {
     return api.get<{ items: Announcement[] }>(`/announcements?${query.toString()}`);
   },
   get: (id: string) => api.get<Announcement>(`/announcements/${encodeURIComponent(id)}`),
-  create: (fields: AnnouncementFields) => api.post<Announcement>("/announcements", fields),
+  create: (fields: AnnouncementFields, idempotencyKey: string) => api.post<Announcement>(
+    "/announcements", fields, { "Idempotency-Key": idempotencyKey },
+  ),
   update: (id: string, fields: Partial<AnnouncementFields>) => (
     api.patch<Announcement>(`/announcements/${encodeURIComponent(id)}`, fields)
   ),
