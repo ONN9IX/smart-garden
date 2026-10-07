@@ -32,7 +32,6 @@ from app.models.teacher_task import TeacherTask
 from app.models.user import User
 from app.services import attendance as attendance_service
 from app.services.teacher import photos
-
 from tests.conftest import TEST_PASSWORD
 
 
