@@ -142,9 +142,10 @@ function EmployeeDetail({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [newAccountRole, setNewAccountRole] = useState<"TEACHER" | "ADMIN" | "">("");
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    try { const [employee, aggregate] = await Promise.all([employeesApi.get(id), managementPeopleApi.employeeProfile(id)]); setItem(employee); setProfile(aggregate); }
+    try { const [employee, aggregate] = await Promise.all([employeesApi.get(id), managementPeopleApi.employeeProfile(id)]); setItem(employee); setProfile(aggregate); if (!employee.account) setNewAccountRole(employee.category === "teacher" ? "TEACHER" : employee.category === "administrator" ? "ADMIN" : ""); }
     catch (reason) { setError(userMessage(reason)); }
     finally { setLoading(false); }
   }, [id]);
@@ -165,6 +166,19 @@ function EmployeeDetail({ id }: { id: string }) {
   async function updateAccount(operation: () => Promise<NonNullable<Employee["account"]>>, success: string) {
     setBusy(true); setError(""); setMessage("");
     try { const result = await operation(); setItem((currentItem) => currentItem && { ...currentItem, account: result }); setMessage(success); }
+    catch (reason) { setError(userMessage(reason)); }
+    finally { setBusy(false); }
+  }
+  async function changeRole(next: "TEACHER" | "ADMIN") {
+    if (!item?.account || busy) return;
+    const currentLabel = item.account.role === "TEACHER" ? "Педагог (TEACHER)" : "Администратор (ADMIN)";
+    const nextLabel = next === "TEACHER" ? "Педагог (TEACHER)" : "Администратор (ADMIN)";
+    const consequence = next === "ADMIN"
+      ? "Все сеансы будут завершены, а активные назначения по группам — архивированы."
+      : "Все сеансы будут завершены. Архивные назначения не восстановятся и новые не создадутся.";
+    if (!window.confirm(`Изменить роль: ${currentLabel} → ${nextLabel}? ${consequence}`)) return;
+    setBusy(true); setError(""); setMessage("");
+    try { await employeesApi.changeRole(id, next); await load(); setMessage("Роль изменена, действующие сеансы завершены."); }
     catch (reason) { setError(userMessage(reason)); }
     finally { setBusy(false); }
   }
@@ -195,8 +209,8 @@ function EmployeeDetail({ id }: { id: string }) {
         <section className="profile-section card"><h2>Задачи</h2><p>Открытые: {profile?.open_tasks ?? 0} · Просроченные: {profile?.overdue_tasks ?? 0}</p><Link className="text-link" href={`/tasks?assignee_employee_id=${encodeURIComponent(id)}`}>Открыть задачи</Link></section>
         <section className="profile-section card"><h2>Документы</h2><p>Документы будут доступны после подключения защищённого хранилища.</p></section>
         {item.account ? <section className="profile-section card"><h2>Аккаунт</h2><p>Тип: {item.account.role === "TEACHER" ? "Воспитатель" : "Администратор"} · Логин: <strong>{item.account.username}</strong> · {item.account.status === "active" ? "Активен" : "Заблокирован"}{item.account.must_change_password ? " · Требуется смена пароля" : ""}</p>{item.status === "active" && <p className="muted">Восстановление карточки не меняет состояние аккаунта.</p>}
-        {hasAccountActions && <div className="action-row">{item.account.must_change_password && <Button variant="secondary" disabled={busy} onClick={() => void inviteAccount(() => accountInvite(id), "Приглашение отправлено.")}>Отправить приглашение снова</Button>}<Button variant="secondary" disabled={busy} onClick={() => { const blocking = item.account?.status === "active"; if (!blocking || window.confirm("Заблокировать аккаунт сотрудника и завершить все действующие сеансы?")) void updateAccount(() => blocking ? accountBlock(id) : accountUnblock(id), blocking ? "Доступ заблокирован." : "Доступ восстановлен отдельно."); }}>{item.account.status === "active" ? "Заблокировать" : "Разблокировать"}</Button>{director && <Button variant="secondary" disabled={busy} onClick={() => { const next = item.account?.role === "TEACHER" ? "ADMIN" : "TEACHER"; if (window.confirm(`Изменить роль на ${next}?`)) void employeesApi.changeRole(id, next).then(load); }}>Изменить роль</Button>}</div>}
-        </section> : hasAccountActions && <section className="profile-section card"><h2>Аккаунт</h2><p>Пользователь задаст пароль по одноразовой ссылке из письма.</p><Button disabled={busy} onClick={() => void inviteAccount(() => employeesApi.createAccount(id, teacher ? "TEACHER" : "ADMIN"), "Приглашение отправлено.")}>Создать доступ</Button></section>}
+        {hasAccountActions && <div className="action-row">{item.account.must_change_password && <Button variant="secondary" disabled={busy} onClick={() => void inviteAccount(() => accountInvite(id), "Приглашение отправлено.")}>Отправить приглашение снова</Button>}<Button variant="secondary" disabled={busy} onClick={() => { const blocking = item.account?.status === "active"; if (!blocking || window.confirm("Заблокировать аккаунт сотрудника и завершить все действующие сеансы?")) void updateAccount(() => blocking ? accountBlock(id) : accountUnblock(id), blocking ? "Доступ заблокирован." : "Доступ восстановлен отдельно."); }}>{item.account.status === "active" ? "Заблокировать" : "Разблокировать"}</Button>{director && <Button variant="secondary" disabled={busy} onClick={() => void changeRole(item.account?.role === "TEACHER" ? "ADMIN" : "TEACHER")}>Изменить роль</Button>}</div>}
+        </section> : hasAccountActions && <section className="profile-section card"><h2>Аккаунт</h2><p>Пользователь задаст пароль по одноразовой ссылке из письма. Категория только предлагает роль — роль подтверждается явно.</p><label>Роль доступа<select className="input" aria-label="Роль доступа" value={newAccountRole} onChange={(event) => setNewAccountRole(event.target.value as "TEACHER" | "ADMIN")}><option value="" disabled>Выберите роль</option>{item.category === "teacher" && <option value="TEACHER">Педагог (TEACHER)</option>}{item.category === "administrator" && <option value="ADMIN">Администратор (ADMIN)</option>}</select></label><div className="action-row"><Button disabled={busy || !newAccountRole} onClick={() => void inviteAccount(() => employeesApi.createAccount(id, newAccountRole as "TEACHER" | "ADMIN"), "Приглашение отправлено.")}>Создать доступ с выбранной ролью</Button></div></section>}
         <section className="profile-section card"><h2>История</h2>{director ? <Link className="text-link" href="/audit">Открыть журнал действий</Link> : <p>Журнал действий доступен директору.</p>}</section>
       </>}
     </>}

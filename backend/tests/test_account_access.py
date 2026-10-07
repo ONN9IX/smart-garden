@@ -1,16 +1,21 @@
 """Delivery C secure account access integration coverage."""
 
 from datetime import timedelta
+from threading import Barrier, Thread
 
+import pytest
 from sqlalchemy import select
 
+from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
+from app.db.session import SessionLocal
 from app.models.account_access_token import AccountAccessToken
 from app.models.auth_session import AuthSession
 from app.models.employee import Employee
 from app.models.guardian import Guardian
+from app.models.organization import Organization
 from app.models.user import User
-from app.services import email_delivery
+from app.services import account_access, email_delivery
 from app.services.auth import utc_now
 from tests.conftest import TEST_PASSWORD
 
@@ -128,3 +133,44 @@ def test_employee_invite_category_director_only_and_role_change_archives(client,
     changed = client.post(f"/api/v1/employees/{employee_id}/account/role", json={"role": "ADMIN"})
     assert changed.status_code == 200 and db.get(User, employee.user_id).role == "ADMIN"
     assert employee.category == "teacher"
+
+
+def test_competing_token_replacements_leave_only_newest_effective(migrations):
+    """Real PostgreSQL row locking serializes competing writers across sessions."""
+    with SessionLocal() as setup:
+        organization = Organization(name="Конкурентный тест", status="active", timezone="Europe/Moscow")
+        setup.add(organization); setup.flush()
+        user = User(organization_id=organization.id, username=f"race-{organization.id}", password_hash=hash_password("old-password-12345"), role="PARENT", status="active", must_change_password=False)
+        setup.add(user); setup.flush()
+        guardian = Guardian(organization_id=organization.id, user_id=user.id, first_name="Тест", last_name="Конкуренция", email="race@example.test", status="active")
+        setup.add(guardian); setup.commit()
+        user_id, guardian_id = user.id, guardian.id
+
+    barrier = Barrier(2)
+    issued: list[str] = []
+    def replace() -> None:
+        with SessionLocal() as session:
+            target = session.get(User, user_id)
+            barrier.wait()
+            _, raw = account_access._create_token(session, target, "password_reset", guardian_id=guardian_id)
+            session.commit()
+            issued.append(raw)
+
+    threads = [Thread(target=replace), Thread(target=replace)]
+    for thread in threads: thread.start()
+    for thread in threads: thread.join(timeout=10)
+    assert all(not thread.is_alive() for thread in threads) and len(issued) == 2
+
+    with SessionLocal() as verify:
+        grants = verify.scalars(select(AccountAccessToken).where(
+            AccountAccessToken.user_id == user_id,
+            AccountAccessToken.purpose == "password_reset",
+        )).all()
+        effective = [grant for grant in grants if grant.used_at is None and grant.revoked_at is None]
+        assert len(grants) == 2 and len(effective) == 1
+        effective_raw = next(raw for raw in issued if account_access.token_digest(raw) == effective[0].token_digest)
+        stale_raw = next(raw for raw in issued if raw != effective_raw)
+        account_access.complete_password_action(verify, effective_raw, "new-password-12345", "password_reset")
+        with pytest.raises(AppError) as error:
+            account_access.complete_password_action(verify, stale_raw, "other-password-12345", "password_reset")
+        assert getattr(error.value, "code", None) == "ACCESS_LINK_INVALID"

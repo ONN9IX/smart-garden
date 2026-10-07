@@ -7,4 +7,5 @@ export interface BulkResponse { preflight: Record<"eligible" | "missing_or_inval
 export const accountAccessApi = {
   list: () => api.get<AccessSections>("/access-accounts"),
   bulkParents: (guardianIds: string[], confirm: boolean) => api.post<BulkResponse>("/access-accounts/parents/bulk-invite", { guardian_ids: guardianIds, confirm }),
+  revokeSessions: (profileType: "guardian" | "employee", profileId: string) => api.post<{ success: true }>("/access-accounts/revoke-sessions", { profile_type: profileType, profile_id: profileId }),
 };

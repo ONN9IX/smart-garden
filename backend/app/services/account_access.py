@@ -58,6 +58,17 @@ def _unusable_password() -> str:
     return hash_password(secrets.token_urlsafe(48))
 
 
+def _tenant_user(
+    db: Session, user_id: UUID | None, organization_id: UUID, *, for_update: bool = False,
+) -> User | None:
+    if user_id is None:
+        return None
+    query = select(User).where(
+        User.id == user_id, User.organization_id == organization_id,
+    )
+    return db.scalar(query.with_for_update() if for_update else query)
+
+
 def revoke_sessions(db: Session, user_id: UUID) -> None:
     db.execute(update(AuthSession).where(
         AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None),
@@ -75,15 +86,23 @@ def _revoke_tokens(db: Session, user_id: UUID, purpose: str) -> None:
 
 def _create_token(
     db: Session, user: User, purpose: str, *, guardian_id: UUID | None = None,
-    employee_id: UUID | None = None,
+    employee_id: UUID | None = None, created_by_user_id: UUID | None = None,
 ) -> tuple[AccountAccessToken, str]:
-    _revoke_tokens(db, user.id, purpose)
+    # The row lock serializes replacement across all application workers. The
+    # partial unique index is a second line of defence for every DB writer.
+    locked_user = db.scalar(select(User).where(
+        User.id == user.id, User.organization_id == user.organization_id,
+    ).with_for_update())
+    if locked_user is None:
+        raise AppError(404, "NOT_FOUND")
+    _revoke_tokens(db, locked_user.id, purpose)
     raw = secrets.token_urlsafe(48)
     ttl = get_settings().activation_ttl_seconds if purpose == "activation" else get_settings().reset_ttl_seconds
     grant = AccountAccessToken(
-        organization_id=user.organization_id, user_id=user.id, guardian_id=guardian_id,
+        organization_id=locked_user.organization_id, user_id=locked_user.id, guardian_id=guardian_id,
         employee_id=employee_id, purpose=purpose, token_digest=token_digest(raw),
-        delivery_status="pending", expires_at=utc_now() + timedelta(seconds=ttl),
+        created_by_user_id=created_by_user_id, delivery_status="pending",
+        expires_at=utc_now() + timedelta(seconds=ttl),
     )
     db.add(grant)
     db.flush()
@@ -102,6 +121,7 @@ def _deliver(db: Session, grant: AccountAccessToken, raw: str, email: str, purpo
         grant.delivery_status = "failed"
     else:
         grant.delivery_status = "sent"
+        grant.sent_at = utc_now()
     db.commit()
 
 
@@ -121,7 +141,7 @@ def invite_guardian(db: Session, actor: User, guardian_id: UUID) -> InviteRespon
     if guardian.status != "active":
         raise AppError(409, "GUARDIAN_ARCHIVED")
     email = _valid_email(guardian.email)
-    parent = db.get(User, guardian.user_id) if guardian.user_id else None
+    parent = _tenant_user(db, guardian.user_id, actor.organization_id)
     if parent is not None and (parent.organization_id != actor.organization_id or parent.role != "PARENT"):
         raise AppError(409, "PARENT_ACCOUNT_ALREADY_EXISTS")
     if parent is None:
@@ -137,7 +157,9 @@ def invite_guardian(db: Session, actor: User, guardian_id: UUID) -> InviteRespon
     else:
         parent.password_hash = _unusable_password()
         revoke_sessions(db, parent.id)
-    grant, raw = _create_token(db, parent, "activation", guardian_id=guardian.id)
+    grant, raw = _create_token(
+        db, parent, "activation", guardian_id=guardian.id, created_by_user_id=actor.id,
+    )
     audit.write(db, actor, "account.invite", "user_account", parent.id, {"account_role": "PARENT"})
     db.commit()
     _deliver(db, grant, raw, email, "activation")
@@ -156,7 +178,7 @@ def invite_employee(db: Session, actor: User, employee_id: UUID, role: str) -> I
     if expected is None or employee.category != expected:
         raise AppError(409, "EMPLOYEE_CATEGORY_CONFLICT", "category")
     email = _valid_email(employee.email)
-    account = db.get(User, employee.user_id) if employee.user_id else None
+    account = _tenant_user(db, employee.user_id, actor.organization_id)
     if account is not None and (account.organization_id != actor.organization_id or account.role not in {"TEACHER", "ADMIN"}):
         raise AppError(409, "EMPLOYEE_ACCOUNT_ALREADY_EXISTS")
     if account is None:
@@ -174,7 +196,9 @@ def invite_employee(db: Session, actor: User, employee_id: UUID, role: str) -> I
     else:
         account.password_hash = _unusable_password()
         revoke_sessions(db, account.id)
-    grant, raw = _create_token(db, account, "activation", employee_id=employee.id)
+    grant, raw = _create_token(
+        db, account, "activation", employee_id=employee.id, created_by_user_id=actor.id,
+    )
     audit.write(db, actor, "account.invite", "user_account", account.id, {"account_role": role})
     db.commit()
     _deliver(db, grant, raw, email, "activation")
@@ -258,7 +282,7 @@ def eligible_users_for_identifier(db: Session, identifier: str) -> list[tuple[Us
         guardians = db.scalars(select(Guardian).where(func.lower(Guardian.email) == normalized, Guardian.status == "active", Guardian.user_id.is_not(None))).all()
         employees = db.scalars(select(Employee).where(func.lower(Employee.email) == normalized, Employee.status == "active", Employee.user_id.is_not(None))).all()
         for profile in [*guardians, *employees]:
-            user = db.get(User, profile.user_id)
+            user = _tenant_user(db, profile.user_id, profile.organization_id)
             if user and user.role in {"PARENT", "TEACHER", "ADMIN"}:
                 candidates.append((user, profile))
     for user, profile in candidates:
@@ -271,7 +295,7 @@ def change_employee_role(db: Session, actor: User, employee_id: UUID, role: str)
     employee = db.scalar(select(Employee).where(
         Employee.id == employee_id, Employee.organization_id == actor.organization_id,
     ).with_for_update())
-    account = db.get(User, employee.user_id) if employee and employee.user_id else None
+    account = _tenant_user(db, employee.user_id, actor.organization_id, for_update=True) if employee else None
     if employee is None or account is None or account.role not in {"TEACHER", "ADMIN"}:
         raise AppError(404, "EMPLOYEE_ACCOUNT_NOT_FOUND")
     if role not in {"TEACHER", "ADMIN"}:
@@ -351,7 +375,7 @@ def access_sections(db: Session, actor: User) -> AccessAccountSections:
         Guardian.organization_id == actor.organization_id,
     ).order_by(Guardian.last_name, Guardian.first_name)).all()
     for profile in guardians:
-        account = db.get(User, profile.user_id) if profile.user_id else None
+        account = _tenant_user(db, profile.user_id, actor.organization_id)
         item = AccessAccountItem(
             profile_id=profile.id, profile_type="guardian", full_name=_full_name(profile), context="Родитель",
             username=account.username if account else None, role="PARENT" if account else None,
@@ -363,7 +387,7 @@ def access_sections(db: Session, actor: User) -> AccessAccountSections:
         Employee.organization_id == actor.organization_id,
     ).order_by(Employee.last_name, Employee.first_name)).all()
     for profile in employees:
-        account = db.get(User, profile.user_id) if profile.user_id else None
+        account = _tenant_user(db, profile.user_id, actor.organization_id)
         groups = db.scalars(select(Group.name).join(
             TeacherGroupAssignment, TeacherGroupAssignment.group_id == Group.id,
         ).where(
@@ -422,7 +446,7 @@ def bulk_parent_invites(
         if not _has_active_child(db, guardian):
             preflight.no_active_linked_child += 1
             continue
-        account = db.get(User, guardian.user_id) if guardian.user_id else None
+        account = _tenant_user(db, guardian.user_id, actor.organization_id)
         status = _human_status(db, account)
         if status == "activated":
             preflight.activated += 1
