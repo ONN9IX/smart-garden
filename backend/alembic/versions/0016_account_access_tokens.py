@@ -1,8 +1,9 @@
 """Add digest-only account access tokens. Revision: 0016."""
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0016"
 down_revision = "0015"
