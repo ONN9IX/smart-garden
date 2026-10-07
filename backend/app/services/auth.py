@@ -67,8 +67,10 @@ def authenticate_credentials(db: Session, username: str, password: str) -> User:
 
     identifier = username.strip().lower()
     user = None
+    username_lookup = False
     try:
         normalized = normalize_username(username)
+        username_lookup = True
         user = db.scalar(select(User).where(User.username == normalized))
     except ValueError:
         if "@" not in identifier:
@@ -80,7 +82,7 @@ def authenticate_credentials(db: Session, username: str, password: str) -> User:
     if user is None or not verify_password(user.password_hash, password):
         raise AppError(401, "INVALID_CREDENTIALS")
     if user.status != "active":
-        raise AppError(401, "INVALID_CREDENTIALS")
+        raise AppError(403, "USER_BLOCKED" if username_lookup else "INVALID_CREDENTIALS")
     if user.organization.status != "active":
         raise AppError(403, "ORGANIZATION_BLOCKED")
     if user.role not in {"DIRECTOR", "ADMIN", "TEACHER", "PARENT"}:

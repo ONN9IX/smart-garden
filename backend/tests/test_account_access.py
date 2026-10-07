@@ -107,9 +107,10 @@ def test_reset_revokes_sessions_and_blocked_remains_blocked(client, db, users, m
     assert response.status_code == 200 and sender.messages
     raw = _raw(sender)
     assert client.post("/api/v1/auth/reset-password", json={"token": raw, "new_password": "new-password-12345"}).status_code == 200
+    db.refresh(active_session)
     assert account.status == "blocked" and active_session.revoked_at is not None
     login = client.post("/api/v1/auth/login", json={"username": account.username, "password": "new-password-12345"})
-    assert login.status_code == 401 and login.json()["error"]["code"] == "INVALID_CREDENTIALS"
+    assert login.status_code == 403 and login.json()["error"]["code"] == "USER_BLOCKED"
 
 
 def test_employee_invite_category_director_only_and_role_change_archives(client, db, users, monkeypatch):
