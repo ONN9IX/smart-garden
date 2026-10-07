@@ -57,7 +57,7 @@ test("family wizard warns about duplicates, lets the user continue separately an
   await page.getByRole("button", { name: "Продолжить с отдельной карточкой" }).click();
   await page.getByLabel("Найти существующего представителя").fill("Синтетический");
   await page.getByRole("button", { name: "Найти" }).click();
-  await page.getByRole("button", { name: "Добавить" }).first().click();
+  await page.locator(".record-list").filter({ hasText: "Синтетический представитель" }).getByRole("button", { name: "Добавить" }).click();
   await page.getByRole("button", { name: "Далее: проверка" }).click();
   await expect(page.getByText(/одной транзакцией/)).toBeVisible();
   await noOverflow(page);
