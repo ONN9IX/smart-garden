@@ -111,6 +111,7 @@ function AnnouncementEditor({ id }: { id?: string }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const submitting = useRef(false);
+  const createKey = useRef(crypto.randomUUID());
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -142,7 +143,7 @@ function AnnouncementEditor({ id }: { id?: string }) {
       body: body.trim(),
     };
     try {
-      const saved = id ? await announcementsApi.update(id, fields) : await announcementsApi.create(fields);
+      const saved = id ? await announcementsApi.update(id, fields) : await announcementsApi.create(fields, createKey.current);
       setItem(saved); setTitle(saved.title); setBody(saved.body); setGroupId(saved.group?.id ?? "");
       if (!id) router.replace(`/announcements/${saved.id}`);
       else setMessage("Объявление сохранено.");

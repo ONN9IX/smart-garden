@@ -27,3 +27,8 @@ def validate_iana_timezone(value: str) -> str:
 def organization_today(organization: OrganizationClock) -> date:
     """Return the current calendar date in the authenticated tenant's timezone."""
     return datetime.now(organization_zone(organization.timezone)).date()
+
+
+def organization_now(organization: OrganizationClock) -> datetime:
+    """Return the current timezone-aware datetime in the tenant's timezone."""
+    return datetime.now(organization_zone(organization.timezone))

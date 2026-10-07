@@ -167,8 +167,6 @@ function GroupDetail({ id }: { id: string }) {
       <section className="section-space"><h2>Операции группы</h2><div className="action-row">
         <Link className="button button-secondary" href={`/schedule?group_id=${group.id}`}>Расписание</Link>
         <Link className="button button-secondary" href={`/tasks?group_id=${group.id}`}>Задачи</Link>
-        <Link className="button button-secondary" href={`/incidents?group_id=${group.id}`}>Происшествия</Link>
-        <Link className="button button-secondary" href={`/polls?group_id=${group.id}`}>Опросы</Link>
         <Link className="button button-secondary" href={`/communications?group_id=${group.id}`}>Сообщения</Link>
       </div></section>
       <section className="section-space"><h2>Дети в группе</h2>{children.length ? <ul className="record-list">{children.map((child) => <li key={child.id}><Link className="record-link" href={`/children/${child.id}`}>{child.last_name} {child.first_name} {child.middle_name ?? ""}</Link></li>)}</ul> : <p className="empty-state">В группе нет активных детей.</p>}</section>

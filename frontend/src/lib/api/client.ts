@@ -35,6 +35,7 @@ type ApiErrorCode =
   | "EMPLOYEE_ACCOUNT_NOT_FOUND"
   | "INVALID_ATTENDANCE_DATE"
   | "INVALID_ATTENDANCE_TIME"
+  | "ARRIVAL_REQUIRED"
   | "ANNOUNCEMENT_ARCHIVED";
 
 const errorMessages: Partial<Record<ApiErrorCode, string>> = {
@@ -66,6 +67,7 @@ const errorMessages: Partial<Record<ApiErrorCode, string>> = {
   EMPLOYEE_ACCOUNT_NOT_FOUND: "Учётная запись сотрудника не найдена.",
   INVALID_ATTENDANCE_DATE: "Дата не может быть в будущем.",
   INVALID_ATTENDANCE_TIME: "Проверьте время прихода и ухода.",
+  ARRIVAL_REQUIRED: "Сначала отметьте приход ребёнка.",
   ANNOUNCEMENT_ARCHIVED: "Объявление находится в архиве и доступно только для чтения.",
 };
 
@@ -93,12 +95,12 @@ export function userMessage(error: unknown, fallback = "Не удалось вы
   return fallback;
 }
 
-async function request<T>(path: string, options: { method?: "GET" | "POST" | "PATCH"; body?: object } = {}): Promise<T> {
+async function request<T>(path: string, options: { method?: "GET" | "POST" | "PATCH"; body?: object; headers?: Record<string, string> } = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${baseUrl}${path}`, {
       method: options.method ?? "GET",
-      headers: options.body ? { "Content-Type": "application/json" } : undefined,
+      headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers },
       body: options.body ? JSON.stringify(options.body) : undefined,
       credentials: "include",
       cache: "no-store",
@@ -133,6 +135,6 @@ async function request<T>(path: string, options: { method?: "GET" | "POST" | "PA
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: object) => request<T>(path, { method: "POST", body }),
+  post: <T>(path: string, body?: object, headers?: Record<string, string>) => request<T>(path, { method: "POST", body, headers }),
   patch: <T>(path: string, body: object) => request<T>(path, { method: "PATCH", body }),
 };

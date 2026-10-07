@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.core.organization_time import organization_today
+from app.core.organization_time import organization_now, organization_today
 from app.models.attendance import Attendance
 from app.models.child import Child
 from app.models.group import Group
@@ -149,6 +149,44 @@ def upsert(db: Session, actor: User, payload: AttendanceCreate) -> tuple[Attenda
     db.expire_all()
     record = _record(db, actor, record_id)
     return detail(record), existing is None
+
+
+def mark_arrival(db: Session, actor: User, child_id: UUID) -> AttendanceDetail:
+    now = organization_now(actor.organization)
+    _child(db, actor, child_id, lock=True)
+    existing = db.scalar(select(Attendance).where(
+        Attendance.organization_id == actor.organization_id,
+        Attendance.child_id == child_id,
+        Attendance.date == now.date(),
+    ))
+    arrival = (
+        existing.arrival_time
+        if existing and existing.status == "present" and existing.arrival_time
+        else now.time().replace(tzinfo=None, microsecond=0)
+    )
+    result, _ = upsert(db, actor, AttendanceCreate(
+        child_id=child_id, date=now.date(), status="present", arrival_time=arrival,
+        departure_time=existing.departure_time if existing and existing.status == "present" else None,
+    ))
+    return result
+
+
+def mark_departure(db: Session, actor: User, child_id: UUID) -> AttendanceDetail:
+    now = organization_now(actor.organization)
+    _child(db, actor, child_id, lock=True)
+    existing = db.scalar(select(Attendance).where(
+        Attendance.organization_id == actor.organization_id,
+        Attendance.child_id == child_id,
+        Attendance.date == now.date(),
+    ))
+    if existing is None or existing.status != "present" or existing.arrival_time is None:
+        raise AppError(409, "ARRIVAL_REQUIRED")
+    departure = existing.departure_time or now.time().replace(tzinfo=None, microsecond=0)
+    result, _ = upsert(db, actor, AttendanceCreate(
+        child_id=child_id, date=now.date(), status="present",
+        arrival_time=existing.arrival_time, departure_time=departure,
+    ))
+    return result
 
 
 def update(db: Session, actor: User, record_id: UUID, payload: AttendancePatch) -> AttendanceDetail:

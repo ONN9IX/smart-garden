@@ -10,7 +10,7 @@ from pydantic import BaseModel
 class AuditActor(BaseModel):
     id: UUID
     username: str
-    role: Literal["DIRECTOR", "ADMIN", "PARENT"]
+    role: Literal["DIRECTOR", "ADMIN", "TEACHER", "PARENT"]
 
 
 class AuditEventResponse(BaseModel):

@@ -1,8 +1,5 @@
 """Stage 4 Announcement API, lifecycle, RBAC, tenant and Audit privacy."""
 
-from fastapi.testclient import TestClient
-from sqlalchemy import func, select
-
 from app.core.security import hash_password
 from app.main import app
 from app.models.announcement import Announcement
@@ -11,6 +8,9 @@ from app.models.group import Group
 from app.models.guardian import Guardian
 from app.models.user import User
 from app.services import audit
+from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+
 from tests.conftest import TEST_PASSWORD
 
 ROOT = "/api/v1/announcements"
@@ -83,6 +83,26 @@ def test_announcement_lifecycle_filters_and_private_audit(client, db, users):
         "title", "body", "Групповое синтетическое", "Синтетический текст для группы",
         changed_title, changed_body, "Запрещённое изменение",
     ))
+
+
+def test_announcement_create_is_idempotent(client, db, users):
+    _director(client, db, users)
+    headers = {"Idempotency-Key": "synthetic-retry-key"}
+    payload = {
+        "target_type": "all", "group_id": None,
+        "title": "Синтетическая повторная публикация", "body": "Один логический экземпляр",
+    }
+    first = client.post(ROOT, json=payload, headers=headers)
+    retry = client.post(ROOT, json=payload, headers=headers)
+    assert first.status_code == retry.status_code == 201
+    assert first.json()["id"] == retry.json()["id"]
+    assert db.scalar(select(func.count()).select_from(Announcement).where(
+        Announcement.idempotency_key == "synthetic-retry-key",
+    )) == 1
+    assert db.scalar(select(func.count()).select_from(AuditEvent).where(
+        AuditEvent.entity_id == first.json()["id"],
+        AuditEvent.action == "announcement.create",
+    )) == 1
 
 
 def test_announcement_validation_tenant_rbac_and_atomicity(client, db, users, monkeypatch):

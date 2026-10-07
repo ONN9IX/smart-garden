@@ -6,9 +6,6 @@ from datetime import UTC, date, datetime, time, timedelta
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import select
-
 from app.core.organization_time import organization_today
 from app.core.product_features import PRODUCT_FEATURES
 from app.core.security import hash_password
@@ -30,7 +27,11 @@ from app.models.poll import Poll, PollOption
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.teacher_task import TeacherTask
 from app.models.user import User
+from app.services import attendance as attendance_service
 from app.services.teacher import photos
+from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+
 from tests.conftest import TEST_PASSWORD
 
 
@@ -270,6 +271,32 @@ def test_teacher_daily_groups_attendance_schedule_and_security(client, db, cabin
     today = client.get("/api/v1/teacher/today")
     assert today.status_code == 200
     assert today.json()["groups"][0]["id"] == str(world.assigned.id)
+
+
+def test_teacher_arrival_departure_use_garden_clock_and_stay_stable(client, db, cabinet_world, monkeypatch):
+    world = cabinet_world
+    assert _login(client, world.teacher.username).status_code == 200
+    monkeypatch.setattr(
+        attendance_service, "organization_now",
+        lambda organization: datetime(2026, 10, 7, 8, 15, tzinfo=UTC),
+    )
+    arrived = client.post("/api/v1/teacher/attendance/arrival", json={"child_id": str(world.child.id)})
+    repeated = client.post("/api/v1/teacher/attendance/arrival", json={"child_id": str(world.child.id)})
+    assert arrived.status_code == repeated.status_code == 200
+    assert arrived.json()["arrival_time"] == repeated.json()["arrival_time"] == "08:15:00"
+    monkeypatch.setattr(
+        attendance_service, "organization_now",
+        lambda organization: datetime(2026, 10, 7, 17, 5, tzinfo=UTC),
+    )
+    departed = client.post("/api/v1/teacher/attendance/departure", json={"child_id": str(world.child.id)})
+    assert departed.status_code == 200
+    assert departed.json()["departure_time"] == "17:05:00"
+    assert db.scalar(select(func.count()).select_from(Attendance).where(
+        Attendance.child_id == world.child.id, Attendance.date == date(2026, 10, 7),
+    )) == 1
+    assert client.post("/api/v1/teacher/attendance/arrival", json={
+        "child_id": str(world.other_child.id),
+    }).status_code == 404
 
 
 def test_teacher_communication_participants_and_relation_revocation(client, db, cabinet_world):

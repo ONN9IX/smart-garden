@@ -9,6 +9,11 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 AttendanceStatus = Literal["present", "absent", "unknown"]
 
 
+class AttendanceAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    child_id: UUID
+
+
 class LocalTimes(BaseModel):
     @field_validator("arrival_time", "departure_time", check_fields=False)
     @classmethod

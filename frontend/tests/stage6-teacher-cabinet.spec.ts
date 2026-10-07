@@ -15,6 +15,8 @@ test.beforeEach(async ({ page }) => {
   await page.route(`**/api/v1/teacher/groups/${group.id}/guardians`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([guardian]) }));
   await page.route("**/api/v1/teacher/attendance?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ record_id: null, date: "2026-09-30", child, group, status: "unknown", arrival_time: null, departure_time: null }]) }));
   await page.route("**/api/v1/teacher/attendance", (route) => route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ record_id: "00000000-0000-4000-8000-000000000614", date: "2026-09-30", child, group, status: "present", arrival_time: null, departure_time: null }) }));
+  await page.route("**/api/v1/teacher/attendance/arrival", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ record_id: "00000000-0000-4000-8000-000000000614", date: "2026-09-30", child, group, status: "present", arrival_time: "08:15:00", departure_time: null }) }));
+  await page.route("**/api/v1/teacher/attendance/departure", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ record_id: "00000000-0000-4000-8000-000000000614", date: "2026-09-30", child, group, status: "present", arrival_time: "08:15:00", departure_time: "17:05:00" }) }));
   await page.route("**/api/v1/teacher/tasks", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
   await page.route("**/api/v1/teacher/notifications", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
 });
@@ -31,7 +33,9 @@ test("teacher completes daily flow and sees only enabled modules", async ({ page
   await page.getByRole("link", { name: "Посещаемость" }).click();
   await expect(page.getByLabel("Дата")).toHaveValue("2026-09-30");
   await expect(page.getByText("Не отмечен")).toBeVisible();
+  const arrival = page.waitForRequest("**/api/v1/teacher/attendance/arrival");
   await page.getByRole("button", { name: "Пришёл" }).click();
+  expect((await arrival).postDataJSON()).toEqual({ child_id: child.id });
   await page.getByRole("link", { name: "Задачи и уведомления" }).click();
   await expect(page.getByRole("heading", { name: "Задачи и уведомления" })).toBeVisible();
   for (const label of ["Дневник", "Опросы", "События", "Фото"]) {
