@@ -66,7 +66,7 @@ def _tenant_user(
     query = select(User).where(
         User.id == user_id, User.organization_id == organization_id,
     )
-    return db.scalar(query.with_for_update() if for_update else query)
+    return db.scalar(query.with_for_update(of=User) if for_update else query)
 
 
 def revoke_sessions(db: Session, user_id: UUID) -> None:
@@ -92,7 +92,7 @@ def _create_token(
     # partial unique index is a second line of defence for every DB writer.
     locked_user = db.scalar(select(User).where(
         User.id == user.id, User.organization_id == user.organization_id,
-    ).with_for_update())
+    ).with_for_update(of=User))
     if locked_user is None:
         raise AppError(404, "NOT_FOUND")
     _revoke_tokens(db, locked_user.id, purpose)
