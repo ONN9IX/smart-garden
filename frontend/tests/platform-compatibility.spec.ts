@@ -17,6 +17,8 @@ test("critical login/recovery and management shell stay portable at 390px", asyn
   await page.goto("/login");
   await expect(page.getByLabel("Логин или email")).toBeVisible();
   await page.getByRole("link", { name: "Забыли пароль?" }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  await expect(page.getByRole("heading", { name: "Восстановление доступа" })).toBeVisible();
   await page.getByLabel("Логин или email").fill("synthetic@example.test");
   await page.getByRole("button", { name: "Отправить ссылку" }).click();
   await expect(page.getByText(/Если аккаунт найден/)).toBeVisible();
