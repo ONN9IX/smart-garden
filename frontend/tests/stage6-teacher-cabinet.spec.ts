@@ -53,9 +53,13 @@ test("teacher keeps schedule, communications, announcements, tasks and notificat
   await page.route("**/api/v1/teacher/communications/v2/threads", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([v2Thread]) }));
   await page.route("**/api/v1/teacher/communications/v2/threads/*/messages", (route) => route.fulfill({ status: route.request().method() === "POST" ? 201 : 200, contentType: "application/json", body: route.request().method() === "POST" ? JSON.stringify({ id: "00000000-0000-4000-8000-000000000617", thread_id: thread.id, sender_user_id: teacher.user.id, sender_role: "TEACHER", sender_name: "Воспитатель Тестовый", body: "Ответ воспитателя", created_at: "2026-09-30T10:10:00Z" }) : JSON.stringify([{ id: "00000000-0000-4000-8000-000000000618", thread_id: thread.id, sender_user_id: "00000000-0000-4000-8000-000000000621", sender_role: "PARENT", sender_name: "Родитель Тестовый", body: "Сообщение родителя", created_at: "2026-09-30T10:00:00Z" }]) }));
   await page.route("**/api/v1/teacher/communications/v2/threads/*/read", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ thread_id: thread.id, last_read_message_id: "00000000-0000-4000-8000-000000000618", last_read_at: "2026-09-30T10:00:00Z" }) }));
+  await page.setViewportSize({ width: 320, height: 780 });
   await page.goto("/teacher/communications");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await expect(page.getByRole("heading", { name: "Сообщения", level: 1 })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Ребёнок Тестовый · Родитель Тестовый/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Родитель Тестовый · Мама · Ребёнок Тестовый/ })).toBeVisible();
   await expect(page.locator("li > span > span", { hasText: "Сообщение родителя" })).toBeVisible();
   await expect(page.getByText("Родитель Тестовый", { exact: true })).toBeVisible();
 
@@ -67,6 +71,33 @@ test("teacher keeps schedule, communications, announcements, tasks and notificat
   await page.getByRole("button", { name: "Опубликовать для группы" }).click();
   await expect(page.getByText("Введите заголовок")).toBeVisible();
   await expect(page.getByText("Введите текст объявления")).toBeVisible();
+});
+
+test("teacher hides the previous chat while a switched conversation is loading", async ({ page }) => {
+  const direct = { ...thread, group_name: group.name, child_name: "Ребёнок Тестовый", teacher_employee_id: "00000000-0000-4000-8000-000000000631", teacher_name: "Воспитатель Тестовый", last_message_id: null, last_message_at: null, preview: null, unread_count: 0 };
+  const groupThread = { ...direct, id: "00000000-0000-4000-8000-000000000642", thread_type: "group", audience: "all", child_id: null, child_name: null, guardian_id: null, teacher_employee_id: null, teacher_name: null };
+  await page.route("**/api/v1/teacher/communications/v2/threads", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([direct, groupThread]) }));
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/read", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ thread_id: groupThread.id, last_read_message_id: "00000000-0000-4000-8000-000000000644", last_read_at: "2026-09-30T10:01:00Z" }) }));
+  let releaseA!: () => void;
+  let markARequested!: () => void;
+  const aRequested = new Promise<void>((resolve) => { markARequested = resolve; });
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/messages", async (route) => {
+    const url = route.request().url();
+    if (url.includes(direct.id)) {
+      markARequested();
+      await new Promise<void>((resolve) => { releaseA = resolve; });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ id: "00000000-0000-4000-8000-000000000643", thread_id: direct.id, sender_user_id: "parent", sender_role: "PARENT", sender_name: "Родитель Тестовый", body: "Старый чат воспитателя", created_at: "2026-09-30T10:00:00Z" }]) });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ id: "00000000-0000-4000-8000-000000000644", thread_id: groupThread.id, sender_user_id: "parent", sender_role: "PARENT", sender_name: "Родитель Тестовый", body: "Сообщение группы", created_at: "2026-09-30T10:01:00Z" }]) });
+  });
+  await page.goto("/teacher/communications");
+  await expect(page.getByRole("button", { name: /Родитель Тестовый · Мама · Ребёнок Тестовый/ })).toBeVisible();
+  await aRequested;
+  await page.getByRole("button", { name: /Ромашка/ }).click();
+  await expect(page.getByText("Старый чат воспитателя")).toHaveCount(0);
+  await expect(page.getByText("Сообщение группы")).toBeVisible();
+  releaseA();
+  await expect(page.getByText("Старый чат воспитателя")).toHaveCount(0);
 });
 
 test("direct URLs for deferred teacher modules return to teacher home", async ({ page }) => {

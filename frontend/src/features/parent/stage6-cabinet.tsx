@@ -132,12 +132,24 @@ function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
 
 function Announcements({ items }: { items: AnnouncementV2[] }) {
   const [readIds, setReadIds] = useState<string[]>([]);
-  useEffect(() => {
-    const unread = items.filter((item) => item.unread && !readIds.includes(item.id));
-    if (unread.length) void Promise.all(unread.map((item) => parentStage6Api.readV2Announcement(item.id)))
-      .then(() => setReadIds((current) => [...current, ...unread.map((item) => item.id)]));
-  }, [items, readIds]);
-  return <section className={styles.card}><h2>Объявления</h2>{items.length === 0 ? <p className={styles.muted}>Новых объявлений нет.</p> : <ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span><strong>{item.title}</strong><br/>{item.body}<small className={styles.threadPreview}>{item.group_name || "Детский сад"} · {item.audience === "parents" ? "Родители" : item.audience === "staff" ? "Сотрудники" : "Все"}{item.unread && !readIds.includes(item.id) ? " · Новое" : ""}</small></span><small>{new Date(item.published_at).toLocaleDateString("ru-RU")}</small></li>)}</ul>}</section>;
+  const [openedId, setOpenedId] = useState("");
+  const [error, setError] = useState("");
+  const reading = useRef(new Set<string>());
+  async function open(item: AnnouncementV2) {
+    setOpenedId(item.id);
+    setError("");
+    if (!item.unread || readIds.includes(item.id) || reading.current.has(item.id)) return;
+    reading.current.add(item.id);
+    try {
+      await parentStage6Api.readV2Announcement(item.id);
+      setReadIds((current) => current.includes(item.id) ? current : [...current, item.id]);
+    } catch (reason) {
+      setError(userMessage(reason));
+    } finally {
+      reading.current.delete(item.id);
+    }
+  }
+  return <section className={styles.card}><h2>Объявления</h2>{error && <p className={styles.error}>{error}</p>}{items.length === 0 ? <p className={styles.muted}>Новых объявлений нет.</p> : <ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span><button type="button" className={styles.buttonSecondary} aria-expanded={openedId === item.id} onClick={() => void open(item)}><strong>{item.title}</strong></button><small className={styles.threadPreview}>{item.group_name || "Детский сад"} · {item.audience === "parents" ? "Родители" : item.audience === "staff" ? "Сотрудники" : "Все"}{item.unread && !readIds.includes(item.id) ? " · Новое" : ""}</small>{openedId === item.id && <p>{item.body}</p>}</span><small>{new Date(item.published_at).toLocaleDateString("ru-RU")}</small></li>)}</ul>}</section>;
 }
 
 function Messages({ threads, linkedChildren, reload, currentUserId }: {
@@ -147,62 +159,154 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
   const [childId, setChildId] = useState(linkedChildren[0]?.id || "");
   const [teachers, setTeachers] = useState<EligibleTeacher[]>([]);
   const [teacherId, setTeacherId] = useState("");
+  const teacherIdRef = useRef(teacherId);
   const [tab, setTab] = useState<"all" | "direct" | "group">("all");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesThreadId, setMessagesThreadId] = useState("");
   const [body, setBody] = useState("");
+  const [groupId, setGroupId] = useState("");
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
+  const [unavailableIds, setUnavailableIds] = useState<string[]>([]);
   const clientMessageId = useRef(crypto.randomUUID());
-  const selectedThreadId = threadId || threads[0]?.id || "";
+  const requestId = useRef(0);
+  const groupRequestId = useRef(0);
+  const sendingRef = useRef(false);
   const selectedChildId = childId || linkedChildren[0]?.id || "";
+  const selectedChildRef = useRef(selectedChildId);
+
+  useEffect(() => { selectedChildRef.current = selectedChildId; }, [selectedChildId]);
+  useEffect(() => {
+    let active = true;
+    const context = ++groupRequestId.current;
+    if (!selectedChildId) return () => { active = false; };
+    parentStage6Api.today(selectedChildId).then((data) => {
+      if (active && groupRequestId.current === context && selectedChildRef.current === selectedChildId) setGroupId(data.group.id);
+    }).catch(() => { if (active && groupRequestId.current === context) setGroupId(""); });
+    return () => { active = false; };
+  }, [selectedChildId]);
 
   useEffect(() => {
-    if (selectedChildId) parentStage6Api.v2EligibleTeachers(selectedChildId).then((items) => { setTeachers(items); setTeacherId((selected) => items.some((item) => item.employee_id === selected) ? selected : items[0]?.employee_id || ""); }).catch(() => setTeachers([]));
+    let active = true;
+    if (selectedChildId) parentStage6Api.v2EligibleTeachers(selectedChildId).then((items) => {
+      if (!active || selectedChildRef.current !== selectedChildId) return;
+      setTeachers(items);
+      const firstTeacherId = items[0]?.employee_id || "";
+      teacherIdRef.current = firstTeacherId;
+      setTeacherId(firstTeacherId);
+    }).catch(() => { if (active && selectedChildRef.current === selectedChildId) setTeachers([]); });
+    return () => { active = false; };
   }, [selectedChildId]);
+
+  const childThreads = threads.filter((thread) => !unavailableIds.includes(thread.id) && (
+    thread.thread_type === "direct" ? thread.child_id === selectedChildId :
+      thread.thread_type === "group" && thread.audience === "all" && Boolean(groupId) && thread.group_id === groupId
+  ));
+  const visibleThreads = childThreads.filter((thread) => tab === "all" || (tab === "direct" && thread.thread_type === "direct") || (tab === "group" && thread.thread_type === "group"));
+  const selectedThreadId = threadId ? (visibleThreads.some((thread) => thread.id === threadId) ? threadId : "") : visibleThreads[0]?.id || "";
+  const activeThreadId = useRef(selectedThreadId);
   useEffect(() => {
-    if (selectedThreadId) parentStage6Api.v2Messages(selectedThreadId).then(async (items) => {
+    const request = ++requestId.current;
+    if (!selectedThreadId) return () => { requestId.current += 1; };
+    parentStage6Api.v2Messages(selectedThreadId).then(async (items) => {
+      if (requestId.current !== request) return;
       setMessages(items);
+      setMessagesThreadId(selectedThreadId);
       const last = items.at(-1);
-      if (last) { await parentStage6Api.v2MarkRead(selectedThreadId, last.id); await reload(); }
+      if (last) {
+        try { await parentStage6Api.v2MarkRead(selectedThreadId, last.id); }
+        catch (reason) {
+          if (requestId.current === request) { setMessages([]); setMessagesThreadId(""); setUnavailableIds((current) => [...new Set([...current, selectedThreadId])]); setThreadId(""); activeThreadId.current = ""; setError(userMessage(reason)); }
+          return;
+        }
+        if (requestId.current === request) await reload();
+      }
+    }).catch((reason) => {
+      if (requestId.current === request) { setMessages([]); setMessagesThreadId(""); setUnavailableIds((current) => [...new Set([...current, selectedThreadId])]); setThreadId(""); setError(userMessage(reason)); }
     });
+    return () => { requestId.current += 1; };
   }, [selectedThreadId, reload]);
-  const visibleMessages = selectedThreadId ? messages : [];
+  const visibleMessages = selectedThreadId && messagesThreadId === selectedThreadId && visibleThreads.some((thread) => thread.id === selectedThreadId) ? messages : [];
+
+  function changeChild(nextChildId: string) {
+    selectedChildRef.current = nextChildId;
+    groupRequestId.current += 1;
+    requestId.current += 1;
+    setChildId(nextChildId);
+    setGroupId("");
+    setThreadId("");
+    activeThreadId.current = "";
+    setMessages([]);
+    setMessagesThreadId("");
+    setBody("");
+    setError("");
+    setTeachers([]);
+    teacherIdRef.current = "";
+    setTeacherId("");
+    clientMessageId.current = crypto.randomUUID();
+  }
 
   async function openDirect() {
     if (!selectedChildId || !teacherId) return;
-    const next = await parentStage6Api.v2Direct(selectedChildId, teacherId);
+    const childAtStart = selectedChildId;
+    const teacherAtStart = teacherId;
+    const next = await parentStage6Api.v2Direct(childAtStart, teacherAtStart);
+    if (selectedChildRef.current !== childAtStart || teacherIdRef.current !== teacherAtStart || next.child_id !== childAtStart || next.teacher_employee_id !== teacherAtStart) return;
+    activeThreadId.current = next.id;
     setThreadId(next.id);
     await reload();
   }
 
   async function openGroup() {
     if (!selectedChildId) return;
-    const childContext = await parentStage6Api.today(selectedChildId);
+    const childAtStart = selectedChildId;
+    const childContext = await parentStage6Api.today(childAtStart);
+    if (selectedChildRef.current !== childAtStart) return;
     const next = await parentStage6Api.v2GroupThread(childContext.group.id);
+    if (selectedChildRef.current !== childAtStart || next.group_id !== childContext.group.id || next.audience !== "all") return;
+    activeThreadId.current = next.id;
     setThreadId(next.id);
     await reload();
   }
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (!selectedThreadId || !body.trim()) return;
-    await parentStage6Api.v2SendMessage(selectedThreadId, body, clientMessageId.current);
-    clientMessageId.current = crypto.randomUUID();
-    setBody("");
-    setMessages(await parentStage6Api.v2Messages(selectedThreadId));
-    await reload();
+    if (sendingRef.current || !selectedThreadId || !body.trim() || !visibleThreads.some((thread) => thread.id === selectedThreadId) || (activeThreadId.current && activeThreadId.current !== selectedThreadId)) return;
+    activeThreadId.current = selectedThreadId;
+    sendingRef.current = true; setSending(true); setError("");
+    const threadAtStart = selectedThreadId; const childAtStart = selectedChildId; const messageId = clientMessageId.current; const draft = body;
+    try {
+      await parentStage6Api.v2SendMessage(threadAtStart, draft, messageId);
+      if (selectedChildRef.current !== childAtStart || activeThreadId.current !== threadAtStart) return;
+      clientMessageId.current = crypto.randomUUID(); setBody(""); setMessages(await parentStage6Api.v2Messages(threadAtStart)); await reload();
+    } catch (reason) {
+      if (selectedChildRef.current === childAtStart) {
+        setError(userMessage(reason));
+        const message = userMessage(reason);
+        if (/404|не найден|доступ/i.test(message)) { setMessages([]); setMessagesThreadId(""); setUnavailableIds((current) => [...new Set([...current, threadAtStart])]); setThreadId(""); activeThreadId.current = ""; }
+      }
+    } finally { sendingRef.current = false; setSending(false); }
   }
 
-  const visibleThreads = threads.filter((thread) => tab === "all" || (tab === "direct" && thread.thread_type === "direct") || (tab === "group" && thread.thread_type === "group" && thread.audience === "all"));
+  function selectThread(id: string) { if (!visibleThreads.some((thread) => thread.id === id)) return; requestId.current += 1; setMessages([]); setMessagesThreadId(""); setBody(""); setError(""); clientMessageId.current = crypto.randomUUID(); activeThreadId.current = id; setThreadId(id); }
+  function selectTab(nextTab: "all" | "direct" | "group") {
+    const nextThreads = childThreads.filter((thread) => nextTab === "all" || (nextTab === "direct" && thread.thread_type === "direct") || (nextTab === "group" && thread.thread_type === "group"));
+    activeThreadId.current = nextThreads.some((thread) => thread.id === threadId) ? threadId : threadId ? "" : nextThreads[0]?.id || "";
+    setTab(nextTab);
+  }
+  function selectTeacher(id: string) { teacherIdRef.current = id; setTeacherId(id); }
+  const selectedThread = visibleThreads.find((thread) => thread.id === selectedThreadId);
   return <div className={styles.communicationLayout}>
     <section className={styles.card}><h2>Новый диалог</h2>
       <div className={styles.toolbar}>
-        <label>Ребёнок<select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
-        <label>Воспитатель<select value={teacherId} onChange={(event) => setTeacherId(event.target.value)}>{teachers.map((teacher) => <option key={teacher.employee_id} value={teacher.employee_id}>{teacher.display_name}</option>)}</select></label>
+        <label>Ребёнок<select value={selectedChildId} onChange={(event) => changeChild(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
+        <label>Воспитатель<select value={teacherId} onChange={(event) => selectTeacher(event.target.value)}>{teachers.map((teacher) => <option key={teacher.employee_id} value={teacher.employee_id}>{teacher.display_name}</option>)}</select></label>
         <button className={styles.buttonSecondary} disabled={!selectedChildId || !teacherId} onClick={() => void openDirect()}>Личный диалог</button>
         <button className={styles.buttonSecondary} disabled={!selectedChildId} onClick={() => void openGroup()}>Группа</button>
       </div>
     </section>
-    <section className={styles.card}><h2>Диалоги</h2><nav className={styles.communicationTabs} aria-label="Фильтр диалогов">{[["all","Все"],["direct","Личные"],["group","Группа"]].map(([key,label]) => <button key={key} type="button" aria-pressed={tab===key} className={tab===key?styles.button:styles.buttonSecondary} onClick={() => setTab(key as typeof tab)}>{label}</button>)}</nav>{visibleThreads.length === 0 ? <p className={styles.muted}>Диалогов пока нет.</p> : visibleThreads.map((thread) => <button key={thread.id} className={`${thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} ${styles.conversationButton}`} onClick={() => setThreadId(thread.id)}>{thread.thread_type === "group" ? `Группа · ${thread.group_name}` : `${thread.teacher_name || "Воспитатель"} · ${thread.child_name || "Ребёнок"}`}<small className={styles.threadPreview}>{thread.preview || "Нет сообщений"}{thread.unread_count ? ` · ${thread.unread_count} новых` : ""}</small></button>)}</section>
-    <section className={styles.card}><h2>{threads.find((item) => item.id === selectedThreadId)?.group_name || "Сообщения"}</h2>{visibleMessages.length === 0 ? <p className={styles.muted}>Выберите диалог или откройте новый.</p> : <ul className={styles.list}>{visibleMessages.map((message) => { const own = message.sender_user_id === currentUserId; return <li className={`${styles.row} ${own ? styles.ownMessage : ""}`} key={message.id}><span className={styles.messageBubble}><strong>{own ? "Вы" : message.sender_name}</strong><span>{message.body}</span></span></li>; })}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => { clientMessageId.current = crypto.randomUUID(); setBody(event.target.value); }} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim()}>Отправить</button></form></section>
+    <section className={styles.card}><h2>Диалоги</h2><nav className={styles.communicationTabs} aria-label="Фильтр диалогов">{[["all","Все"],["direct","Личные"],["group","Группа"]].map(([key,label]) => <button key={key} type="button" aria-pressed={tab===key} className={tab===key?styles.button:styles.buttonSecondary} onClick={() => selectTab(key as typeof tab)}>{label}</button>)}</nav>{visibleThreads.length === 0 ? <p className={styles.muted}>Диалогов пока нет.</p> : visibleThreads.map((thread) => <button key={thread.id} className={`${thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} ${styles.conversationButton}`} onClick={() => selectThread(thread.id)}>{thread.thread_type === "group" ? `Группа · ${thread.group_name}` : `${thread.teacher_name || "Воспитатель"} · ${thread.child_name || "Ребёнок"}`}<small className={styles.threadPreview}>{thread.preview || "Нет сообщений"}{thread.unread_count ? ` · ${thread.unread_count} новых` : ""}</small></button>)}</section>
+    <section className={styles.card}><h2>{selectedThread?.thread_type === "direct" ? `${selectedThread.teacher_name || "Воспитатель"} · ${selectedThread.child_name || "Ребёнок"}` : selectedThread?.thread_type === "group" ? `Группа · ${selectedThread.group_name}` : "Сообщения"}</h2>{error && <p className={styles.error}>{error}</p>}{visibleMessages.length === 0 ? <p className={styles.muted}>Выберите диалог или откройте новый.</p> : <ul className={styles.list}>{visibleMessages.map((message) => { const own = message.sender_user_id === currentUserId; return <li className={`${styles.row} ${own ? styles.ownMessage : ""}`} key={message.id}><span className={styles.messageBubble}><strong>{own ? "Вы" : message.sender_name}</strong><span>{message.body}</span></span></li>; })}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => { clientMessageId.current = crypto.randomUUID(); setBody(event.target.value); }} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim() || sending}>{sending ? "Отправка..." : "Отправить"}</button></form></section>
   </div>;
 }
 
