@@ -7,6 +7,8 @@ test("forgot-password response stays generic for existing and missing accounts",
   await page.goto("/login");
   await expect(page.getByLabel("Логин или email")).toBeVisible();
   await page.getByRole("link", { name: "Забыли пароль?" }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  await expect(page.getByRole("heading", { name: "Восстановление доступа" })).toBeVisible();
   const generic = "Если аккаунт найден и для него доступно восстановление, мы отправили ссылку на email.";
   const submitIdentifier = async (identifier: string) => {
     await page.getByLabel("Логин или email").fill(identifier);
