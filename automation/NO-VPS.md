@@ -8,10 +8,7 @@ PR, не объединяет их, не запускает Codex и не отп
 
 После отдельного решения о merge в `main` GitHub Actions запускает
 `.github/workflows/automation-observer.yml` раз в час (UTC, минутa 17),
-по окончании workflow **CI**, при изменении состояния/меток GitHub Issues,
-а также по кнопке **Run workflow**. Запуски по этим событиям работают **только после
-merge workflow в default branch**; наблюдение не публикует комментарии и не
-создаёт PR. В PR #205 тот же workflow запускается
+а также по кнопке **Run workflow**. В PR #205 тот же workflow запускается
 на изменениях инфраструктуры и выполняет реальное read-only обращение к GitHub.
 
 Используются GitHub-hosted runner и временный `GITHUB_TOKEN` с явными правами
@@ -44,6 +41,8 @@ Observer читает:
   приватный chat ID и надёжное хранилище секрета. Не добавляйте токен в Issue,
   Git, ChatGPT или workflow artifacts. В прежнем n8n-шаблоне Telegram тоже
   отключён, пока не развёрнут отдельный сервер.
+- Инструкция для уже установленного локального Codex:
+  [`CODEX-CLOUD.md`](CODEX-CLOUD.md). Она не включает исполнение автоматически.
 - ChatGPT Plus **не является API-ключом**: официальный Codex GitHub Action
   требует provider API key. Мы не копируем личный OAuth токен в CI и не
   обходим ограничения поддерживаемых регионов.

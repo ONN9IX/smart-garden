@@ -3,6 +3,9 @@
 **CURRENT CHOICE (2026-10-08): no VPS, no credit card, no autonomous code execution.**
 The free GitHub-hosted, read-only queue/CI observer is defined in
 [NO-VPS.md](NO-VPS.md) and `.github/workflows/automation-observer.yml`.
+For an already-installed Windows Codex CLI, see [CODEX-CLOUD.md](CODEX-CLOUD.md)
+for read-only PC diagnostics and one-time Codex Cloud setup. Installing Codex
+locally does not automatically enable Cloud or start approved Issues.
 It runs on PR #205 to verify GitHub integration and, **only after human-reviewed
 merge to main**, hourly via GitHub `schedule` on the default branch.
 It has **no merge/commit/AI-execution capability** and requires no paid OpenAI API.
