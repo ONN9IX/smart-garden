@@ -140,3 +140,18 @@ test("parent keeps an uncertain message draft and reuses its id on retry", async
   expect(clientIds[1]).toBe(clientIds[0]);
   await expect(page.getByLabel("Ответ")).toHaveValue("");
 });
+
+test("parent hides an open conversation after the server revokes access", async ({ page }) => {
+  await page.route(`**/api/v1/parent/communications/v2/threads/${thread.id}/messages`, (route) => {
+    if (route.request().method() === "POST") return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "NOT_FOUND" } }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ id: "00000000-0000-4000-8000-000000000645", thread_id: thread.id, sender_user_id: "other", sender_role: "TEACHER", sender_name: "Воспитатель Тестовый", body: "Приватное до отзыва", created_at: "2026-09-30T10:00:00Z" }]) });
+  });
+  await page.goto("/parent");
+  await page.getByRole("button", { name: "Сообщения" }).click();
+  await page.getByRole("button", { name: "Личный диалог" }).click();
+  await expect(page.getByText("Приватное до отзыва")).toBeVisible();
+  await page.getByLabel("Ответ").fill("Синтетический черновик");
+  await page.getByRole("button", { name: "Отправить" }).click();
+  await expect(page.getByText("Приватное до отзыва")).toHaveCount(0);
+  await expect(page.getByLabel("Ответ")).toHaveValue("Синтетический черновик");
+});
