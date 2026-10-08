@@ -3,6 +3,21 @@
 **Status:** configuration and offline policy tests only; **NOT deployed or authorized to start**.
 No existing PR, production deployment, 152-FZ data, or ChatGPT credential is changed by this directory.
 
+## Free, arm64 self-hosted option (Oracle Cloud Always Free)
+
+For **no additional VPS subscription** and a computer that may be switched off,
+see [`deploy/oracle-always-free.md`](deploy/oracle-always-free.md).
+The conservative verified target is **VM.Standard.A1.Flex (2 OCPU, 12 GB RAM, 100 GB
+boot volume, Ubuntu 24.04 ARM64)**, within the tenancy's combined Always Free
+compute/storage limits **if the OCI console explicitly shows eligibility**.
+Run `python3 automation/deploy/oracle-a1-preflight.py` on the new VM **before**
+installing Docker. There is **no automatic account sign-up, provisioning or
+paid fallback**; Oracle account creation, billing eligibility and SSH-key
+management require the owner. The Linux preflight cannot validate OCI billing.
+The existing Docker Compose design is architecture-neutral; upstream n8n and
+Codex publish ARM64 distributions, but full on-host Docker/Codex login smoke
+is still required. See the runbook for SSH-only UI access and cost safeguards.
+
 ## Architecture
 
 ```text
