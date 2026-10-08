@@ -78,7 +78,11 @@ def ci_status(checks):
     for item in checks:
         name = item.get("name", "")
         if name in EXPECTED_CI:
-            by_name[name] = item
+            # GitHub may return attempts of the same check in either order.
+            # Never let an older failure or success mask the latest attempt.
+            if (name not in by_name or
+                    int(item.get("id") or 0) >= int(by_name[name].get("id") or 0)):
+                by_name[name] = item
     missing = sorted(EXPECTED_CI - by_name.keys())
     failed = sorted(name for name, check in by_name.items()
                     if check.get("status") == "completed"

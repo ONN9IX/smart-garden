@@ -77,6 +77,17 @@ class ObserverTests(unittest.TestCase):
         values[1]['status'] = 'in_progress'
         self.assertEqual(ob.ci_status(values)['status'], 'failed')
 
+    def test_latest_retry_wins_regardless_of_api_order(self):
+        completed = checks()
+        old = dict(completed[0], id=1, conclusion='failure')
+        new = dict(completed[0], id=99, conclusion='success')
+        without_duplicate = completed[1:]
+        for listing in ([new, old, *without_duplicate],
+                        [old, *without_duplicate, new]):
+            result = ob.ci_status(listing)
+            self.assertEqual(result['status'], 'passed')
+            self.assertFalse(result['failed'])
+
     def test_missing_required_ci_is_not_pass(self):
         res = ob.ci_status(checks()[:-1])
         self.assertEqual(res['status'], 'pending')
