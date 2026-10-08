@@ -47,8 +47,12 @@ for (const [path, heading, endpoint] of [
   ["/reset-password", "Новый пароль", "/auth/reset-password"],
 ] as const) {
   test(`${path} removes token fragment and never persists it`, async ({ page }) => {
-    let body = "";
-    await page.route(`**/api/v1${endpoint}`, async (route) => { body = route.request().postData() ?? ""; await route.fulfill({ status: 200, contentType: "application/json", body: '{"success":true}' }); });
+    let postCount = 0;
+    await page.route(`**/api/v1${endpoint}`, async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      postCount += 1;
+      await route.fulfill({ status: 200, contentType: "application/json", body: '{"success":true}' });
+    });
     await page.goto(`${path}#token=secret-token-value-with-more-than-32-characters`);
     await expect(page).toHaveURL(new RegExp(`${path}$`));
     expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
@@ -57,10 +61,17 @@ for (const [path, heading, endpoint] of [
     await page.getByLabel("Повторите новый пароль").fill("different-browser-password-123");
     await page.getByRole("button", { name: "Сохранить пароль" }).click();
     await expect(page.getByText("Пароли не совпадают.")).toBeVisible();
-    expect(body).toBe("");
+    expect(postCount).toBe(0);
     await page.getByLabel("Повторите новый пароль").fill("safe-browser-password-123");
+    const responsePromise = page.waitForResponse(
+      (response) => response.url().endsWith(`/api/v1${endpoint}`) && response.request().method() === "POST",
+      { timeout: 5000 },
+    );
     await page.getByRole("button", { name: "Сохранить пароль" }).click();
-    expect(body).toContain("secret-token-value");
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+    expect(postCount).toBe(1);
+    expect(response.request().postData()).toContain("secret-token-value");
     expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   });
 }
