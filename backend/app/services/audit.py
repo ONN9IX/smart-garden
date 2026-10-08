@@ -188,6 +188,7 @@ def write(
         entity_type=entity_type,
         entity_id=entity_id,
         details=safe_details,
+        created_at=datetime.now(UTC),
     )
     db.add(event)
     return event
