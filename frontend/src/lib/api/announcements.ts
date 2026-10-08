@@ -5,6 +5,8 @@ import type {
   AnnouncementFields,
   AnnouncementStatusFilter,
   AnnouncementTarget,
+  CommunicationsAnnouncement,
+  CommunicationsAnnouncementFields,
 } from "@/types/stage4";
 
 export const announcementsApi = {
@@ -22,4 +24,18 @@ export const announcementsApi = {
     api.patch<Announcement>(`/announcements/${encodeURIComponent(id)}`, fields)
   ),
   archive: (id: string) => api.post<Announcement>(`/announcements/${encodeURIComponent(id)}/archive`),
+};
+
+export const communicationsAnnouncementsApi = {
+  list(status: AnnouncementStatusFilter) {
+    return api.get<CommunicationsAnnouncement[]>(`/communications/v2/announcements?status=${status}`);
+  },
+  get: (id: string) => api.get<CommunicationsAnnouncement>(`/communications/v2/announcements/${encodeURIComponent(id)}`),
+  create: (fields: CommunicationsAnnouncementFields, idempotencyKey: string) => api.post<CommunicationsAnnouncement>(
+    "/communications/v2/announcements", fields, { "Idempotency-Key": idempotencyKey },
+  ),
+  update: (id: string, fields: Pick<CommunicationsAnnouncementFields, "title" | "body">) => (
+    api.patch<CommunicationsAnnouncement>(`/communications/v2/announcements/${encodeURIComponent(id)}`, fields)
+  ),
+  archive: (id: string) => api.post<CommunicationsAnnouncement>(`/communications/v2/announcements/${encodeURIComponent(id)}/archive`),
 };

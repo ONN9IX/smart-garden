@@ -16,6 +16,7 @@ import type {
   TeacherTask,
   TemporaryTeacherCredentials,
 } from "@/types/management";
+import type { ThreadV2 } from "@/types/teacher";
 
 const query = (values: Record<string, string | undefined>) => {
   const params = new URLSearchParams();
@@ -66,6 +67,10 @@ export const managementApi = {
     api.get<{ items: ManagementMessage[] }>(`/teacher-management/communications/groups/${encodeURIComponent(groupId)}/messages?audience=${audience}`),
   sendGroupMessage: (groupId: string, body: string, audience: "all" | "parents" | "teachers" = "all") =>
     api.post<ManagementMessage>(`/teacher-management/communications/groups/${encodeURIComponent(groupId)}/messages`, { body, audience }),
+  v2GroupThread: (groupId: string, audience: "all" | "teachers" = "all") => api.get<ThreadV2>(`/teacher-management/communications/v2/groups/${encodeURIComponent(groupId)}/thread?audience=${audience}`),
+  v2Messages: (threadId: string) => api.get<ManagementMessage[]>(`/teacher-management/communications/v2/threads/${encodeURIComponent(threadId)}/messages`),
+  v2SendMessage: (threadId: string, body: string, clientMessageId: string) => api.post<ManagementMessage>(`/teacher-management/communications/v2/threads/${encodeURIComponent(threadId)}/messages`, { body, client_message_id: clientMessageId }),
+  v2MarkRead: (threadId: string, messageId: string) => api.post(`/teacher-management/communications/v2/threads/${encodeURIComponent(threadId)}/read`, { last_read_message_id: messageId }),
 
   diary: (childId: string, dateFrom?: string, dateTo?: string) =>
     api.get<{ items: DiaryEntry[] }>(`/teacher-management/diary${query({ child_id: childId, date_from: dateFrom, date_to: dateTo })}`),

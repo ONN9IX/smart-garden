@@ -16,6 +16,7 @@ from app.api.attendance import router as attendance_router
 from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.children import router as children_router
+from app.api.communications_v2 import router as communications_v2_router
 from app.api.dashboard import router as dashboard_router
 from app.api.employees import router as employees_router
 from app.api.groups import router as groups_router
@@ -73,6 +74,7 @@ app.include_router(employees_router, prefix="/api/v1")
 app.include_router(attendance_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 app.include_router(announcements_router, prefix="/api/v1")
+app.include_router(communications_v2_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(teacher_router, prefix="/api/v1")
 app.include_router(management_router, prefix="/api/v1")

@@ -55,11 +55,11 @@ test("Announcement create reuses one idempotency key across a retry", async ({ p
   let attempts = 0;
   await page.route("**/api/v1/auth/me", (route) => reply(route, auth));
   await page.route("**/api/v1/groups?**", (route) => reply(route, groups));
-  await page.route("**/api/v1/announcements", (route) => {
+  await page.route("**/api/v1/communications/v2/announcements", (route) => {
     keys.push(route.request().headers()["idempotency-key"]);
     attempts += 1;
     if (attempts === 1) return route.abort("failed");
-    return reply(route, { id: scheduleId, target_type: "all", group: null, title: "Важно", body: "Синтетический текст", status: "active", created_by: auth.user.id, updated_by: auth.user.id, archived_at: null, created_at: "2026-10-07T10:00:00Z", updated_at: "2026-10-07T10:00:00Z" }, 201);
+    return reply(route, { id: scheduleId, target_type: "all", group_id: null, group_name: null, audience: "all", title: "Важно", body: "Синтетический текст", status: "active", archived_at: null, published_at: "2026-10-07T10:00:00Z", unread: false, recipient_count: 3, can_manage: true }, 201);
   });
   await page.goto("/announcements/new");
   await page.getByLabel("Заголовок").fill("Важно");

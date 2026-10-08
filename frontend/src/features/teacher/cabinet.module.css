@@ -32,6 +32,10 @@
 .todayIdentity { background: linear-gradient(145deg, #ffffff, #f5faf7); }
 .scheduleTitle { display: block; margin-bottom: .65rem; }
 .conversationButton { width: 100%; text-align: left; }
+.communicationLayout { display: grid; grid-template-columns: minmax(230px, .9fr) minmax(250px, 1fr) minmax(320px, 1.5fr); gap: 1rem; align-items: start; }
+.communicationTabs { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 0 .8rem; }
+.communicationTabs button { width: auto; padding: .45rem .65rem; }
+.threadPreview { display: block; margin-top: .25rem; overflow: hidden; color: #5e6f64; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .messageBubble { display: grid; gap: .2rem; }
 .messageBubble small { color: #6a7a70; }
 .ownMessage { justify-content: flex-end; text-align: right; }
@@ -40,7 +44,7 @@
 .error { color: #9f2929; background: #fff0f0; border-radius: 10px; padding: .75rem; }
 .success { color: #175b31; background: #edf8f0; border-radius: 10px; padding: .75rem; }
 @media (max-width: 700px) {
-  .grid, .todaySummary { grid-template-columns: 1fr; }
+  .grid, .todaySummary, .communicationLayout { grid-template-columns: 1fr; }
   .toolbar { display: grid; grid-template-columns: 1fr; }
   .toolbar label { min-width: 0; }
   .row { align-items: flex-start; flex-direction: column; }

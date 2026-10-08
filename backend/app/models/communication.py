@@ -17,7 +17,7 @@ class CommunicationThread(Base):
         CheckConstraint("audience IN ('all', 'parents', 'teachers')", name="ck_communication_threads_audience"),
         CheckConstraint("thread_type = 'group' OR audience = 'all'", name="ck_communication_threads_direct_audience"),
         CheckConstraint(
-            "(thread_type = 'group' AND child_id IS NULL AND guardian_id IS NULL) OR "
+            "(thread_type = 'group' AND child_id IS NULL AND guardian_id IS NULL AND teacher_employee_id IS NULL) OR "
             "(thread_type = 'direct' AND child_id IS NOT NULL AND guardian_id IS NOT NULL)",
             name="ck_communication_threads_context",
         ),
@@ -26,8 +26,9 @@ class CommunicationThread(Base):
             postgresql_where=text("thread_type = 'group'"),
         ),
         Index(
-            "uq_communication_threads_direct", "group_id", "child_id", "guardian_id", unique=True,
-            postgresql_where=text("thread_type = 'direct'"),
+            "uq_communication_threads_direct_teacher", "organization_id", "group_id", "child_id", "guardian_id",
+            "teacher_employee_id", unique=True,
+            postgresql_where=text("thread_type = 'direct' AND teacher_employee_id IS NOT NULL"),
         ),
         Index("ix_communication_threads_organization_group", "organization_id", "group_id"),
     )
@@ -39,6 +40,8 @@ class CommunicationThread(Base):
     group_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("groups.id"), nullable=False)
     child_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("children.id"))
     guardian_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("guardians.id"))
+    # NULL is reserved for grandfathered Stage 6 direct conversations.
+    teacher_employee_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("employees.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
@@ -46,7 +49,11 @@ class CommunicationMessage(Base):
     __tablename__ = "communication_messages"
     __table_args__ = (
         CheckConstraint("length(btrim(body)) > 0", name="ck_communication_messages_body_nonempty"),
-        Index("ix_communication_messages_organization_thread_created", "organization_id", "thread_id", "created_at"),
+        Index("ix_communication_messages_organization_thread_created", "organization_id", "thread_id", "created_at", "id"),
+        Index(
+            "uq_communication_messages_sender_client_id", "organization_id", "sender_user_id", "client_message_id",
+            unique=True, postgresql_where=text("client_message_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -54,4 +61,21 @@ class CommunicationMessage(Base):
     thread_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("communication_threads.id"), nullable=False)
     sender_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     body: Mapped[str] = mapped_column(String(4000), nullable=False)
+    client_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class CommunicationReadState(Base):
+    __tablename__ = "communication_read_states"
+    __table_args__ = (
+        Index("uq_communication_read_state_user_thread", "organization_id", "thread_id", "user_id", unique=True),
+        Index("ix_communication_read_state_organization_user", "organization_id", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    thread_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("communication_threads.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    last_read_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("communication_messages.id"))
+    last_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

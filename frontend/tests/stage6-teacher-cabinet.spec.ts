@@ -49,16 +49,18 @@ test("teacher keeps schedule, communications, announcements, tasks and notificat
   await page.goto("/teacher/schedule");
   await expect(page.getByText("Музыка")).toBeVisible();
 
-  await page.route("**/api/v1/teacher/communications/threads", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([thread]) }));
-  await page.route("**/api/v1/teacher/communications/threads/*/messages", (route) => route.fulfill({ status: route.request().method() === "POST" ? 201 : 200, contentType: "application/json", body: route.request().method() === "POST" ? JSON.stringify({ id: "00000000-0000-4000-8000-000000000617", thread_id: thread.id, sender_user_id: teacher.user.id, sender_role: "TEACHER", sender_name: "Воспитатель Тестовый", body: "Ответ воспитателя", created_at: "2026-09-30T10:10:00Z" }) : JSON.stringify([{ id: "00000000-0000-4000-8000-000000000618", thread_id: thread.id, sender_user_id: "00000000-0000-4000-8000-000000000621", sender_role: "PARENT", sender_name: "Родитель Тестовый", body: "Сообщение родителя", created_at: "2026-09-30T10:00:00Z" }]) }));
+  const v2Thread = { ...thread, group_name: group.name, child_name: "Ребёнок Тестовый", teacher_employee_id: "00000000-0000-4000-8000-000000000631", teacher_name: "Воспитатель Тестовый", last_message_id: "00000000-0000-4000-8000-000000000618", last_message_at: "2026-09-30T10:00:00Z", preview: "Сообщение родителя", unread_count: 1 };
+  await page.route("**/api/v1/teacher/communications/v2/threads", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([v2Thread]) }));
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/messages", (route) => route.fulfill({ status: route.request().method() === "POST" ? 201 : 200, contentType: "application/json", body: route.request().method() === "POST" ? JSON.stringify({ id: "00000000-0000-4000-8000-000000000617", thread_id: thread.id, sender_user_id: teacher.user.id, sender_role: "TEACHER", sender_name: "Воспитатель Тестовый", body: "Ответ воспитателя", created_at: "2026-09-30T10:10:00Z" }) : JSON.stringify([{ id: "00000000-0000-4000-8000-000000000618", thread_id: thread.id, sender_user_id: "00000000-0000-4000-8000-000000000621", sender_role: "PARENT", sender_name: "Родитель Тестовый", body: "Сообщение родителя", created_at: "2026-09-30T10:00:00Z" }]) }));
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/read", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ thread_id: thread.id, last_read_message_id: "00000000-0000-4000-8000-000000000618", last_read_at: "2026-09-30T10:00:00Z" }) }));
   await page.goto("/teacher/communications");
   await expect(page.getByRole("heading", { name: "Сообщения", level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: /Ребёнок Тестовый · Родитель Тестовый/ })).toBeVisible();
   await expect(page.getByText("Сообщение родителя")).toBeVisible();
   await expect(page.getByText("Родитель Тестовый", { exact: true })).toBeVisible();
 
-  const announcement = { id: "00000000-0000-4000-8000-000000000625", target_type: "group", group_id: group.id, title: "Напоминание", body: "Синтетический текст", status: "active", created_by: teacher.user.id, created_at: "2026-09-30T10:00:00Z", updated_at: "2026-09-30T10:00:00Z" };
-  await page.route("**/api/v1/teacher/announcements?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([announcement]) }));
+  const announcement = { id: "00000000-0000-4000-8000-000000000625", target_type: "group", group_id: group.id, group_name: group.name, audience: "parents", title: "Напоминание", body: "Синтетический текст", status: "active", archived_at: null, published_at: "2026-09-30T10:00:00Z", unread: false, recipient_count: 1, can_manage: true };
+  await page.route("**/api/v1/communications/v2/announcements?status=all", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([announcement]) }));
   await page.goto("/teacher/announcements");
   await expect(page.getByText("Напоминание")).toBeVisible();
   await expect(page.getByText("Активно")).toBeVisible();

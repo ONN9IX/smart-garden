@@ -64,12 +64,11 @@ async function mockManagement(page: Page, role: "DIRECTOR" | "ADMIN" = "DIRECTOR
       { record_id: null, date: "2026-09-30", child: { id: childId, first_name: "Ребёнок", last_name: "Синтетический", middle_name: null, status: "active" }, group: { id: groupId, name: "Солнышко" }, status: "present", arrival_time: "08:30:00", departure_time: null },
       { record_id: null, date: "2026-09-30", child: { id: "77777777-7777-4777-8777-777777777777", first_name: "Второй", last_name: "Синтетический", middle_name: null, status: "active" }, group: { id: groupId, name: "Солнышко" }, status: "unknown", arrival_time: null, departure_time: null },
     ]});
-    if (path.endsWith("/announcements")) return reply(route, { items: [{
-      id: "88888888-8888-4888-8888-888888888888", target_type: "group", group: { id: groupId, name: "Солнышко" },
-      title: "Синтетическое объявление", body: "Тестовый текст", status: "active",
-      created_by: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", updated_by: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      archived_at: null, created_at: "2026-09-30T08:00:00Z", updated_at: "2026-09-30T08:00:00Z",
-    }]});
+    if (path.endsWith("/communications/v2/announcements")) return reply(route, [{
+      id: "88888888-8888-4888-8888-888888888888", target_type: "group", audience: "all", group_id: groupId, group_name: "Солнышко",
+      title: "Синтетическое объявление", body: "Тестовый текст", status: "active", archived_at: null,
+      published_at: "2026-09-30T08:00:00Z", unread: false, recipient_count: 3, can_manage: true,
+    }]);
     if (path.endsWith("/audit")) return role === "DIRECTOR"
       ? reply(route, { items: [], limit: 50, offset: 0 })
       : reply(route, { error: { code: "FORBIDDEN", message: "Forbidden", field: null } }, 403);

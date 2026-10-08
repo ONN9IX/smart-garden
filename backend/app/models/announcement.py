@@ -18,6 +18,7 @@ class Announcement(Base):
     __tablename__ = "announcements"
     __table_args__ = (
         CheckConstraint("target_type IN ('all', 'group')", name="ck_announcements_target_type"),
+        CheckConstraint("audience IN ('all', 'parents', 'staff')", name="ck_announcements_audience"),
         CheckConstraint("status IN ('active', 'archived')", name="ck_announcements_status"),
         CheckConstraint(
             "(target_type = 'all' AND group_id IS NULL) OR "
@@ -36,6 +37,7 @@ class Announcement(Base):
         UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False,
     )
     target_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    audience: Mapped[str] = mapped_column(String(16), nullable=False, default="all", server_default="all")
     group_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("groups.id"))
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     body: Mapped[str] = mapped_column(String(2000), nullable=False)
