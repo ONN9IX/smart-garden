@@ -55,6 +55,9 @@ test("Announcement create reuses one idempotency key across a retry", async ({ p
   let attempts = 0;
   await page.route("**/api/v1/auth/me", (route) => reply(route, auth));
   await page.route("**/api/v1/groups?**", (route) => reply(route, groups));
+  await page.route("**/api/v1/communications/v2/announcements/preview", (route) => reply(route, {
+    recipient_count: 3, parents_count: 2, staff_count: 1,
+  }));
   await page.route("**/api/v1/communications/v2/announcements", (route) => {
     keys.push(route.request().headers()["idempotency-key"]);
     attempts += 1;
@@ -64,6 +67,9 @@ test("Announcement create reuses one idempotency key across a retry", async ({ p
   await page.goto("/announcements/new");
   await page.getByLabel("Заголовок").fill("Важно");
   await page.getByLabel("Текст").fill("Синтетический текст");
+  await page.getByRole("button", { name: "Проверить аудиторию" }).click();
+  await expect(page.getByText(/Получателей: 3/)).toBeVisible();
+  await page.getByRole("checkbox", { name: "Подтверждаю выбранную аудиторию и число получателей" }).check();
   await page.getByRole("button", { name: "Опубликовать" }).click();
   await expect(page.getByText(/Нет соединения/)).toBeVisible();
   await page.getByRole("button", { name: "Опубликовать" }).click();

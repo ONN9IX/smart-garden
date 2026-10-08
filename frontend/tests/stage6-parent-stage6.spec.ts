@@ -117,13 +117,21 @@ test("parent ignores a late announcement detail response after opening another i
 });
 
 test("parent removes an opened announcement if its read authorization is revoked", async ({ page }) => {
-  await page.route(`**/api/v1/communications/v2/announcements/${announcement.id}/read`, (route) => route.fulfill({
-    status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "NOT_FOUND" } }),
-  }));
+  let denyRead!: () => void;
+  let readRequested!: () => void;
+  const readRequestedPromise = new Promise<void>((resolve) => { readRequested = resolve; });
+  const denied = new Promise<void>((resolve) => { denyRead = resolve; });
+  await page.route(`**/api/v1/communications/v2/announcements/${announcement.id}/read`, async (route) => {
+    readRequested();
+    await denied;
+    await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "NOT_FOUND" } }) });
+  });
   await page.goto("/parent");
   await page.getByRole("button", { name: "Объявления" }).click();
   await page.getByRole("button", { name: announcement.title }).click();
   await expect(page.getByText(announcement.body)).toBeVisible();
+  await readRequestedPromise;
+  denyRead();
   await expect(page.getByText("Объявление больше недоступно.")).toBeVisible();
   await expect(page.getByText(announcement.body)).toHaveCount(0);
 });
