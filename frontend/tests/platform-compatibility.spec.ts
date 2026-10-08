@@ -57,7 +57,22 @@ test("real auth, recovery and protected group journey stays portable at 390px", 
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(`console: ${message.text()}`);
+    if (message.type() !== "error") return;
+    // Browser engines also mirror failed HTTP responses as generic console errors.
+    // The response listener below validates those with URL, method and status, so
+    // keep console tracking for JavaScript/runtime errors without double counting.
+    if (message.text().startsWith("Failed to load resource:")) return;
+    errors.push(`console: ${message.text()}`);
+  });
+  page.on("response", (response) => {
+    if (response.status() < 400) return;
+    const request = response.request();
+    const expectedPublicAuthBoundary = response.status() === 401
+      && request.method() === "GET"
+      && new URL(response.url()).pathname === "/api/v1/auth/me";
+    if (!expectedPublicAuthBoundary) {
+      errors.push(`http: ${request.method()} ${response.status()} ${new URL(response.url()).pathname}`);
+    }
   });
   await page.setViewportSize({ width: 390, height: 844 });
 
