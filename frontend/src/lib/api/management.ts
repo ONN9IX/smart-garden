@@ -24,7 +24,7 @@ const query = (values: Record<string, string | undefined>) => {
   return rendered ? `?${rendered}` : "";
 };
 
-type TeacherAccount = TemporaryTeacherCredentials["account"];
+type TeacherAccount = NonNullable<TeacherProjection["account"]>;
 
 export const managementApi = {
   today: () => api.get<ManagementToday>("/management/today"),
@@ -35,8 +35,8 @@ export const managementApi = {
     api.get<TeacherProjection>(`/teacher-management/teachers/${encodeURIComponent(employeeId)}`),
   createTeacherAccount: (employeeId: string) =>
     api.post<TemporaryTeacherCredentials>(`/teacher-management/employees/${encodeURIComponent(employeeId)}/account`),
-  resetTeacherPassword: (employeeId: string) =>
-    api.post<TemporaryTeacherCredentials>(`/teacher-management/employees/${encodeURIComponent(employeeId)}/account/reset-password`),
+  resendTeacherInvite: (employeeId: string) =>
+    api.post<TemporaryTeacherCredentials>(`/teacher-management/employees/${encodeURIComponent(employeeId)}/account/resend`),
   blockTeacher: (employeeId: string) =>
     api.post<TeacherAccount>(`/teacher-management/employees/${encodeURIComponent(employeeId)}/account/block`),
   unblockTeacher: (employeeId: string) =>

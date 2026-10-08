@@ -1,10 +1,1 @@
-"""Parent account responses; plaintext exists only in create/reset responses."""
-
-from pydantic import BaseModel
-
-from app.schemas.guardian import ParentAccountSummary
-
-
-class TemporaryCredentials(BaseModel):
-    account: ParentAccountSummary
-    temporary_password: str
+"""Parent account schemas moved to account_access; kept as a module compatibility marker."""

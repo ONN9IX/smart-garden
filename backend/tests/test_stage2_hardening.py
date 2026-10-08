@@ -44,7 +44,7 @@ def test_openapi_stage2_endpoints_and_parent_role(client):
         "/api/v1/guardians/{guardian_id}/archive": {"post"},
         "/api/v1/guardians/{guardian_id}/restore": {"post"},
         "/api/v1/guardians/{guardian_id}/account": {"post"},
-        "/api/v1/guardians/{guardian_id}/account/reset-password": {"post"},
+        "/api/v1/guardians/{guardian_id}/account/resend": {"post"},
         "/api/v1/guardians/{guardian_id}/account/block": {"post"},
         "/api/v1/guardians/{guardian_id}/account/unblock": {"post"},
     }
@@ -55,7 +55,7 @@ def test_openapi_stage2_endpoints_and_parent_role(client):
             for status in ("400", "401", "403", "404", "409", "500"):
                 assert operation["responses"][status]["content"]["application/json"]["schema"]["$ref"].endswith("/ErrorResponse")
     assert "PARENT" in spec["components"]["schemas"]["UserResponse"]["properties"]["role"]["enum"]
-    assert "temporary_password" in spec["components"]["schemas"]["TemporaryCredentials"]["properties"]
+    assert "temporary_password" not in str(spec)
     for name in ("GroupWrite", "ChildCreate", "ChildPatch", "GuardianCreate", "GuardianPatch"):
         assert "organization_id" not in spec["components"]["schemas"][name]["properties"]
     for path in spec["paths"]:

@@ -59,7 +59,7 @@ def _director(client, users):
 def _employee_and_group(db, users, suffix=""):
     employee = Employee(
         organization_id=users[0].id, first_name="Тестовая", last_name=f"Воспитательница{suffix}",
-        position="Воспитатель", category="teacher", status="active",
+        position="Воспитатель", category="teacher", email=f"teacher{suffix or '-one'}@example.test", status="active",
     )
     group = Group(organization_id=users[0].id, name=f"Группа Foundation{suffix}", status="active")
     db.add_all([employee, group])
@@ -74,18 +74,16 @@ def test_teacher_account_assignment_access_and_lifecycle(client, db, users):
     created = client.post(account_path)
     assert created.status_code == 201
     payload = created.json()
-    assert payload["account"]["role"] == "TEACHER"
-    assert payload["account"]["username"].startswith("teacher-")
-    assert client.post(account_path).json()["error"]["code"] == "EMPLOYEE_ACCOUNT_ALREADY_EXISTS"
-
-    teacher = db.get(User, UUID(payload["account"]["id"]))
+    assert payload["role"] == "TEACHER"
+    assert payload["username"].startswith("staff-")
+    teacher = db.get(User, employee.user_id)
     assert teacher is not None and employee.user_id == teacher.id
-    reset = client.post(account_path + "/reset-password")
-    assert reset.status_code == 200
-    temporary_password = reset.json()["temporary_password"]
+    teacher.password_hash = hash_password(TEST_PASSWORD)
+    teacher.must_change_password = False
+    db.flush()
     assert client.post(account_path + "/block").json()["status"] == "blocked"
     with TestClient(app) as blocked:
-        assert _login(blocked, teacher.username, temporary_password).json()["error"]["code"] == "USER_BLOCKED"
+        assert _login(blocked, teacher.username).json()["error"]["code"] == "USER_BLOCKED"
     assert client.post(account_path + "/unblock").json()["status"] == "active"
 
     assigned = client.post(f"{ROOT}/assignments", json={
@@ -96,11 +94,8 @@ def test_teacher_account_assignment_access_and_lifecycle(client, db, users):
     assert require_teacher_group_access(db, teacher, group.id).id == assignment_id
 
     with TestClient(app) as teacher_client:
-        assert _login(teacher_client, teacher.username, temporary_password).status_code == 200
+        assert _login(teacher_client, teacher.username).status_code == 200
         assert teacher_client.get("/api/v1/auth/me").json()["user"]["role"] == "TEACHER"
-        assert teacher_client.post("/api/v1/auth/change-password", json={
-            "new_password": "teacher-new-secure-1234",
-        }).status_code == 200
         assert teacher_client.get("/api/v1/employees").status_code == 403
         assert teacher_client.post("/api/v1/groups", json={"name": "Недоступная"}).status_code == 403
         assert teacher_client.get("/api/v1/audit").status_code == 403
@@ -122,11 +117,11 @@ def test_teacher_account_assignment_access_and_lifecycle(client, db, users):
 
     actions = set(db.scalars(select(AuditEvent.action).where(AuditEvent.entity_id.in_([teacher.id, assignment_id]))))
     assert {
-        "teacher_account.create", "teacher_account.reset", "teacher_account.block", "teacher_account.unblock",
+        "account.invite", "teacher_account.block", "teacher_account.unblock",
         "teacher_assignment.create", "teacher_assignment.archive", "teacher_assignment.restore",
     } <= actions
     details = list(db.scalars(select(AuditEvent.details).where(AuditEvent.action.like("teacher_%"))))
-    assert payload["temporary_password"] not in str(details)
+    assert "token" not in str(details).lower() and "password" not in str(details).lower()
 
 
 def test_teacher_assignment_management_roles_and_tenant_boundaries(client, db, users):
@@ -163,7 +158,7 @@ def test_teacher_assignment_management_roles_and_tenant_boundaries(client, db, u
         assert admin_client.post(f"{ROOT}/assignments", json={
             "employee_id": str(employee.id), "group_id": str(group.id),
         }).status_code == 403
-        assert admin_client.post(f"{ROOT}/employees/{employee.id}/account/reset-password").status_code == 403
+        assert admin_client.post(f"{ROOT}/employees/{employee.id}/account/resend").status_code == 403
 
     admin_employee = Employee(
         organization_id=organization.id, user_id=admin.id, first_name="Тестовый",

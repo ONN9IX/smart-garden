@@ -1,6 +1,6 @@
 /** Guardian and parent lifecycle calls. Temporary credentials are returned once. */
 import { api } from "./client";
-import type { Guardian, GuardianFields, GuardianListItem, ListResponse, ParentAccountSummary, StatusFilter, TemporaryCredentials } from "@/types/stage2";
+import type { Guardian, GuardianFields, GuardianListItem, ListResponse, ParentAccountSummary, StatusFilter, InvitationResult } from "@/types/stage2";
 
 export const guardiansApi = {
   list: ({ status = "active", q }: { status?: StatusFilter; q?: string } = {}) => {
@@ -13,8 +13,8 @@ export const guardiansApi = {
   update: (id: string, fields: Partial<GuardianFields>) => api.patch<Guardian>(`/guardians/${encodeURIComponent(id)}`, fields),
   archive: (id: string) => api.post<Guardian>(`/guardians/${encodeURIComponent(id)}/archive`),
   restore: (id: string) => api.post<Guardian>(`/guardians/${encodeURIComponent(id)}/restore`),
-  createAccount: (id: string) => api.post<TemporaryCredentials>(`/guardians/${encodeURIComponent(id)}/account`),
-  resetPassword: (id: string) => api.post<TemporaryCredentials>(`/guardians/${encodeURIComponent(id)}/account/reset-password`),
+  createAccount: (id: string) => api.post<InvitationResult>(`/guardians/${encodeURIComponent(id)}/account`),
+  resendInvite: (id: string) => api.post<InvitationResult>(`/guardians/${encodeURIComponent(id)}/account/resend`),
   blockAccount: (id: string) => api.post<ParentAccountSummary>(`/guardians/${encodeURIComponent(id)}/account/block`),
   unblockAccount: (id: string) => api.post<ParentAccountSummary>(`/guardians/${encodeURIComponent(id)}/account/unblock`),
 };

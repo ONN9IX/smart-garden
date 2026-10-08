@@ -49,6 +49,7 @@ def _foundation_teacher(client, db, users):
         last_name="Воспитательница",
         position="Воспитатель",
         category="teacher",
+        email="foundation-teacher@example.test",
         status="active",
     )
     group = Group(organization_id=organization.id, name="Группа управления", status="active")
@@ -56,13 +57,17 @@ def _foundation_teacher(client, db, users):
     db.flush()
     credentials = client.post(f"{TEACHER}/employees/{employee.id}/account")
     assert credentials.status_code == 201, credentials.text
-    account_id = UUID(credentials.json()["account"]["id"])
+    account_id = employee.user_id
+    account = db.get(User, account_id)
+    account.password_hash = hash_password(TEST_PASSWORD)
+    account.must_change_password = False
+    db.flush()
     assignment = client.post(f"{TEACHER}/assignments", json={
         "employee_id": str(employee.id),
         "group_id": str(group.id),
     })
     assert assignment.status_code == 201, assignment.text
-    return employee, group, db.get(User, account_id), assignment.json()
+    return employee, group, account, assignment.json()
 
 
 def test_management_cabinet_director_end_to_end_and_privacy(client, db, users, monkeypatch):
@@ -243,7 +248,7 @@ def test_management_admin_permissions_and_operational_access(client, db, users):
     assert client.get(f"{TEACHER}/teachers").status_code == 200
     assert client.get(f"{TEACHER}/assignments").status_code == 200
 
-    assert client.post(f"{TEACHER}/employees/{employee.id}/account/reset-password").status_code == 403
+    assert client.post(f"{TEACHER}/employees/{employee.id}/account/resend").status_code == 403
     assert client.post(f"{TEACHER}/assignments", json={
         "employee_id": str(employee.id),
         "group_id": str(group.id),

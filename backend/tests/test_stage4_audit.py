@@ -63,17 +63,17 @@ def test_all_stage4_audit_actions_and_privacy(client, db, users):
     _post(client, f"/api/v1/children/{child['id']}/guardians/{guardian['id']}/restore")
 
     parent_credentials = _post(client, f"/api/v1/guardians/{guardian['id']}/account", status=201)
-    _post(client, f"/api/v1/guardians/{guardian['id']}/account/reset-password")
+    _post(client, f"/api/v1/guardians/{guardian['id']}/account/resend")
     _post(client, f"/api/v1/guardians/{guardian['id']}/account/block")
     _post(client, f"/api/v1/guardians/{guardian['id']}/account/unblock")
 
     employee = _post(client, "/api/v1/employees", {
         "first_name": "Аудит", "last_name": "Сотрудник", "middle_name": None,
-        "position": "Администратор", "category": "administrator",
+        "position": "Администратор", "category": "administrator", "email": "staff-audit@example.test",
     }, 201)
     _patch(client, f"/api/v1/employees/{employee['id']}", {"position": "Старший администратор"})
-    admin_credentials = _post(client, f"/api/v1/employees/{employee['id']}/account", status=201)
-    _post(client, f"/api/v1/employees/{employee['id']}/account/reset-password")
+    admin_credentials = _post(client, f"/api/v1/employees/{employee['id']}/account", {"role": "ADMIN"}, 201)
+    _post(client, f"/api/v1/employees/{employee['id']}/account/resend", {"role": "ADMIN"})
     _post(client, f"/api/v1/employees/{employee['id']}/account/block")
     _post(client, f"/api/v1/employees/{employee['id']}/account/unblock")
 
@@ -106,7 +106,7 @@ def test_all_stage4_audit_actions_and_privacy(client, db, users):
         "guardian.create", "guardian.update", "guardian.archive", "guardian.restore",
         "child_guardian.create", "child_guardian.update", "child_guardian.archive", "child_guardian.restore",
         "employee.create", "employee.update", "employee.archive", "employee.restore",
-        "account.create", "account.reset_password", "account.block", "account.unblock",
+        "account.invite", "account.block", "account.unblock",
         "attendance.create", "attendance.update",
     } <= {event["action"] for event in events}
     assert relation["id"] in {event["entity_id"] for event in events if event["entity_type"] == "child_guardian"}
@@ -115,7 +115,7 @@ def test_all_stage4_audit_actions_and_privacy(client, db, users):
     forbidden = [
         "Синтетическая аудит-группа", "Изменённая аудит-группа", "Ребёнок", "Представитель",
         "+79990000000", "audit@example.test", "Сотрудник", "Старший администратор",
-        parent_credentials["temporary_password"], admin_credentials["temporary_password"],
+        parent_credentials["username"], admin_credentials["username"],
         "password_hash", "temporary_password", "session_token",
     ]
     assert all(value not in rendered for value in forbidden)

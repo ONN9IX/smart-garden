@@ -19,6 +19,7 @@ export function ManagementNav({ role }: { role: Role }) {
         ["/children", "Дети"],
         ["/guardians", "Родители"],
         ["/employees", "Сотрудники"],
+        ["/access-accounts", "Доступ и аккаунты"],
       ],
     },
     {

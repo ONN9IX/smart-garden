@@ -65,15 +65,24 @@ def issue_session(db: Session, user: User) -> str:
 def authenticate_credentials(db: Session, username: str, password: str) -> User:
     from app.core.security import normalize_username
 
+    identifier = username.strip().lower()
+    user = None
+    username_lookup = False
     try:
         normalized = normalize_username(username)
+        username_lookup = True
+        user = db.scalar(select(User).where(User.username == normalized))
     except ValueError:
-        raise AppError(401, "INVALID_CREDENTIALS") from None
-    user = db.scalar(select(User).where(User.username == normalized))
+        if "@" not in identifier:
+            raise AppError(401, "INVALID_CREDENTIALS") from None
+        from app.services.account_access import eligible_users_for_identifier
+        matches = eligible_users_for_identifier(db, identifier)
+        if len(matches) == 1 and matches[0][0].status == "active":
+            user = matches[0][0]
     if user is None or not verify_password(user.password_hash, password):
         raise AppError(401, "INVALID_CREDENTIALS")
     if user.status != "active":
-        raise AppError(403, "USER_BLOCKED")
+        raise AppError(403, "USER_BLOCKED" if username_lookup else "INVALID_CREDENTIALS")
     if user.organization.status != "active":
         raise AppError(403, "ORGANIZATION_BLOCKED")
     if user.role not in {"DIRECTOR", "ADMIN", "TEACHER", "PARENT"}:

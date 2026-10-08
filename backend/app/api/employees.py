@@ -7,18 +7,24 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.error_responses import MANAGEMENT_ERRORS
+from app.core.errors import AppError
 from app.core.permissions import require_role
 from app.db.session import get_db
 from app.models.user import User
+from app.schemas.account_access import (
+    AccountActionResponse,
+    InviteRequest,
+    InviteResponse,
+    RoleChangeRequest,
+)
 from app.schemas.employee import (
     EmployeeAccountSummary,
     EmployeeCreate,
     EmployeeList,
     EmployeePatch,
     EmployeeResponse,
-    EmployeeTemporaryCredentials,
 )
-from app.services import employee_accounts, employees
+from app.services import account_access, employee_accounts, employees
 
 router = APIRouter(prefix="/employees", tags=["Сотрудники"], responses=MANAGEMENT_ERRORS)
 Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
@@ -61,14 +67,24 @@ def restore_employee(employee_id: UUID, user: Manager, db: Database) -> Employee
     return employees.restore_employee(db, user, employee_id)
 
 
-@router.post("/{employee_id}/account", response_model=EmployeeTemporaryCredentials, status_code=201)
-def create_account(employee_id: UUID, user: Director, db: Database) -> EmployeeTemporaryCredentials:
-    return employee_accounts.create(db, user, employee_id)
+@router.post("/{employee_id}/account", response_model=InviteResponse, status_code=201)
+def create_account(employee_id: UUID, payload: InviteRequest, user: Director, db: Database) -> InviteResponse:
+    if payload.role is None:
+        raise AppError(400, "VALIDATION_ERROR", "role")
+    return account_access.invite_employee(db, user, employee_id, payload.role)
 
 
-@router.post("/{employee_id}/account/reset-password", response_model=EmployeeTemporaryCredentials)
-def reset_account_password(employee_id: UUID, user: Director, db: Database) -> EmployeeTemporaryCredentials:
-    return employee_accounts.reset_password(db, user, employee_id)
+@router.post("/{employee_id}/account/resend", response_model=InviteResponse)
+def resend_account_invite(employee_id: UUID, payload: InviteRequest, user: Director, db: Database) -> InviteResponse:
+    if payload.role is None:
+        raise AppError(400, "VALIDATION_ERROR", "role")
+    return account_access.invite_employee(db, user, employee_id, payload.role)
+
+
+@router.post("/{employee_id}/account/role", response_model=AccountActionResponse)
+def change_account_role(employee_id: UUID, payload: RoleChangeRequest, user: Director, db: Database) -> AccountActionResponse:
+    account_access.change_employee_role(db, user, employee_id, payload.role)
+    return AccountActionResponse()
 
 
 @router.post("/{employee_id}/account/block", response_model=EmployeeAccountSummary)
