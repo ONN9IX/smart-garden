@@ -152,6 +152,7 @@ def _direct(db: Session, actor: User, child: Child, guardian: Guardian) -> Threa
         CommunicationThread.group_id == child.group_id,
         CommunicationThread.child_id == child.id,
         CommunicationThread.guardian_id == guardian.id,
+        CommunicationThread.teacher_employee_id.is_(None),
     ))
     if thread is None:
         thread = CommunicationThread(
