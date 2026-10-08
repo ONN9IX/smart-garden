@@ -36,6 +36,9 @@ _ALLOWED_DETAIL_KEYS = {
     "category",
     "thread_type",
     "requires_ack",
+    "client_message_id",
+    "audience",
+    "recipient_count",
 }
 _ALLOWED_ACTIONS = {
     "group": {"group.create", "group.update", "group.archive", "group.restore"},
@@ -54,12 +57,14 @@ _ALLOWED_ACTIONS = {
     "announcement": {
         "announcement.create", "announcement.update", "announcement.archive",
         "teacher_announcement.create", "teacher_announcement.update", "teacher_announcement.archive",
+        "communications.announcement.publish", "communications.announcement.update",
+        "communications.announcement.archive",
     },
     "teacher_assignment": {
         "teacher_assignment.create", "teacher_assignment.archive", "teacher_assignment.restore",
     },
     "group_schedule_item": {"schedule.create", "schedule.update", "schedule.archive"},
-    "communication_message": {"teacher_message.create"},
+    "communication_message": {"teacher_message.create", "communication.message.create"},
     "child_diary_entry": {"diary.create", "diary.update"},
     "poll": {"poll.create", "poll.close"},
     "poll_vote": {"poll.vote"},
@@ -91,11 +96,12 @@ _ALLOWED_RELATIONS = {"mother", "father", "legal_guardian", "other"}
 _ALLOWED_ACCOUNT_ROLES = {"ADMIN", "PARENT", "TEACHER"}
 _ALLOWED_ATTENDANCE_STATUSES = {"present", "absent", "unknown"}
 _ALLOWED_ANNOUNCEMENT_TARGETS = {"all", "group"}
+_ALLOWED_ANNOUNCEMENT_AUDIENCES = {"all", "parents", "staff"}
 _ALLOWED_INCIDENT_CATEGORIES = {"safety", "behavior", "operational", "other"}
 _ALLOWED_THREAD_TYPES = {"group", "direct"}
 _UUID_DETAIL_KEYS = {
     "child_id", "guardian_id", "group_id", "employee_id", "thread_id", "poll_id", "option_id",
-    "recipient_user_id", "assignee_employee_id", "photo_asset_id", "document_notice_id",
+    "recipient_user_id", "assignee_employee_id", "photo_asset_id", "document_notice_id", "client_message_id",
 }
 
 
@@ -127,6 +133,14 @@ def _validate_details(details: dict[str, Any], action: str) -> None:
             UUID(str(details[key]))
     if "target_type" in details and details["target_type"] not in _ALLOWED_ANNOUNCEMENT_TARGETS:
         raise ValueError("Audit announcement target is invalid")
+    if "audience" in details and details["audience"] not in _ALLOWED_ANNOUNCEMENT_AUDIENCES:
+        raise ValueError("Audit announcement audience is invalid")
+    if "recipient_count" in details and (
+        isinstance(details["recipient_count"], bool)
+        or not isinstance(details["recipient_count"], int)
+        or details["recipient_count"] < 0
+    ):
+        raise ValueError("Audit recipient count is invalid")
     if "scope" in details and details["scope"] != "group_photo_report":
         raise ValueError("Audit photo-consent scope is invalid")
     if "category" in details and details["category"] not in _ALLOWED_INCIDENT_CATEGORIES:
