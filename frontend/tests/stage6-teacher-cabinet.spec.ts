@@ -35,7 +35,7 @@ test("teacher completes daily flow and sees only enabled modules", async ({ page
   await expect(page.getByText("Мама · можно написать")).toBeVisible();
   await page.getByRole("link", { name: "Посещаемость" }).click();
   await expect(page.getByLabel("Дата")).toHaveValue("2026-09-30");
-  await expect(page.getByText("Не отмечен")).toBeVisible();
+  await expect(page.getByText("Без отметки")).toBeVisible();
   const arrival = page.waitForRequest("**/api/v1/teacher/attendance/arrival");
   await page.getByRole("button", { name: "Пришёл" }).click();
   expect((await arrival).postDataJSON()).toEqual({ child_id: child.id });
@@ -79,7 +79,7 @@ test("teacher does not show arrival after a rejected write", async ({ page }) =>
   await page.goto("/teacher/attendance");
   await page.getByRole("button", { name: "Пришёл" }).click();
   await expect(page.getByText("Без отметки")).toBeVisible();
-  await expect(page.getByText("Доступ запрещён.")).toBeVisible();
+  await expect(page.getByText("Действие недоступно для вашей учётной записи.")).toBeVisible();
   await expect(page.getByText("В саду", { exact: true })).toHaveCount(0);
 });
 
@@ -111,7 +111,7 @@ test("teacher attendance clears and ignores stale rows across group A to B to A"
   await page.getByLabel("Группа").selectOption(group.id);
   await expect(page.getByText("Без отметки")).toBeVisible();
   releaseFirstA();
-  await expect(page.getByText("Отсутствует", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Тестовый Ребёнок", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Второй Синтетический")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

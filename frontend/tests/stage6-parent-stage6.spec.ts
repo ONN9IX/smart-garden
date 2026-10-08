@@ -118,7 +118,7 @@ test("parent clears attendance details when ChildGuardian access is revoked", as
     status: 403, contentType: "application/json", body: JSON.stringify({ error: { code: "FORBIDDEN", message: "Доступ запрещён." } }),
   }));
   await page.goto("/parent");
-  await expect(page.getByText("Доступ запрещён.")).toBeVisible();
+  await expect(page.getByText("Действие недоступно для вашей учётной записи.")).toBeVisible();
   await expect(page.getByText("Приход: 08:15")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Группа Ромашка" })).toHaveCount(0);
 });

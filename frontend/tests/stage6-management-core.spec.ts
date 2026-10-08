@@ -27,15 +27,15 @@ async function mockManagement(page: Page, role: "DIRECTOR" | "ADMIN" = "DIRECTOR
       organization: { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", name: "Синтетический сад" },
     });
     if (path.endsWith("/dashboard/summary")) return reply(route, {
-      date: "2026-09-30", active_children: 3, present: 1, absent: 1, unknown: 1,
-      active_groups: 1, active_employees: 1,
-      groups: [{ id: groupId, name: "Солнышко", active_children: 3, present: 1, absent: 1, unknown: 1 }],
+      date: "2026-09-30", active_children: 3, present: 1, on_site: 1, departed: 0, absent: 1, unknown: 1, needs_arrival: 0,
+      active_groups: 1, active_employees: 1, groups_without_active_teacher_assignment: 0,
+      groups: [{ id: groupId, name: "Солнышко", active_children: 3, present: 1, on_site: 1, departed: 0, absent: 1, unknown: 1, needs_arrival: 0 }],
     });
     if (path.endsWith("/management/today")) return reply(route, {
-      date: "2026-09-30", active_children: 3, present: 1, absent: 1, unknown: 1,
+      date: "2026-09-30", active_children: 3, present: 1, on_site: 1, departed: 0, absent: 1, unknown: 1, needs_arrival: 0,
       active_groups: 1, active_employees: 1, groups_without_active_teacher_assignment: 0,
       open_tasks: 0, overdue_tasks: 0, open_incidents: 0, unread_notifications: 0,
-      groups: [{ group_id: groupId, group_name: "Солнышко", active_children: 3, present: 1, absent: 1, unknown: 1, has_active_teacher: true, has_active_weekly_schedule: true }],
+      groups: [{ group_id: groupId, group_name: "Солнышко", active_children: 3, present: 1, on_site: 1, departed: 0, absent: 1, unknown: 1, needs_arrival: 0, has_active_teacher: true, has_active_weekly_schedule: true }],
       attention_items: [{ kind: "attendance_missing", entity_type: "attendance", entity_id: groupId, count: 1 }],
     });
     if (path.endsWith("/groups")) return reply(route, { items: [
@@ -43,8 +43,8 @@ async function mockManagement(page: Page, role: "DIRECTOR" | "ADMIN" = "DIRECTOR
       { id: "55555555-5555-4555-8555-555555555555", name: "Ромашка", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
     ]});
     if (path.endsWith("/management/groups/overview")) return reply(route, { items: [
-      { group: { id: groupId, name: "Солнышко", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }, active_children: 3, present: 1, absent: 1, unknown: 1, active_teacher_names: [], has_active_weekly_schedule: true, open_tasks: 0, overdue_tasks: 0 },
-      { group: { id: "55555555-5555-4555-8555-555555555555", name: "Ромашка", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }, active_children: 0, present: 0, absent: 0, unknown: 0, active_teacher_names: [], has_active_weekly_schedule: true, open_tasks: 0, overdue_tasks: 0 },
+      { group: { id: groupId, name: "Солнышко", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }, active_children: 3, present: 1, on_site: 1, departed: 0, absent: 1, unknown: 1, needs_arrival: 0, active_teacher_names: [], has_active_weekly_schedule: true, open_tasks: 0, overdue_tasks: 0 },
+      { group: { id: "55555555-5555-4555-8555-555555555555", name: "Ромашка", status: "active", archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }, active_children: 0, present: 0, on_site: 0, departed: 0, absent: 0, unknown: 0, needs_arrival: 0, active_teacher_names: [], has_active_weekly_schedule: true, open_tasks: 0, overdue_tasks: 0 },
     ]});
     if (path.endsWith("/children")) return reply(route, { items: [{
       id: childId, first_name: "Ребёнок", last_name: "Синтетический", middle_name: null,
