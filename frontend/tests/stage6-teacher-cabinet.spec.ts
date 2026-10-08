@@ -2,6 +2,7 @@
 import { expect, test } from "@playwright/test";
 
 const group = { id: "00000000-0000-4000-8000-000000000611", name: "Ромашка" };
+const otherGroup = { id: "00000000-0000-4000-8000-000000000651", name: "Солнышко" };
 const child = { id: "00000000-0000-4000-8000-000000000612", first_name: "Тестовый", last_name: "Ребёнок", middle_name: null, status: "active" };
 const guardian = { id: "00000000-0000-4000-8000-000000000613", child_id: child.id, first_name: "Тестовый", last_name: "Родитель", middle_name: null, relation_type: "mother", phone: "+70000000000", email: null, can_message: true };
 const thread = { id: "00000000-0000-4000-8000-000000000615", thread_type: "direct", group_id: group.id, audience: "all", child_id: child.id, guardian_id: guardian.id, created_at: "2026-09-30T09:00:00Z" };
@@ -119,6 +120,106 @@ test("teacher hides the previous chat while a switched conversation is loading",
   await expect(page.getByText("Сообщение группы")).toBeVisible();
   releaseA();
   await expect(page.getByText("Старый чат воспитателя")).toHaveCount(0);
+});
+
+test("teacher announcements discard late responses across A to B and A to B to A switches", async ({ page }) => {
+  await page.route("**/api/v1/teacher/groups", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([group, otherGroup]) }));
+  const announcement = (id: string, targetGroup: typeof group, title: string) => ({
+    id, target_type: "group", group_id: targetGroup.id, group_name: targetGroup.name, audience: "parents",
+    title, body: `Синтетический текст ${title}`, status: "active", archived_at: null,
+    published_at: "2026-09-30T10:00:00Z", unread: false, recipient_count: 1, can_manage: true,
+  });
+  let releaseInitialA!: () => void;
+  let markInitialA!: () => void;
+  const initialARequested = new Promise<void>((resolve) => { markInitialA = resolve; });
+  let releaseLateB!: () => void;
+  let markLateB!: () => void;
+  const lateBRequested = new Promise<void>((resolve) => { markLateB = resolve; });
+  let calls = 0;
+  await page.route("**/api/v1/communications/v2/announcements?status=all", async (route) => {
+    calls += 1;
+    if (calls === 1) {
+      markInitialA();
+      await new Promise<void>((resolve) => { releaseInitialA = resolve; });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([announcement("a-old", group, "Старое объявление группы А")]) });
+    }
+    if (calls === 2) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([announcement("b-first", otherGroup, "Объявление группы Б")]) });
+    if (calls === 4) {
+      markLateB();
+      await new Promise<void>((resolve) => { releaseLateB = resolve; });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([announcement("b-late", otherGroup, "Устаревшее объявление группы Б")]) });
+    }
+    const title = calls === 3 ? "Новое объявление группы А" : "Обновлённое объявление группы А";
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([announcement(`a-${calls}`, group, title)]) });
+  });
+
+  await page.goto("/teacher/announcements");
+  await initialARequested;
+  const groupPicker = page.getByLabel("Группа");
+  await groupPicker.selectOption(otherGroup.id);
+  await expect(page.getByText("Объявление группы Б")).toBeVisible();
+  releaseInitialA();
+  await expect(page.getByText("Старое объявление группы А")).toHaveCount(0);
+  await expect(page.getByText("Объявление группы Б")).toBeVisible();
+
+  await groupPicker.selectOption(group.id);
+  await expect(page.getByText("Новое объявление группы А")).toBeVisible();
+  await groupPicker.selectOption(otherGroup.id);
+  await lateBRequested;
+  await expect(page.getByText("Устаревшее объявление группы Б")).toHaveCount(0);
+  await groupPicker.selectOption(group.id);
+  await expect(page.getByText("Обновлённое объявление группы А")).toBeVisible();
+  releaseLateB();
+  await expect(page.getByText("Устаревшее объявление группы Б")).toHaveCount(0);
+  await expect(page.getByText("Обновлённое объявление группы А")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Изменить" })).toHaveCount(1);
+});
+
+test("teacher announcement audience preview cannot authorize a different Group after switching", async ({ page }) => {
+  await page.route("**/api/v1/teacher/groups", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([group, otherGroup]) }));
+  await page.route("**/api/v1/communications/v2/announcements?status=all", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+  let releaseA!: () => void;
+  let markPreviewA!: () => void;
+  const previewARequested = new Promise<void>((resolve) => { markPreviewA = resolve; });
+  let previewCalls = 0;
+  await page.route("**/api/v1/communications/v2/announcements/preview", async (route) => {
+    previewCalls += 1;
+    if (previewCalls === 1) {
+      markPreviewA();
+      await new Promise<void>((resolve) => { releaseA = resolve; });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ recipient_count: 91, parents_count: 91, staff_count: 0 }) });
+    }
+    expect(route.request().postDataJSON()).toEqual({ target_type: "group", group_id: otherGroup.id, audience: "parents" });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ recipient_count: 2, parents_count: 2, staff_count: 0 }) });
+  });
+  let publishedGroupId = "";
+  await page.route("**/api/v1/communications/v2/announcements", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    publishedGroupId = route.request().postDataJSON().group_id;
+    return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({
+      id: "00000000-0000-4000-8000-000000000652", target_type: "group", group_id: otherGroup.id,
+      group_name: otherGroup.name, audience: "parents", title: "Второе объявление", body: "Синтетический текст",
+      status: "active", archived_at: null, published_at: "2026-09-30T10:00:00Z", unread: false,
+      recipient_count: 2, can_manage: true,
+    }) });
+  });
+
+  await page.goto("/teacher/announcements");
+  await page.getByLabel("Заголовок").fill("Первое объявление");
+  await page.getByLabel("Текст").fill("Текст первой группы");
+  await page.getByRole("button", { name: "Проверить аудиторию" }).click();
+  await previewARequested;
+  await page.getByLabel("Группа").selectOption(otherGroup.id);
+  await page.getByLabel("Заголовок").fill("Второе объявление");
+  await page.getByLabel("Текст").fill("Текст второй группы");
+  await page.getByRole("button", { name: "Проверить аудиторию" }).click();
+  await expect(page.getByText(/Получателей: 2 \(родители: 2, сотрудники: 0\)/)).toBeVisible();
+  releaseA();
+  await expect(page.getByText(/Получателей: 91/)).toHaveCount(0);
+  await page.getByRole("checkbox", { name: "Подтверждаю выбранную аудиторию и число получателей" }).check();
+  await page.getByRole("button", { name: "Опубликовать для группы" }).click();
+  await expect.poll(() => publishedGroupId).toBe(otherGroup.id);
+  expect(previewCalls).toBe(2);
 });
 
 test("direct URLs for deferred teacher modules return to teacher home", async ({ page }) => {
