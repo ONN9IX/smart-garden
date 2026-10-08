@@ -27,6 +27,7 @@ from policy import LABEL, OWNER, REPO, ScopeError, parse_issue, validate_changed
 HOST = '0.0.0.0'
 PORT = 8080
 ROOT = Path('/workspace')
+METADATA_DIR = ROOT / 'private-git'
 STATE_FILE = ROOT / 'state.json'
 GITHUB_API = 'https://api.github.com/repos/' + REPO
 GH_TOKEN_FILE = Path('/run/secrets/github_token')
@@ -114,7 +115,17 @@ def command(args, cwd=None, env=None, timeout=60, uid=None):
 
 
 def git(*args, cwd=None, env=None, timeout=90):
-    return command(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'credential.helper=', *args], cwd=cwd, env=env, timeout=timeout)
+    # Never trust .git in Codex-writable worktrees. Coordinator Git operations
+    # use Git metadata stored in a root-only directory, not worktree discovery.
+    clean_env = dict(os.environ if env is None else env)
+    clean_env['GIT_CONFIG_GLOBAL'] = '/dev/null'
+    clean_env['GIT_CONFIG_NOSYSTEM'] = '1'
+    if cwd is not None:
+        worktree = Path(cwd).resolve()
+        if worktree.parent == (ROOT / 'jobs').resolve():
+            clean_env['GIT_DIR'] = str(METADATA_DIR / f'{worktree.name}.git')
+            clean_env['GIT_WORK_TREE'] = str(worktree)
+    return command(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'credential.helper=', *args], cwd=cwd, env=clean_env, timeout=timeout)
 
 
 def approvable_issue(issue: dict, main_sha: str):
@@ -125,8 +136,14 @@ def fresh_repository(scope):
     path = ROOT / 'jobs' / f'issue-{scope.issue_number}'
     if path.exists():
         raise RuntimeError('Stale workspace exists; manual inspection required')
+    METADATA_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(METADATA_DIR, 0o700)
+    metadata = METADATA_DIR / f'{path.name}.git'
+    if metadata.exists():
+        raise RuntimeError('Stale private Git metadata exists; manual inspection required')
     path.parent.mkdir(parents=True, exist_ok=True)
-    git('clone', '--depth', '1', '--branch', 'main', '--', f'https://github.com/{REPO}.git', str(path), timeout=150)
+    git('clone', '--depth', '1', '--branch', 'main',
+        f'--separate-git-dir={metadata}', '--', f'https://github.com/{REPO}.git', str(path), timeout=150)
     head = git('rev-parse', 'HEAD', cwd=path)
     if head != scope.base_sha:
         raise ScopeError('Repository main changed between approval and clone')
@@ -172,7 +189,8 @@ def run_codex(scope, path):
     # Output is inside the disposable workspace, and explicitly removed before diff.
     argv = ['codex', 'exec', '--ephemeral', '--ignore-user-config',
             '--sandbox', 'workspace-write', '--ask-for-approval', 'never',
-            '--cd', str(path), '--output-last-message', str(result_file), '-']
+            '--skip-git-repo-check', '--cd', str(path),
+            '--output-last-message', str(result_file), '-']
     def drop():
         os.setgroups([])
         os.setgid(10001)

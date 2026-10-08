@@ -15,7 +15,7 @@ Worker policy gate (one job at a time, no conflicting open PRs,
  base SHA equal main, exact paths, frozen stages excluded)
       ↓
 Isolated Linux agent UID 10001 runs Codex CLI, ChatGPT Plus device-code login,
- workspace-write sandbox; no GitHub PAT in Codex child environment
+ workspace-write sandbox; root-only Git metadata and no GitHub PAT in Codex child environment
       ↓
 Coordinator independently inspects git changes and only commits allowlisted files
       ↓
@@ -49,7 +49,13 @@ PR for a correction that belongs on the existing delivery branch.
 
 ## Required one-time human actions (deferred until deployment)
 
-1. **Dedicated Linux host/VPS** with Docker Engine, Compose plugin, outbound HTTPS and SSH.
+1. **Dedicated Linux host/VPS:** target Hetzner CX33 (4 vCPU, 8 GB RAM,
+   80 GB NVMe), Germany (Falkenstein/Nuremberg), Ubuntu 24.04 LTS x86_64,
+   public IPv4 and SSH-key access. Check availability and exact billing before
+   purchase. OpenAI access must originate from a supported country; **do not
+   use a Russian VPS for the Codex worker**. This is synthetic-only development
+   automation, not the production data host for real children/parents.
+   Install Docker Engine/Compose, allow outbound HTTPS and SSH.
    Keep host updated, use SSH keys, firewall and disk encryption. A dedicated host/VM is
    preferable to sharing the Smart Garden production server. No domain is required for
    the outbound-only pilot. The n8n UI listens on `127.0.0.1:5678`; access it with
@@ -60,11 +66,12 @@ PR for a correction that belongs on the existing delivery branch.
    with Linux owner root and `chmod 600` (not in Git). The app refuses to boot if it is
    readable by another UID. Use a short expiration and rotate regularly.
 3. **ChatGPT Plus login** after first container startup:
-   `docker compose exec -u 10001 codex-worker codex login --device-auth`.
+   `sudo docker compose exec -u 10001 codex-worker codex login --device-auth`.
    Complete the one-time code in the browser **yourself**. Device-code sign-in may need
    enabling in ChatGPT account settings. Check with
-   `docker compose exec -u 10001 codex-worker codex login status`.
+   `sudo docker compose exec -u 10001 codex-worker codex login status`.
    The OAuth cache is retained in isolated Docker volume `codex_home`, never in GitHub.
+   Keep the one-time code, passwords, token files and OAuth cache out of chat.
    Account usage remains subject to Codex plan limits; no separate OpenAI API key.
 4. **Telegram**: create a bot with BotFather, record bot token privately, send `/start`
    to it and obtain the private chat ID. Configure Telegram credentials in n8n and set
@@ -85,33 +92,50 @@ require a real server, account authorization and secret provisioning.
 
 ## Deployment from the repository (no credentials in Git)
 
-From the desired approved version of `main`:
+After this infrastructure PR is independently reviewed and merged, create the
+VPS and use a non-root operator account with SSH-key access. From the VPS:
+
+```bash
+git clone --depth 1 https://github.com/ONN9IX/smart-garden.git
+sudo bash smart-garden/automation/deploy/bootstrap-ubuntu.sh
+cd smart-garden/automation
+bash deploy/init-secrets.sh
+```
+
+This host bootstrap installs Docker but does not change SSH/firewall settings,
+create a GitHub access token or run Codex. Configure the provider firewall to
+allow SSH **only from your own IP**. n8n listens on localhost; access its UI via
+SSH forwarding, not an open Internet port. Docker grants root-equivalent host
+access, so use `sudo docker compose` rather than putting an untrusted account
+in the Docker group. Keep encrypted off-host backups.
+
+From the approved version of `main`:
 
 ```bash
 cd automation
-cp .env.example .env
-mkdir -p secrets
-chmod 700 secrets
-# Place each credential through your own secure password-manager / console flow.
-# Secret generation (32-byte entropy) for internal worker-to-n8n authentication:
+# The .env and worker_key already exist from deploy/init-secrets.sh; inspect them.
+ls -l .env secrets/worker_key
+# Place the GitHub PAT through your own secure password-manager/console flow;
+# do not paste it into chat, workflow JSON, or a shell command's history.
+# Required: root-owned secrets/github_token with mode 600.
 umask 077
-openssl rand -hex 32 > secrets/worker_key
 chmod 600 secrets/worker_key secrets/github_token
-# Fill reviewed pinned N8N_IMAGE, CODEX_VERSION, random N8N_ENCRYPTION_KEY in .env.
-docker compose config --quiet
-docker compose build codex-worker
-docker compose up -d
+# Image versions are pinned, and N8N_ENCRYPTION_KEY was generated locally.
+sudo docker compose config --quiet
+sudo docker compose build codex-worker
+sudo docker compose up -d
 curl -fsS http://127.0.0.1:5678/healthz || true  # n8n path varies by version
 # Probe worker on the private Compose network, without exposing it to the host:
-docker compose exec n8n node -e 'require("http").get("http://codex-worker:8080/healthz",r=>{console.log(r.statusCode);r.resume()})'
+sudo docker compose exec n8n node -e 'require("http").get("http://codex-worker:8080/healthz",r=>{console.log(r.statusCode);r.resume()})'
 ```
 
 **Important:** `docker compose up` cannot authenticate a ChatGPT account. The
 `codex login` command above is required separately. Do not set `START_ENABLED=true`
 in `.env` until validation and an explicit approval decision.
 
-Pin and periodically review n8n/Codex versions; sample environment deliberately uses
-`REPLACE_WITH_REVIEWED_PIN` instead of silently tracking `latest`.
+Pinned deployment candidates as of 2026-10-08: n8n `2.41.7` (stable channel)
+and Codex CLI `0.161.0` (npm stable). Recheck release safety and on-host
+compatibility before activation; updates require a reviewed change, not `latest`.
 
 ## Issue authorization contract (exact syntax)
 
@@ -146,11 +170,11 @@ personal data in Issues or prompts.
 - **First write pilot:** after #196 has finished, use one small Master Chat-approved
   Issue with synthetic-only frontend scope and exact main SHA. Verify single PR,
   write-set enforcement, existing CI, Telegram notification and no automatic merge.
-- **Errors:** `docker compose logs --tail 50 codex-worker`; logs deliberately omit
+- **Errors:** `sudo docker compose logs --tail 50 codex-worker`; logs deliberately omit
   Codex transcripts, HTTP payloads and secrets. Review event messages in Telegram,
   then inspect the Issue/PR in GitHub. Before any retry, verify no orphaned branch/PR.
 - **Stop switch:** set `START_ENABLED=false`, then
-  `docker compose up -d --no-deps --force-recreate codex-worker`. This prevents new
+  `sudo docker compose up -d --no-deps --force-recreate codex-worker`. This prevents new
   work but does **not** interrupt a job already running; if urgent, stop the worker
   container and inspect the workspace before resuming.
 - **Backups:** back up n8n data and the worker state with encryption. OAuth cache and
