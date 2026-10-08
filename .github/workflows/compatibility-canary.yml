@@ -81,6 +81,20 @@ jobs:
           python -c 'import platform, os; actual=platform.python_version(); expected=os.environ["PYTHON_STABLE_CANDIDATE"]+"."; assert actual.startswith(expected), (actual, expected); print("Python", actual)'
           node --version
           docker exec "${{ job.services.postgres.id }}" postgres --version
+      - name: Install PostgreSQL 18 client tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes ca-certificates curl
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc >/dev/null
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-18
+          pg_dump --version | grep -F '18.'
       - name: Install locked backend and validate contracts
         run: |
           python -m pip install --disable-pip-version-check -r backend/requirements.txt
@@ -96,6 +110,26 @@ jobs:
           test "$(alembic heads | wc -l)" -eq 1
           alembic downgrade -1
           alembic upgrade head
+      - name: Verify disposable PostgreSQL 18 backup and recovery
+        working-directory: backend
+        env:
+          PGPASSWORD: smart_garden_local_only
+        run: |
+          seed_output=$(python -m app.services.seed)
+          test -n "$seed_output"
+          unset seed_output
+          recovery_database_url="postgresql+psycopg://smart_garden:smart_garden_local_only@localhost:5432/smart_garden_recovery_compat_18"
+          PGHOST=localhost \
+          PGPORT=5432 \
+          PGUSER=smart_garden \
+          SOURCE_DATABASE=smart_garden \
+          RECOVERY_DATABASE=smart_garden_recovery_compat_18 \
+          DATABASE_URL="$DATABASE_URL" \
+          RECOVERY_DATABASE_URL="$recovery_database_url" \
+          APP_ENV=test \
+          RECOVERY_VERIFICATION_SYNTHETIC=YES \
+          ../scripts/verify-backup-restore.sh
+          unset recovery_database_url
       - name: Sanitized candidate version report
         run: python scripts/version-report.py | tee compatibility-backend.json
       - uses: actions/upload-artifact@v6

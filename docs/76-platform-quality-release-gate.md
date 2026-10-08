@@ -30,7 +30,9 @@ workflow prints and validates exact resolved versions; an unavailable or incompa
 candidate fails visibly. It runs:
 
 - locked backend install, `pip check`, compile/import/OpenAPI and focused security,
-  token-locking and migration tests on PostgreSQL 18;
+  token-locking and migration tests on PostgreSQL 18, followed by a disposable
+  PostgreSQL 18 `pg_dump`/`pg_restore` round trip with synthetic seed data, restored
+  Alembic-head validation and representative integrity checks;
 - npm tree/lint/TypeScript/build/audit on Node 24 LTS and Node 26 Current;
 - a real FastAPI, Next.js and PostgreSQL 18 journey on Chromium, Firefox and WebKit:
   activation, password reset, generic recovery, login/logout and a protected group
@@ -86,10 +88,13 @@ Automation cannot perform the post-merge decision in advance. A green PR is nece
 not sufficient, and does not authorize deployment or claim 152-ФЗ compliance.
 
 The security matrix is deliberately scoped to representative protected management,
-teacher-group and parent-child read operations. It verifies real HTTP responses against
-synthetic PostgreSQL relationships for role, assignment/link, tenant, archive/revocation
-and blocked-account boundaries. It supplements the broader endpoint-specific suite; it
-does not claim that every API operation is covered by one matrix.
+teacher-group and parent-child reads plus real management and teacher attendance writes.
+Its parameterized HTTP cases exercise POST/PATCH and verify persisted PostgreSQL effects
+for authorized DIRECTOR/ADMIN and assigned TEACHER actions, while checking forbidden
+PARENT/TEACHER mutations, foreign-tenant hiding, unassigned-teacher denial, and blocked
+actors. The read matrix additionally covers linked/unlinked parents, archived resources
+and revoked relations. It supplements the broader endpoint-specific suite; it does not
+claim that every API operation is covered by one matrix.
 
 ## Machine-readable report
 

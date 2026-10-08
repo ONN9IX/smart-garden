@@ -10,6 +10,7 @@ from app.core.errors import AppError
 from app.core.permissions import require_role, require_tenant
 from app.core.security import hash_password
 from app.main import app
+from app.models.attendance import Attendance
 from app.models.child import Child
 from app.models.child_guardian import ChildGuardian
 from app.models.employee import Employee
@@ -187,6 +188,18 @@ def security_world(db, users):
     db.add_all([assignment, linked_child, unlinked_child, archived_child, foreign_child])
     db.flush()
 
+    attendance_record = Attendance(
+        organization_id=organization.id,
+        child_id=linked_child.id,
+        group_id=assigned_group.id,
+        date=date(2025, 9, 20),
+        status="unknown",
+        created_by=director.id,
+        updated_by=director.id,
+    )
+    db.add(attendance_record)
+    db.flush()
+
     linked_guardian = Guardian(
         organization_id=organization.id,
         user_id=linked_parent.id,
@@ -228,7 +241,9 @@ def security_world(db, users):
         unlinked_child=unlinked_child,
         archived_child=archived_child,
         foreign_child=foreign_child,
+        linked_guardian=linked_guardian,
         relation=relation,
+        attendance_record=attendance_record,
         missing_id=uuid4(),
     )
 
@@ -324,6 +339,141 @@ def test_real_protected_resource_access_matrix(
         assert response.json()["child"]["id"] == str(world.linked_child.id)
     else:
         assert response.json()["id"] == str(world.assigned_group.id)
+
+
+WRITE_MATRIX = (
+    ("director", "create-group", 201, None),
+    ("admin", "create-group", 201, None),
+    ("assigned_teacher", "create-group", 403, "FORBIDDEN"),
+    ("linked_parent", "create-group", 403, "FORBIDDEN"),
+    ("director", "patch-group", 200, None),
+    ("admin", "patch-guardian", 200, None),
+    ("assigned_teacher", "patch-group", 403, "FORBIDDEN"),
+    ("linked_parent", "patch-group", 403, "FORBIDDEN"),
+    ("director", "patch-foreign-group", 404, "NOT_FOUND"),
+    ("assigned_teacher", "teacher-attendance-post-assigned", 201, None),
+    ("assigned_teacher", "teacher-attendance-patch-assigned", 200, None),
+    ("unassigned_teacher", "teacher-attendance-post-unassigned", 404, "NOT_FOUND"),
+    ("unassigned_teacher", "teacher-attendance-patch-unassigned", 404, "NOT_FOUND"),
+    ("linked_parent", "teacher-attendance-post-assigned", 403, "FORBIDDEN"),
+    ("director", "teacher-attendance-post-assigned", 403, "FORBIDDEN"),
+    ("assigned_teacher", "teacher-attendance-post-blocked", 403, "USER_BLOCKED"),
+)
+
+
+def _perform_matrix_write(client, world, operation: str):
+    if operation == "create-group":
+        return client.post("/api/v1/groups", json={"name": "Матрица новая группа"})
+    if operation == "patch-group":
+        return client.patch(
+            f"/api/v1/groups/{world.assigned_group.id}",
+            json={"name": "Матрица изменённая группа"},
+        )
+    if operation == "patch-guardian":
+        return client.patch(
+            f"/api/v1/guardians/{world.linked_guardian.id}",
+            json={"phone": "+79990000001"},
+        )
+    if operation == "patch-foreign-group":
+        return client.patch(
+            f"/api/v1/groups/{world.foreign_group.id}",
+            json={"name": "Изменение чужого tenant"},
+        )
+    if operation in {
+        "teacher-attendance-post-assigned",
+        "teacher-attendance-post-unassigned",
+        "teacher-attendance-post-blocked",
+    }:
+        child = world.unlinked_child if operation.endswith("unassigned") else world.linked_child
+        return client.post("/api/v1/teacher/attendance", json={
+            "child_id": str(child.id),
+            "date": "2025-09-22",
+            "status": "present",
+        })
+    if operation in {"teacher-attendance-patch-assigned", "teacher-attendance-patch-unassigned"}:
+        record_id = world.attendance_record.id
+        return client.patch(
+            f"/api/v1/teacher/attendance/{record_id}",
+            json={"status": "present"},
+        )
+    raise AssertionError(f"unmapped matrix write operation: {operation}")
+
+
+@pytest.mark.parametrize(
+    ("actor_name", "operation", "expected_status", "expected_code"),
+    WRITE_MATRIX,
+    ids=[f"{role}-{operation}" for role, operation, _, _ in WRITE_MATRIX],
+)
+def test_real_protected_write_action_matrix(
+    client, db, security_world, actor_name, operation, expected_status, expected_code,
+):
+    """Exercise real POST/PATCH authorization and persisted effects in PostgreSQL."""
+    world = security_world
+    actor_user = getattr(world, actor_name)
+    logged_in = client.post("/api/v1/auth/login", json={
+        "username": actor_user.username,
+        "password": TEST_PASSWORD,
+    })
+    assert logged_in.status_code == 200, logged_in.text
+
+    if operation == "teacher-attendance-post-blocked":
+        actor_user.status = "blocked"
+        db.flush()
+
+    before_group_name = world.assigned_group.name
+    before_guardian_phone = world.linked_guardian.phone
+    before_foreign_group_name = world.foreign_group.name
+    before_attendance_status = world.attendance_record.status
+
+    response = _perform_matrix_write(client, world, operation)
+    assert response.status_code == expected_status, response.text
+    if expected_code is not None:
+        assert response.json()["error"]["code"] == expected_code
+        assert "FOREIGN-TENANT-GROUP-SECRET" not in response.text
+        assert "Изменение чужого tenant" not in response.text
+
+    db.refresh(world.assigned_group)
+    db.refresh(world.linked_guardian)
+    db.refresh(world.foreign_group)
+    db.refresh(world.attendance_record)
+
+    if operation == "create-group" and expected_status == 201:
+        created_id = response.json()["id"]
+        created = db.get(Group, created_id)
+        assert created is not None and created.organization_id == actor_user.organization_id
+    elif operation == "create-group":
+        assert db.query(Group).filter_by(
+            organization_id=actor_user.organization_id,
+            name="Матрица новая группа",
+        ).one_or_none() is None
+    else:
+        assert world.assigned_group.name == (
+            "Матрица изменённая группа" if operation == "patch-group" and expected_status == 200
+            else before_group_name
+        )
+
+    assert world.linked_guardian.phone == (
+        "+79990000001" if operation == "patch-guardian" and expected_status == 200
+        else before_guardian_phone
+    )
+    assert world.foreign_group.name == before_foreign_group_name
+    assert world.attendance_record.status == (
+        "present" if operation == "teacher-attendance-patch-assigned" and expected_status == 200
+        else before_attendance_status
+    )
+
+    if operation.startswith("teacher-attendance-post"):
+        child = world.unlinked_child if operation.endswith("unassigned") else world.linked_child
+        created = db.query(Attendance).filter_by(
+            organization_id=actor_user.organization_id,
+            child_id=child.id,
+            date=date(2025, 9, 22),
+        ).one_or_none()
+        if expected_status == 201:
+            assert created is not None and created.status == "present"
+            assert created.created_by == actor_user.id
+        else:
+            assert created is None
 
 
 def test_active_runtime_has_no_stopped_domain_routes():
