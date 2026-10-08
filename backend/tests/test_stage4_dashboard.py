@@ -126,7 +126,7 @@ def test_dashboard_fixed_query_count_timezone_and_access(client, db, users, monk
     finally:
         event.remove(db.bind, "before_cursor_execute", count_selects)
     assert result.date.isoformat() == "2026-09-28"
-    assert len(statements) == 3
+    assert len(statements) == 2
 
     _login(client, admin.username)
     assert client.get(ROOT).status_code == 200
