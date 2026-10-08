@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
@@ -12,7 +12,7 @@ import { userMessage } from "@/lib/api/client";
 
 export function PasswordLinkPage({ purpose }: { purpose: "activation" | "reset" }) {
   const router = useRouter();
-  const token = useRef<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -20,20 +20,22 @@ export function PasswordLinkPage({ purpose }: { purpose: "activation" | "reset" 
   const [error, setError] = useState("");
   useEffect(() => {
     const fragment = new URLSearchParams(window.location.hash.slice(1));
-    token.current = fragment.get("token");
+    const fragmentToken = fragment.get("token");
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    void Promise.resolve().then(() => setReady(true));
-    return () => { token.current = null; };
+    void Promise.resolve().then(() => {
+      setToken(fragmentToken);
+      setReady(true);
+    });
   }, []);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!token.current || busy) { setError("Ссылка недействительна или срок её действия истёк."); return; }
+    if (!token || busy) { setError("Ссылка недействительна или срок её действия истёк."); return; }
     if (password !== confirmation) { setError("Пароли не совпадают."); return; }
     setBusy(true); setError("");
     try {
-      if (purpose === "activation") await authApi.activate(token.current, password);
-      else await authApi.resetPassword(token.current, password);
-      token.current = null;
+      if (purpose === "activation") await authApi.activate(token, password);
+      else await authApi.resetPassword(token, password);
+      setToken(null);
       router.replace("/login");
     } catch (reason) { setError(userMessage(reason)); setBusy(false); }
   }
