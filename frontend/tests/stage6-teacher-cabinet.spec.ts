@@ -56,7 +56,7 @@ test("teacher keeps schedule, communications, announcements, tasks and notificat
   await page.goto("/teacher/communications");
   await expect(page.getByRole("heading", { name: "Сообщения", level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: /Ребёнок Тестовый · Родитель Тестовый/ })).toBeVisible();
-  await expect(page.locator("li span", { hasText: "Сообщение родителя" })).toBeVisible();
+  await expect(page.locator("li > span > span", { hasText: "Сообщение родителя" })).toBeVisible();
   await expect(page.getByText("Родитель Тестовый", { exact: true })).toBeVisible();
 
   const announcement = { id: "00000000-0000-4000-8000-000000000625", target_type: "group", group_id: group.id, group_name: group.name, audience: "parents", title: "Напоминание", body: "Синтетический текст", status: "active", archived_at: null, published_at: "2026-09-30T10:00:00Z", unread: false, recipient_count: 1, can_manage: true };
