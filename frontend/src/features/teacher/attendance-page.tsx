@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { userMessage } from "@/lib/api/client";
+import { ApiError, userMessage } from "@/lib/api/client";
 import { teacherApi } from "@/lib/api/teacher";
 import type { AttendanceRow } from "@/types/teacher";
 import { GroupPicker, styles, TeacherPageFrame, useGroups } from "./shared";
@@ -17,6 +17,7 @@ export function AttendancePage() {
   const { groups, groupId, setGroupId, error: groupError } = useGroups();
   const userChangedDay = useRef(false);
   const requestId = useRef(0);
+  const contextId = useRef(0);
   const inFlight = useRef(new Set<string>());
   const [day, setDay] = useState("");
   const [today, setToday] = useState("");
@@ -44,24 +45,31 @@ export function AttendancePage() {
   }, [day, groupId]);
   useEffect(() => {
     void Promise.resolve().then(load).catch(() => undefined);
-    return () => { requestId.current += 1; };
+    return () => { requestId.current += 1; contextId.current += 1; };
   }, [load]);
   async function action(row: AttendanceRow, kind: "arrival" | "departure" | "absent") {
     const key = row.child.id;
-    const contextRequestAtStart = requestId.current;
+    const contextAtStart = contextId.current;
     if (inFlight.current.has(key)) return;
     if (kind === "absent" && (row.arrival_time || row.departure_time) && !window.confirm("Исправить отметку на «Отсутствует» и очистить сохранённые времена прихода и ухода?")) return;
     inFlight.current.add(key); setBusy((current) => new Set(current).add(key)); setError("");
     try {
       if (kind === "absent") await teacherApi.saveAttendance({ child_id: key, date: day, status: "absent" });
       else await (kind === "arrival" ? teacherApi.markArrival(key) : teacherApi.markDeparture(key));
-      if (requestId.current !== contextRequestAtStart) return;
+      if (contextId.current !== contextAtStart) return;
       await load();
-    } catch (reason) { setError(userMessage(reason)); }
+    } catch (reason) {
+      if (contextId.current !== contextAtStart) return;
+      if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) {
+        requestId.current += 1;
+        setRows([]); setLoading(false);
+      }
+      setError(userMessage(reason));
+    }
     finally { inFlight.current.delete(key); setBusy((current) => { const next = new Set(current); next.delete(key); return next; }); }
   }
   return <TeacherPageFrame title="Посещаемость" eyebrow="Ежедневная отметка">
-    <div className={styles.toolbar}><GroupPicker groups={groups} groupId={groupId} setGroupId={(id) => { requestId.current += 1; setRows([]); setGroupId(id); }} /><label>Дата<input type="date" value={day} onChange={(event) => { userChangedDay.current = true; requestId.current += 1; setRows([]); setDay(event.target.value); }} /></label></div>
+    <div className={styles.toolbar}><GroupPicker groups={groups} groupId={groupId} setGroupId={(id) => { requestId.current += 1; contextId.current += 1; setRows([]); setError(""); setGroupId(id); }} /><label>Дата<input type="date" value={day} onChange={(event) => { userChangedDay.current = true; requestId.current += 1; contextId.current += 1; setRows([]); setError(""); setDay(event.target.value); }} /></label></div>
     {(error || groupError) && <p className={styles.error}>{error || groupError}</p>}
     {loading ? <p className={styles.muted}>Загружаем посещаемость…</p> : <section className={styles.card}><ul className={styles.list}>{rows.map((row) => {
       const state = rowState(row); const isBusy = busy.has(row.child.id);

@@ -72,15 +72,65 @@ test("teacher records arrival and departure inline and renders only confirmed se
   }
 });
 
-test("teacher does not show arrival after a rejected write", async ({ page }) => {
+test("teacher clears attendance after write access is revoked", async ({ page }) => {
   await page.route("**/api/v1/teacher/attendance/arrival", (route) => route.fulfill({
     status: 403, contentType: "application/json", body: JSON.stringify({ error: { code: "FORBIDDEN", message: "Доступ запрещён." } }),
   }));
   await page.goto("/teacher/attendance");
   await page.getByRole("button", { name: "Пришёл" }).click();
-  await expect(page.getByText("Без отметки")).toBeVisible();
   await expect(page.getByText("Действие недоступно для вашей учётной записи.")).toBeVisible();
+  await expect(page.getByText("Тестовый Ребёнок")).toHaveCount(0);
+  await expect(page.getByText("Без отметки")).toHaveCount(0);
   await expect(page.getByText("В саду", { exact: true })).toHaveCount(0);
+});
+
+test("teacher refreshes both children after concurrent arrivals", async ({ page }) => {
+  const rows = [child, childB].map((item) => ({ record_id: null as string | null, date: "2026-09-30", child: item, group, status: "unknown", arrival_time: null as string | null, departure_time: null }));
+  await page.route("**/api/v1/teacher/attendance?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(rows) }));
+  let releaseFirst!: () => void;
+  let releaseSecond!: () => void;
+  let pendingWrites = 0;
+  await page.route("**/api/v1/teacher/attendance/arrival", async (route) => {
+    const index = rows.findIndex((row) => row.child.id === route.request().postDataJSON().child_id);
+    pendingWrites += 1;
+    await new Promise<void>((resolve) => { if (index === 0) releaseFirst = resolve; else releaseSecond = resolve; });
+    rows[index] = { ...rows[index], record_id: rows[index].child.id, status: "present", arrival_time: "08:15:00" };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(rows[index]) });
+  });
+  await page.goto("/teacher/attendance");
+  await expect(page.getByText("Без отметки")).toHaveCount(2);
+  await page.locator("li").filter({ hasText: "Тестовый Ребёнок" }).getByRole("button", { name: "Пришёл" }).click();
+  await page.locator("li").filter({ hasText: "Второй Синтетический" }).getByRole("button", { name: "Пришёл" }).click();
+  await expect.poll(() => pendingWrites).toBe(2);
+  releaseFirst();
+  await expect(page.getByText("В саду", { exact: true })).toHaveCount(1);
+  releaseSecond();
+  await expect(page.getByText("В саду", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("Без отметки")).toHaveCount(0);
+});
+
+test("teacher ignores a late write error after switching group", async ({ page }) => {
+  await page.route("**/api/v1/teacher/groups", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([group, otherGroup]) }));
+  await page.route("**/api/v1/teacher/attendance?**", (route) => {
+    const second = new URL(route.request().url()).searchParams.get("group_id") === otherGroup.id;
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ record_id: null, date: "2026-09-30", child: second ? childB : child, group: second ? otherGroup : group, status: "unknown", arrival_time: null, departure_time: null }]) });
+  });
+  let releaseWrite!: () => void;
+  await page.route("**/api/v1/teacher/attendance/arrival", async (route) => {
+    await new Promise<void>((resolve) => { releaseWrite = resolve; });
+    await route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: { code: "FORBIDDEN" } }) });
+  });
+  await page.goto("/teacher/attendance");
+  await page.getByRole("button", { name: "Пришёл" }).click();
+  await expect.poll(() => Boolean(releaseWrite)).toBe(true);
+  await page.getByLabel("Группа").selectOption(otherGroup.id);
+  await expect(page.getByText("Второй Синтетический")).toBeVisible();
+  const response = page.waitForResponse("**/api/v1/teacher/attendance/arrival");
+  releaseWrite();
+  await response;
+  await expect(page.getByRole("button", { name: "Пришёл" })).toBeEnabled();
+  await expect(page.getByText("Второй Синтетический")).toBeVisible();
+  await expect(page.getByText("Действие недоступно для вашей учётной записи.")).toHaveCount(0);
 });
 
 test("teacher attendance clears and ignores stale rows across group A to B to A", async ({ page }) => {
