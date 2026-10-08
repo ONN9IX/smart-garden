@@ -1,0 +1,154 @@
+{
+  "name": "Smart Garden — gated Codex dispatcher",
+  "nodes": [
+    {
+      "name": "Every 10 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        280
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "every-10-minutes"
+    },
+    {
+      "name": "Private worker tick",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        280
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://codex-worker:8080/tick",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "private-worker-tick"
+    },
+    {
+      "name": "Split events",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        650,
+        280
+      ],
+      "parameters": {
+        "fieldToSplitOut": "events",
+        "options": {}
+      },
+      "id": "split-events"
+    },
+    {
+      "name": "Telegram notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        870,
+        280
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "REPLACE_WITH_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.message + ($json.url ? '\\n' + $json.url : '') }}",
+        "additionalFields": {
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "telegram-notification"
+    },
+    {
+      "name": "Acknowledge event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1090,
+        280
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://codex-worker:8080/ack",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $('Split events').item.json.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "acknowledge-event"
+    }
+  ],
+  "connections": {
+    "Every 10 minutes": {
+      "main": [
+        [
+          {
+            "node": "Private worker tick",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Private worker tick": {
+      "main": [
+        [
+          {
+            "node": "Split events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split events": {
+      "main": [
+        [
+          {
+            "node": "Telegram notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram notification": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
