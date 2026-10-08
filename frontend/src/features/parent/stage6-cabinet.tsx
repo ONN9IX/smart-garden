@@ -153,12 +153,12 @@ function Announcements({ items }: { items: AnnouncementV2[] }) {
     try {
       const detail = await parentStage6Api.v2Announcement(item.id);
       if (requestVersion.current !== request || detail.id !== item.id) return;
-      setOpenedItem(detail);
       if (item.unread && !readIds.includes(item.id)) {
         await parentStage6Api.readV2Announcement(item.id);
         if (requestVersion.current !== request) return;
         setReadIds((current) => current.includes(item.id) ? current : [...current, item.id]);
       }
+      if (requestVersion.current === request) setOpenedItem(detail);
     } catch {
       if (requestVersion.current === request) {
         setOpenedItem(null);

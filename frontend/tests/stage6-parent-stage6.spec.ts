@@ -129,8 +129,8 @@ test("parent removes an opened announcement if its read authorization is revoked
   await page.goto("/parent");
   await page.getByRole("button", { name: "Объявления" }).click();
   await page.getByRole("button", { name: announcement.title }).click();
-  await expect(page.getByText(announcement.body)).toBeVisible();
   await readRequestedPromise;
+  await expect(page.getByText(announcement.body)).toHaveCount(0);
   denyRead();
   await expect(page.getByText("Объявление больше недоступно.")).toBeVisible();
   await expect(page.getByText(announcement.body)).toHaveCount(0);
