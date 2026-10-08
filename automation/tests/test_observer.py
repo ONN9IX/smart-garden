@@ -115,6 +115,10 @@ class ObserverTests(unittest.TestCase):
     def test_git_read_only_workflow_lacks_write_permissions(self):
         wf = (ROOT.parent / '.github/workflows/automation-observer.yml').read_text()
         self.assertIn('schedule:', wf)
+        self.assertIn('workflow_run:', wf)
+        self.assertIn("workflows: ['CI']", wf)
+        self.assertIn('issues:', wf)
+        self.assertIn('types: [opened, edited, labeled, unlabeled, reopened, closed]', wf)
         self.assertIn('workflow_dispatch:', wf)
         self.assertIn("persist-credentials: false", wf)
         self.assertIn("AUTONOMOUS_EXECUTION: 'false'", wf)

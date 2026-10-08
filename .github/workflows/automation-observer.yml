@@ -9,6 +9,12 @@ on:
       - 'automation/**'
       - '.github/workflows/automation-observer.yml'
       - '.github/workflows/automation-policy.yml'
+  # Default-branch triggers only; all use the same read-only permissions.
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+  issues:
+    types: [opened, edited, labeled, unlabeled, reopened, closed]
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:

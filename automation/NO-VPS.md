@@ -8,7 +8,10 @@ PR, не объединяет их, не запускает Codex и не отп
 
 После отдельного решения о merge в `main` GitHub Actions запускает
 `.github/workflows/automation-observer.yml` раз в час (UTC, минутa 17),
-а также по кнопке **Run workflow**. В PR #205 тот же workflow запускается
+по окончании workflow **CI**, при изменении состояния/меток GitHub Issues,
+а также по кнопке **Run workflow**. Запуски по этим событиям работают **только после
+merge workflow в default branch**; наблюдение не публикует комментарии и не
+создаёт PR. В PR #205 тот же workflow запускается
 на изменениях инфраструктуры и выполняет реальное read-only обращение к GitHub.
 
 Используются GitHub-hosted runner и временный `GITHUB_TOKEN` с явными правами
