@@ -4,6 +4,8 @@ pytest_plugins = ("tests.test_stage6_teacher_cabinet",)
 
 from uuid import UUID, uuid4
 
+from sqlalchemy import select
+
 from app.models.announcement_read_state import AnnouncementReadState
 from app.models.audit_event import AuditEvent
 from app.models.communication import (
@@ -14,8 +16,6 @@ from app.models.communication import (
 from app.models.employee import Employee
 from app.models.notification import Notification
 from app.services.teacher import communications as legacy_communications
-from sqlalchemy import select
-
 from tests.test_stage6_teacher_cabinet import _login
 
 
@@ -57,8 +57,9 @@ def test_v2_direct_scope_idempotency_unread_and_revocation(client, db, cabinet_w
     assert collision.status_code == 409
     assert collision.json()["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
 
-    from app.main import app
     from fastapi.testclient import TestClient
+
+    from app.main import app
 
     with TestClient(app) as parent_client:
         assert _login(parent_client, world.parent.username).status_code == 200
@@ -145,8 +146,9 @@ def test_v2_group_visibility_and_announcement_audience_read_receipt(client, db, 
         "audience": "staff",
     }).status_code == 400
 
-    from app.main import app
     from fastapi.testclient import TestClient
+
+    from app.main import app
 
     with TestClient(app) as parent_client:
         assert _login(parent_client, world.parent.username).status_code == 200
@@ -187,8 +189,9 @@ def test_v2_group_channels_are_role_scoped(client, db, cabinet_world):
     db.flush()
     assert client.get(f"/api/v1/teacher-management/communications/v2/threads/{direct.id}/messages").status_code == 404
 
-    from app.main import app
     from fastapi.testclient import TestClient
+
+    from app.main import app
 
     with TestClient(app) as parent_client:
         assert _login(parent_client, world.parent.username).status_code == 200
