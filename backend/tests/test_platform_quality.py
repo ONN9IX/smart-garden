@@ -3,6 +3,7 @@
 from uuid import uuid4
 
 import pytest
+
 from app.core.errors import AppError
 from app.core.permissions import require_role, require_tenant
 from app.main import app
