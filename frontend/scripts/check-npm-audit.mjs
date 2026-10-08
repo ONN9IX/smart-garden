@@ -7,9 +7,10 @@ import assert from "node:assert/strict";
 
 const ALLOWED_ADVISORY_URL = "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm";
 const ALLOWED_PACKAGE = "braces";
+const REVIEWED_NEXT_VERSION = "16.3.8";
 const REVIEWED_CHAIN = [
-  ["eslint-config-next", "16.3.6"],
-  ["@next/eslint-plugin-next", "16.3.6"],
+  ["eslint-config-next", REVIEWED_NEXT_VERSION],
+  ["@next/eslint-plugin-next", REVIEWED_NEXT_VERSION],
   ["fast-glob", "3.3.1"],
   ["micromatch", "4.0.8"],
   ["braces", "3.0.3"],
@@ -34,8 +35,15 @@ export function validateLock(lock) {
       fail(`${name} must not be a root production dependency`);
     }
   }
-  if (root.devDependencies?.["eslint-config-next"] !== "16.3.6") {
-    fail("reviewed root devDependency eslint-config-next@16.3.6 changed");
+  if (root.dependencies?.next !== REVIEWED_NEXT_VERSION) {
+    fail(`reviewed root dependency next@${REVIEWED_NEXT_VERSION} changed`);
+  }
+  const runtimeNext = lock.packages["node_modules/next"];
+  if (!runtimeNext || runtimeNext.version !== REVIEWED_NEXT_VERSION || runtimeNext.dev === true) {
+    fail(`reviewed runtime package next@${REVIEWED_NEXT_VERSION} changed`);
+  }
+  if (root.devDependencies?.["eslint-config-next"] !== REVIEWED_NEXT_VERSION) {
+    fail(`reviewed root devDependency eslint-config-next@${REVIEWED_NEXT_VERSION} changed`);
   }
 
   const entries = new Map();
@@ -47,7 +55,7 @@ export function validateLock(lock) {
   }
 
   const edges = [
-    ["eslint-config-next", "@next/eslint-plugin-next", "16.3.6"],
+    ["eslint-config-next", "@next/eslint-plugin-next", REVIEWED_NEXT_VERSION],
     ["@next/eslint-plugin-next", "fast-glob", "3.3.1"],
     ["fast-glob", "micromatch", "^4.0.4"],
     ["micromatch", "braces", "^3.0.3"],
@@ -120,9 +128,10 @@ function syntheticLock() {
   return {
     lockfileVersion: 3,
     packages: {
-      "": { dependencies: { next: "16.3.6", react: "19.2.4", "react-dom": "19.2.4" }, devDependencies: { "eslint-config-next": "16.3.6" } },
-      "node_modules/eslint-config-next": { version: "16.3.6", dev: true, dependencies: { "@next/eslint-plugin-next": "16.3.6" } },
-      "node_modules/@next/eslint-plugin-next": { version: "16.3.6", dev: true, dependencies: { "fast-glob": "3.3.1" } },
+      "": { dependencies: { next: REVIEWED_NEXT_VERSION, react: "19.2.4", "react-dom": "19.2.4" }, devDependencies: { "eslint-config-next": REVIEWED_NEXT_VERSION } },
+      "node_modules/next": { version: REVIEWED_NEXT_VERSION, dev: false },
+      "node_modules/eslint-config-next": { version: REVIEWED_NEXT_VERSION, dev: true, dependencies: { "@next/eslint-plugin-next": REVIEWED_NEXT_VERSION } },
+      "node_modules/@next/eslint-plugin-next": { version: REVIEWED_NEXT_VERSION, dev: true, dependencies: { "fast-glob": "3.3.1" } },
       "node_modules/fast-glob": { version: "3.3.1", dev: true, dependencies: { micromatch: "^4.0.4" } },
       "node_modules/micromatch": { version: "4.0.8", dev: true, dependencies: { braces: "^3.0.3" } },
       "node_modules/braces": { version: "3.0.3", dev: true, dependencies: { "fill-range": "^7.1.1" } },
@@ -160,6 +169,12 @@ export function runSelfTests() {
   const changedLock = syntheticLock();
   changedLock.packages["node_modules/micromatch"].dependencies.braces = "^4.0.0";
   mustFail(() => validateLock(changedLock));
+  const changedNext = syntheticLock();
+  changedNext.packages["node_modules/next"].version = "16.3.6";
+  mustFail(() => validateLock(changedNext));
+  const changedLintConfig = syntheticLock();
+  changedLintConfig.packages[""].devDependencies["eslint-config-next"] = "16.3.6";
+  mustFail(() => validateLock(changedLintConfig));
   mustFail(() => validateAudit({ error: { summary: "registry unavailable" } }));
   console.log("npm audit exception self-tests passed");
 }

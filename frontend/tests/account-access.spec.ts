@@ -2,15 +2,44 @@ import { expect, test } from "@playwright/test";
 
 const auth = { user: { id: "u1", username: "director", role: "DIRECTOR", status: "active", must_change_password: false }, organization: { id: "o1", name: "Сад" } };
 
-test("login accepts login or email and forgot response stays generic", async ({ page }) => {
+test("forgot-password response stays generic for existing and missing accounts", async ({ page }) => {
   await page.route("**/api/v1/auth/me", (route) => route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { code: "UNAUTHORIZED", message: "", field: null } }) }));
-  await page.route("**/api/v1/auth/forgot-password", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Если аккаунт найден и для него доступно восстановление, мы отправили ссылку на email." }) }));
   await page.goto("/login");
   await expect(page.getByLabel("Логин или email")).toBeVisible();
   await page.getByRole("link", { name: "Забыли пароль?" }).click();
+  const generic = "Если аккаунт найден и для него доступно восстановление, мы отправили ссылку на email.";
+  const submitIdentifier = async (identifier: string) => {
+    await page.getByLabel("Логин или email").fill(identifier);
+    const responsePromise = page.waitForResponse(
+      (response) => response.url().endsWith("/api/v1/auth/forgot-password") && response.request().method() === "POST",
+      { timeout: 5000 },
+    );
+    await page.getByRole("button", { name: "Отправить ссылку" }).click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+    const body = await response.json() as { message: string };
+    await expect(page.getByText(generic, { exact: true })).toBeVisible();
+    expect(body.message).toBe(generic);
+    return body.message;
+  };
+
+  const existingAccountMessage = await submitIdentifier("director-demo");
+  await page.goto("/forgot-password");
+  const missingAccountMessage = await submitIdentifier("unknown@example.test");
+  expect(missingAccountMessage).toBe(existingAccountMessage);
+});
+
+test("forgot-password rejected request shows a safe error without an unhandled rejection", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("**/api/v1/auth/me", (route) => route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { code: "UNAUTHORIZED", message: "", field: null } }) }));
+  await page.route("**/api/v1/auth/forgot-password", (route) => route.abort("failed"));
+  await page.goto("/forgot-password");
   await page.getByLabel("Логин или email").fill("unknown@example.test");
   await page.getByRole("button", { name: "Отправить ссылку" }).click();
-  await expect(page.getByText("Если аккаунт найден и для него доступно восстановление, мы отправили ссылку на email.")).toBeVisible();
+  await expect(page.getByText("Не удалось отправить запрос. Проверьте подключение и попробуйте ещё раз.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Если аккаунт найден и для него доступно восстановление, мы отправили ссылку на email.", { exact: true })).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
 });
 
 for (const [path, heading, endpoint] of [
