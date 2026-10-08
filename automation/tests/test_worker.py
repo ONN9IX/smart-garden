@@ -72,6 +72,13 @@ class WorkerTests(unittest.TestCase):
             secret.assert_not_called()
             network.assert_not_called()
 
+    def test_direct_oracle_runbook_is_explicitly_retired(self):
+        root = Path(__file__).resolve().parents[1]
+        text = (root / 'deploy/oracle-always-free.md').read_text()
+        self.assertIn('OBSOLETE — NOT AN OPERATOR RUNBOOK', text.split('\n\n', 1)[0])
+        self.assertIn('preserve historical design only', text)
+        self.assertIn('../NO-VPS.md', text)
+
     def test_ci_requires_all_checks(self):
         good = [{'name': n, 'status': 'completed', 'conclusion': 'success'}
                 for n in worker.EXPECTED_CI]

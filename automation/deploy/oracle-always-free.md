@@ -1,3 +1,12 @@
+> **OBSOLETE — NOT AN OPERATOR RUNBOOK (PR #205 remediation).**
+> Issue #204 selects no-VPS, read-only GitHub Actions observation. The legacy
+> executor has been retired in code; its image contains no Codex CLI and mounts
+> no OAuth cache. Do not provision Oracle resources or run any installation,
+> `codex --version`, `codex login`, or activation command below. These sections
+> preserve historical design only and do not describe a working deployment.
+> Use [the current no-VPS instructions](../NO-VPS.md) instead. Existing private
+> Codex Cloud environments are separate and are not changed by this retirement.
+
 # Oracle Cloud Always Free — ARM64 deployment runbook (2026-10-08)
 
 **Scope:** a stand-alone automation **development** host for Smart Garden using **synthetic-only** data. This does not host kindergarten production or identifiable children/parent records and does not establish Russian 152-FZ compliance. **This is a deployment plan, not a provisioned server.**
