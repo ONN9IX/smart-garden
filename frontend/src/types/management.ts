@@ -10,8 +10,11 @@ export type ManagementTodayGroup = {
   group_name: string;
   active_children: number;
   present: number;
+  on_site: number;
+  departed: number;
   absent: number;
   unknown: number;
+  needs_arrival: number;
   has_active_teacher: boolean;
   has_active_weekly_schedule: boolean;
 };
@@ -20,8 +23,11 @@ export type ManagementToday = {
   date: string;
   active_children: number;
   present: number;
+  on_site: number;
+  departed: number;
   absent: number;
   unknown: number;
+  needs_arrival: number;
   active_groups: number;
   active_employees: number;
   groups_without_active_teacher_assignment: number;

@@ -57,15 +57,15 @@ async function mockCabinet(page: Page, role: "DIRECTOR" | "ADMIN") {
       organization: { id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", name: "Синтетический сад" },
     });
     if (path.endsWith("/dashboard/summary")) return reply(route, {
-      date: "2026-10-01", active_children: 1, present: 1, absent: 0, unknown: 0,
+      date: "2026-10-01", active_children: 1, present: 1, on_site: 0, departed: 1, absent: 0, unknown: 0, needs_arrival: 0,
       active_groups: 1, active_employees: 1,
-      groups: [{ id: groupId, name: "Солнышко", active_children: 1, present: 1, absent: 0, unknown: 0 }],
+      groups: [{ id: groupId, name: "Солнышко", active_children: 1, present: 1, on_site: 0, departed: 1, absent: 0, unknown: 0, needs_arrival: 0 }],
     });
     if (path.endsWith("/management/today")) return reply(route, {
-      date: "2026-10-01", active_children: 1, present: 1, absent: 0, unknown: 0,
+      date: "2026-10-01", active_children: 1, present: 1, on_site: 0, departed: 1, absent: 0, unknown: 0, needs_arrival: 0,
       active_groups: 1, active_employees: 1, groups_without_active_teacher_assignment: 0,
       open_tasks: 1, overdue_tasks: 0, open_incidents: 1, unread_notifications: 1,
-      groups: [{ group_id: groupId, group_name: "Солнышко", active_children: 1, present: 1, absent: 0, unknown: 0, has_active_teacher: true, has_active_weekly_schedule: true }],
+      groups: [{ group_id: groupId, group_name: "Солнышко", active_children: 1, present: 1, on_site: 0, departed: 1, absent: 0, unknown: 0, needs_arrival: 0, has_active_teacher: true, has_active_weekly_schedule: true }],
       attention_items: [{ kind: "notifications_unread", entity_type: "notification", entity_id: notificationId, count: 1 }],
     });
     if (path.endsWith("/groups")) return reply(route, { items: [group()] });
@@ -156,6 +156,8 @@ test("DIRECTOR can traverse the complete Stage 6 management cabinet", async ({ p
 
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Требует внимания" })).toBeVisible();
+  await expect(page.getByText("Ушли", { exact: true })).toBeVisible();
+  await expect(page.getByText("1", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Задачи сада", { exact: true })).toBeVisible();
 
   await page.goto("/teachers");
@@ -163,7 +165,7 @@ test("DIRECTOR can traverse the complete Stage 6 management cabinet", async ({ p
   await expect(page.getByRole("button", { name: "Назначить" })).toBeVisible();
 
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
-  for (const viewport of [{ width: 1280, height: 900 }, { width: 768, height: 900 }, { width: 390, height: 844 }]) {
+  for (const viewport of [{ width: 1280, height: 900 }, { width: 768, height: 900 }, { width: 320, height: 780 }, { width: 360, height: 800 }, { width: 390, height: 844 }, { width: 430, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto("/notifications");
     await expectNoOverflow(page);

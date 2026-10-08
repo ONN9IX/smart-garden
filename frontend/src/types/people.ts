@@ -26,8 +26,11 @@ export type GroupProfile = {
   local_date: string;
   active_children: number;
   present: number;
+  on_site: number;
+  departed: number;
   absent: number;
   unknown: number;
+  needs_arrival: number;
   active_teacher_count: number;
   parent_count: number;
   active_schedule_count: number;
@@ -36,6 +39,7 @@ export type GroupProfile = {
   children: Array<{
     id: string; first_name: string; last_name: string; middle_name: string | null;
     status: RecordStatus; today_attendance: "present" | "absent" | "unknown" | null;
+    arrival_time: string | null; departure_time: string | null;
     active_guardian_count: number;
   }>;
   employees: Array<{
@@ -54,8 +58,11 @@ export type GroupOverview = {
   group: Group;
   active_children: number;
   present: number;
+  on_site: number;
+  departed: number;
   absent: number;
   unknown: number;
+  needs_arrival: number;
   active_teacher_names: string[];
   has_active_weekly_schedule: boolean;
   open_tasks: number;

@@ -18,7 +18,7 @@ function attentionText(item: ManagementAttentionItem, today: ManagementToday) {
   const group = today.groups.find((candidate) => candidate.group_id === item.entity_id);
   switch (item.kind) {
     case "attendance_missing":
-      return `${group?.group_name ?? "Группа"}: не отмечено ${item.count ?? 0} детей`;
+      return `${group?.group_name ?? "Группа"}: без отметки ${group?.unknown ?? item.count ?? 0}, уточнить приход ${group?.needs_arrival ?? 0}`;
     case "group_without_teacher":
       return `${group?.group_name ?? "Группа"}: нет активного воспитателя`;
     case "tasks_overdue":
@@ -42,9 +42,11 @@ function attentionHref(item: ManagementAttentionItem) {
 }
 
 const metricCards = [
-  { key: "present", label: "В саду", href: "/attendance", tone: "mint" },
+  { key: "on_site", label: "В саду", href: "/attendance", tone: "mint" },
+  { key: "departed", label: "Ушли", href: "/attendance", tone: "blue" },
   { key: "absent", label: "Отсутствуют", href: "/attendance", tone: "blue" },
-  { key: "unknown", label: "Не отмечены", href: "/attendance", tone: "amber" },
+  { key: "unknown", label: "Без отметки", href: "/attendance", tone: "amber" },
+  { key: "needs_arrival", label: "Уточнить приход", href: "/attendance", tone: "orange" },
   { key: "active_groups", label: "Активные группы", href: "/groups", tone: "violet" },
   { key: "groups_without_active_teacher_assignment", label: "Без воспитателя", href: "/groups", tone: "rose" },
   { key: "overdue_tasks", label: "Просроченные задачи", href: "/tasks", tone: "orange" },
@@ -88,6 +90,7 @@ export function ManagementTodayPanel() {
         <small>Открыть раздел <span aria-hidden="true">↗</span></small>
       </Link>)}
     </section>
+    <p className="muted">Посещали сегодня: {today.present}</p>
 
     <div className="today-main-grid">
       <section className="today-groups" aria-labelledby="today-groups-heading">
@@ -100,9 +103,11 @@ export function ManagementTodayPanel() {
             <div className="today-group-title"><Link href={`/groups/${group.group_id}`}>{group.group_name}</Link>
               <span>{group.active_children} {group.active_children === 1 ? "ребёнок" : "детей"}</span></div>
             <dl className="today-group-counts">
-              <div><dt>В саду</dt><dd>{group.present}</dd></div>
+              <div><dt>В саду</dt><dd>{group.on_site}</dd></div>
+              <div><dt>Ушли</dt><dd>{group.departed}</dd></div>
               <div><dt>Отсутствуют</dt><dd>{group.absent}</dd></div>
-              <div><dt>Не отмечены</dt><dd>{group.unknown}</dd></div>
+              <div><dt>Без отметки</dt><dd>{group.unknown}</dd></div>
+              {group.needs_arrival > 0 && <div><dt>Уточнить приход</dt><dd>{group.needs_arrival}</dd></div>}
             </dl>
             <div className="today-group-status">
               <span className={group.has_active_teacher ? "state-good" : "state-missing"}>

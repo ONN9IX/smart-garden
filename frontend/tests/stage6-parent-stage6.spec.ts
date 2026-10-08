@@ -56,7 +56,7 @@ test("parent sees daily child overview and only enabled modules", async ({ page 
   await expect(page.getByRole("button", { name: "Сегодня" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("heading", { name: "Группа Ромашка" })).toBeVisible();
   await expect(page.getByText("Ежедневная информация")).toBeVisible();
-  await expect(page.getByText("В детском саду")).toBeVisible();
+  await expect(page.getByText("В саду")).toBeVisible();
   await expect(page.getByText("Приход: 08:15")).toBeVisible();
   await expect(page.getByText("Музыка")).toBeVisible();
   for (const label of ["Дневник", "Опросы", "Фото"]) {
@@ -69,6 +69,58 @@ test("parent sees daily child overview and only enabled modules", async ({ page 
   await expect(page.getByText("Синтетический текст")).toBeVisible();
   await expect.poll(() => readAnnouncementIds).toEqual([announcement.id]);
   await expect(page.getByRole("button", { name: "Сообщения" })).toBeVisible();
+});
+
+test("parent child switch clears the previous attendance context and ignores late responses", async ({ page }) => {
+  await page.route("**/api/v1/parent/children", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([child, childB]) }));
+  let releaseA!: () => void;
+  let aRequested!: () => void;
+  const requestedA = new Promise<void>((resolve) => { aRequested = resolve; });
+  await page.route(`**/api/v1/parent/children/${child.id}/today`, async (route) => {
+    aRequested();
+    await new Promise<void>((resolve) => { releaseA = resolve; });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      date: "2026-09-30", child, group: { id: groupId, name: "Старая группа" },
+      attendance: { status: "present", arrival_time: "08:10:00", departure_time: null }, schedule: [],
+    }) });
+  });
+  await page.route(`**/api/v1/parent/children/${childB.id}/today`, (route) => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({ date: "2026-09-30", child: childB,
+      group: { id: groupBId, name: "Новая группа" }, attendance: { status: "absent", arrival_time: null, departure_time: null }, schedule: [] }),
+  }));
+  await page.setViewportSize({ width: 320, height: 820 });
+  await page.goto("/parent");
+  await requestedA;
+  await page.getByLabel("Ребёнок").selectOption(childB.id);
+  await expect(page.getByRole("heading", { name: "Группа Новая группа" })).toBeVisible();
+  await expect(page.getByText("Отсутствует")).toBeVisible();
+  releaseA();
+  await expect(page.getByText("Старая группа")).toHaveCount(0);
+  await expect(page.getByText("Приход: 08:10")).toHaveCount(0);
+  for (const width of [320, 360, 390, 430]) {
+    await page.setViewportSize({ width, height: 820 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
+test("parent sees departed attendance and the server's arrival and departure times", async ({ page }) => {
+  await page.route(`**/api/v1/parent/children/${child.id}/today`, (route) => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({ date: "2026-09-30", child,
+      group: { id: groupId, name: "Ромашка" }, attendance: { status: "present", arrival_time: "08:15:00", departure_time: "16:40:00" }, schedule: [] }),
+  }));
+  await page.goto("/parent");
+  await expect(page.getByText("Ушёл", { exact: true })).toBeVisible();
+  await expect(page.getByText("Приход: 08:15 · Уход: 16:40")).toBeVisible();
+});
+
+test("parent clears attendance details when ChildGuardian access is revoked", async ({ page }) => {
+  await page.route(`**/api/v1/parent/children/${child.id}/today`, (route) => route.fulfill({
+    status: 403, contentType: "application/json", body: JSON.stringify({ error: { code: "FORBIDDEN", message: "Доступ запрещён." } }),
+  }));
+  await page.goto("/parent");
+  await expect(page.getByText("Доступ запрещён.")).toBeVisible();
+  await expect(page.getByText("Приход: 08:15")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Группа Ромашка" })).toHaveCount(0);
 });
 
 test("parent hides stale announcement list content when detail access is revoked", async ({ page }) => {

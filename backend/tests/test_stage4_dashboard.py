@@ -92,15 +92,17 @@ def test_dashboard_counters_current_group_unknowns_and_no_audit(client, db, user
     payload = response.json()
     assert payload["date"] == "2026-09-29"
     assert {key: payload[key] for key in (
-        "active_children", "present", "absent", "unknown", "active_groups", "active_employees",
+        "active_children", "present", "on_site", "departed", "absent", "unknown", "needs_arrival", "active_groups", "active_employees",
     )} == {
-        "active_children": 4, "present": 1, "absent": 1, "unknown": 2,
+        "active_children": 4, "present": 1, "on_site": 0, "departed": 0, "absent": 0, "unknown": 3, "needs_arrival": 1,
         "active_groups": 2, "active_employees": 1,
     }
     rows = {row["name"]: row for row in payload["groups"]}
-    assert (rows["Альфа"]["active_children"], rows["Альфа"]["present"], rows["Альфа"]["absent"], rows["Альфа"]["unknown"]) == (2, 1, 0, 1)
-    assert (rows["Бета"]["active_children"], rows["Бета"]["present"], rows["Бета"]["absent"], rows["Бета"]["unknown"]) == (2, 0, 1, 1)
-    assert all(payload[key] == sum(row[key] for row in payload["groups"]) for key in ("active_children", "present", "absent", "unknown"))
+    assert (rows["Альфа"]["active_children"], rows["Альфа"]["present"], rows["Альфа"]["unknown"], rows["Альфа"]["needs_arrival"]) == (2, 1, 1, 1)
+    assert (rows["Бета"]["active_children"], rows["Бета"]["present"], rows["Бета"]["absent"], rows["Бета"]["unknown"]) == (2, 0, 0, 2)
+    fields = ("active_children", "present", "on_site", "departed", "absent", "unknown", "needs_arrival")
+    assert all(payload[key] == sum(row[key] for row in payload["groups"]) for key in fields)
+    assert payload["active_children"] == sum(payload[key] for key in ("on_site", "departed", "absent", "unknown", "needs_arrival"))
     db.expire_all()
     assert len(list(db.scalars(select(AuditEvent).where(AuditEvent.organization_id == organization.id)))) == audit_before
 
@@ -124,7 +126,7 @@ def test_dashboard_fixed_query_count_timezone_and_access(client, db, users, monk
     finally:
         event.remove(db.bind, "before_cursor_execute", count_selects)
     assert result.date.isoformat() == "2026-09-28"
-    assert len(statements) == 2
+    assert len(statements) == 3
 
     _login(client, admin.username)
     assert client.get(ROOT).status_code == 200
@@ -144,3 +146,41 @@ def test_dashboard_fixed_query_count_timezone_and_access(client, db, users, monk
     assert client.get(ROOT).status_code == 403
     with TestClient(app) as anonymous:
         assert anonymous.get(ROOT).status_code == 401
+
+
+def test_dashboard_five_exclusive_attendance_states_and_present_compatibility(client, db, users, monkeypatch):
+    _freeze_utc(monkeypatch)
+    organization, _, director, _ = users
+    director.must_change_password = False
+    group = Group(organization_id=organization.id, name="Состояния", status="active")
+    db.add(group)
+    db.flush()
+    children = [Child(
+        organization_id=organization.id, group_id=group.id, first_name=f"Ребёнок{i}",
+        last_name="Синтетический", birth_date=date(2020, 1, 1), status="active",
+    ) for i in range(6)]
+    db.add_all(children)
+    db.flush()
+    day = date(2026, 9, 29)
+    records = [
+        Attendance(organization_id=organization.id, child_id=children[1].id, group_id=group.id,
+                   date=day, status="unknown", created_by=director.id, updated_by=director.id),
+        Attendance(organization_id=organization.id, child_id=children[2].id, group_id=group.id,
+                   date=day, status="absent", created_by=director.id, updated_by=director.id),
+        Attendance(organization_id=organization.id, child_id=children[3].id, group_id=group.id,
+                   date=day, status="present", created_by=director.id, updated_by=director.id),
+        Attendance(organization_id=organization.id, child_id=children[4].id, group_id=group.id,
+                   date=day, status="present", arrival_time=datetime.strptime("08:20", "%H:%M").time(),
+                   created_by=director.id, updated_by=director.id),
+        Attendance(organization_id=organization.id, child_id=children[5].id, group_id=group.id,
+                   date=day, status="present", arrival_time=datetime.strptime("08:25", "%H:%M").time(),
+                   departure_time=datetime.strptime("16:10", "%H:%M").time(), created_by=director.id, updated_by=director.id),
+    ]
+    db.add_all(records)
+    db.commit()
+    _login(client, director.username)
+    payload = client.get(ROOT).json()
+    assert {key: payload[key] for key in ("active_children", "present", "on_site", "departed", "absent", "unknown", "needs_arrival")} == {
+        "active_children": 6, "present": 3, "on_site": 1, "departed": 1,
+        "absent": 1, "unknown": 2, "needs_arrival": 1,
+    }

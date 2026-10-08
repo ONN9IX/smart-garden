@@ -27,10 +27,10 @@ async function mockApi(page: Page) {
     if (path.endsWith("/management/families") && request.method() === "POST") { familyPosts += 1; return reply(route, child, 201); }
     if (path.endsWith("/management/groups/overview")) {
       groupOverviewGets += 1;
-      return reply(route, { items: [{ group, active_children: 2, present: 1, absent: 0, unknown: 1, active_teacher_names: [], has_active_weekly_schedule: false, open_tasks: 1, overdue_tasks: 1 }] });
+      return reply(route, { items: [{ group, active_children: 2, present: 1, on_site: 0, departed: 1, absent: 0, unknown: 1, needs_arrival: 0, active_teacher_names: [], has_active_weekly_schedule: false, open_tasks: 1, overdue_tasks: 1 }] });
     }
     if (path.endsWith("/management/groups/" + groupId + "/profile")) return reply(route, {
-      group, local_date: "2026-10-07", active_children: 2, present: 1, absent: 0, unknown: 1,
+      group, local_date: "2026-10-07", active_children: 2, present: 1, on_site: 0, departed: 1, absent: 0, unknown: 1, needs_arrival: 0,
       active_teacher_count: 0, parent_count: 1, active_schedule_count: 0, open_tasks: 1, overdue_tasks: 1,
       children: [{ id: childId, first_name: "Синтетический", last_name: "Ребёнок", middle_name: null, status: "active", today_attendance: "unknown", active_guardian_count: 1 }], employees: [],
       parents: [], schedule: [],

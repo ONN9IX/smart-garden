@@ -77,6 +77,6 @@ export type PhotoAsset = {
 };
 export type Today = {
   date: string; groups: GroupSummary[]; schedule: ScheduleItem[];
-  attendance: { group_id: string; present: number; absent: number; unknown: number }[];
+  attendance: { group_id: string; active_children: number; present: number; on_site: number; departed: number; absent: number; unknown: number; needs_arrival: number }[];
   tasks: TeacherTask[]; notifications: Notification[]; unread_communication_count: number;
 };

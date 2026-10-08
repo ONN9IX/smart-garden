@@ -349,8 +349,11 @@ class PhotoResponse(BaseModel):
 class AttendanceSummary(BaseModel):
     group_id: UUID
     present: int
+    on_site: int
+    departed: int
     absent: int
     unknown: int
+    needs_arrival: int
 
 
 class TodayResponse(BaseModel):

@@ -4,13 +4,14 @@ import { expect, test } from "@playwright/test";
 const group = { id: "00000000-0000-4000-8000-000000000611", name: "Ромашка" };
 const otherGroup = { id: "00000000-0000-4000-8000-000000000651", name: "Солнышко" };
 const child = { id: "00000000-0000-4000-8000-000000000612", first_name: "Тестовый", last_name: "Ребёнок", middle_name: null, status: "active" };
+const childB = { id: "00000000-0000-4000-8000-000000000652", first_name: "Второй", last_name: "Синтетический", middle_name: null, status: "active" };
 const guardian = { id: "00000000-0000-4000-8000-000000000613", child_id: child.id, first_name: "Тестовый", last_name: "Родитель", middle_name: null, relation_type: "mother", phone: "+70000000000", email: null, can_message: true };
 const thread = { id: "00000000-0000-4000-8000-000000000615", thread_type: "direct", group_id: group.id, audience: "all", child_id: child.id, guardian_id: guardian.id, created_at: "2026-09-30T09:00:00Z" };
 const teacher = { user: { id: "00000000-0000-4000-8000-000000000601", username: "teacher-demo", role: "TEACHER", status: "active", must_change_password: false }, organization: { id: "00000000-0000-4000-8000-000000000600", name: "Синтетический сад" } };
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/auth/me", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(teacher) }));
-  await page.route("**/api/v1/teacher/today", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ date: "2026-09-30", groups: [group], schedule: [], attendance: [{ group_id: group.id, present: 1, absent: 0, unknown: 0 }], tasks: [], notifications: [], unread_communication_count: 1 }) }));
+  await page.route("**/api/v1/teacher/today", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ date: "2026-09-30", groups: [group], schedule: [], attendance: [{ group_id: group.id, active_children: 1, present: 1, on_site: 0, departed: 1, absent: 0, unknown: 0, needs_arrival: 0 }], tasks: [], notifications: [], unread_communication_count: 1 }) }));
   await page.route("**/api/v1/teacher/groups", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([group]) }));
   await page.route(`**/api/v1/teacher/groups/${group.id}/children`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([child]) }));
   await page.route(`**/api/v1/teacher/groups/${group.id}/guardians`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([guardian]) }));
@@ -27,6 +28,7 @@ test("teacher completes daily flow and sees only enabled modules", async ({ page
   await page.goto("/teacher");
   await expect(page.getByRole("heading", { name: "Кабинет воспитателя" })).toBeVisible();
   await expect(page.getByLabel("ПРОМАКС — главная")).toBeVisible();
+  await expect(page.getByText(/Ушли: 1/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole("link", { name: "Мои группы", exact: true }).click();
   await expect(page.getByText("Тестовый Ребёнок")).toBeVisible();
@@ -43,6 +45,75 @@ test("teacher completes daily flow and sees only enabled modules", async ({ page
     await expect(page.getByRole("link", { name: label })).toHaveCount(0);
   }
   await expect(page.getByText("Документы к ознакомлению")).toHaveCount(0);
+});
+
+test("teacher records arrival and departure inline and renders only confirmed server state", async ({ page }) => {
+  let row = { record_id: null as string | null, date: "2026-09-30", child, group, status: "unknown", arrival_time: null as string | null, departure_time: null as string | null };
+  await page.route("**/api/v1/teacher/attendance?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([row]) }));
+  await page.route("**/api/v1/teacher/attendance/arrival", async (route) => {
+    row = { ...row, record_id: "00000000-0000-4000-8000-000000000614", status: "present", arrival_time: "08:15:00" };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(row) });
+  });
+  await page.route("**/api/v1/teacher/attendance/departure", async (route) => {
+    row = { ...row, departure_time: "17:05:00" };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(row) });
+  });
+  await page.goto("/teacher/attendance");
+  await expect(page.getByText("Без отметки")).toBeVisible();
+  await page.getByRole("button", { name: "Пришёл" }).click();
+  await expect(page.getByText("В саду")).toBeVisible();
+  await expect(page.getByText("Пришёл: 08:15")).toBeVisible();
+  await page.getByRole("button", { name: "Ушёл" }).click();
+  await expect(page.getByText("Ушёл", { exact: true })).toBeVisible();
+  await expect(page.getByText("Пришёл: 08:15 · Ушёл: 17:05")).toBeVisible();
+  for (const width of [320, 360, 390, 430]) {
+    await page.setViewportSize({ width, height: 820 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
+test("teacher does not show arrival after a rejected write", async ({ page }) => {
+  await page.route("**/api/v1/teacher/attendance/arrival", (route) => route.fulfill({
+    status: 403, contentType: "application/json", body: JSON.stringify({ error: { code: "FORBIDDEN", message: "Доступ запрещён." } }),
+  }));
+  await page.goto("/teacher/attendance");
+  await page.getByRole("button", { name: "Пришёл" }).click();
+  await expect(page.getByText("Без отметки")).toBeVisible();
+  await expect(page.getByText("Доступ запрещён.")).toBeVisible();
+  await expect(page.getByText("В саду", { exact: true })).toHaveCount(0);
+});
+
+test("teacher attendance clears and ignores stale rows across group A to B to A", async ({ page }) => {
+  await page.route("**/api/v1/teacher/groups", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([group, otherGroup]) }));
+  let groupACalls = 0;
+  let releaseFirstA!: () => void;
+  let markFirstA!: () => void;
+  const firstARequested = new Promise<void>((resolve) => { markFirstA = resolve; });
+  await page.route("**/api/v1/teacher/attendance?**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("group_id") === group.id) {
+      groupACalls += 1;
+      if (groupACalls === 1) {
+        markFirstA();
+        await new Promise<void>((resolve) => { releaseFirstA = resolve; });
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ record_id: null, date: "2026-09-30", child, group, status: "absent", arrival_time: null, departure_time: null }]) });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ record_id: null, date: "2026-09-30", child: childB, group, status: "unknown", arrival_time: null, departure_time: null }]) });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ record_id: null, date: "2026-09-30", child: childB, group: otherGroup, status: "present", arrival_time: "08:30:00", departure_time: null }]) });
+  });
+  await page.setViewportSize({ width: 360, height: 820 });
+  await page.goto("/teacher/attendance");
+  await firstARequested;
+  await page.getByLabel("Группа").selectOption(otherGroup.id);
+  await expect(page.getByText("Второй Синтетический")).toBeVisible();
+  await expect(page.getByText("Тестовый Ребёнок")).toHaveCount(0);
+  await page.getByLabel("Группа").selectOption(group.id);
+  await expect(page.getByText("Без отметки")).toBeVisible();
+  releaseFirstA();
+  await expect(page.getByText("Отсутствует", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Второй Синтетический")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test("teacher keeps schedule, communications, announcements, tasks and notifications", async ({ page }) => {
