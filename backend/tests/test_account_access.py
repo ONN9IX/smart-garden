@@ -1,7 +1,7 @@
 """Delivery C secure account access integration coverage."""
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import date, timedelta
 from threading import Barrier
 
 import pytest
@@ -12,7 +12,10 @@ from app.core.security import hash_password, verify_password
 from app.db.session import SessionLocal
 from app.models.account_access_token import AccountAccessToken
 from app.models.auth_session import AuthSession
+from app.models.child import Child
+from app.models.child_guardian import ChildGuardian
 from app.models.employee import Employee
+from app.models.group import Group
 from app.models.guardian import Guardian
 from app.models.organization import Organization
 from app.models.user import User
@@ -196,3 +199,53 @@ def test_competing_token_replacements_leave_only_newest_effective(migrations):
             cleanup.execute(delete(User).where(User.id == user_id))
             cleanup.execute(delete(Organization).where(Organization.id == organization_id))
             cleanup.commit()
+
+
+def test_bulk_parent_delivery_failure_keeps_independent_commits(client, db, users, monkeypatch):
+    class FailSecondSender:
+        def __init__(self):
+            self.calls = 0
+
+        def send(self, **_message):
+            self.calls += 1
+            if self.calls == 2:
+                raise OSError("synthetic provider unavailable")
+
+    sender = FailSecondSender()
+    monkeypatch.setattr(email_delivery, "get_email_sender", lambda: sender)
+    _director(client, users)
+    group = Group(organization_id=users[0].id, name=f"Bulk {users[0].id}", status="active")
+    db.add(group); db.flush()
+    child = Child(
+        organization_id=users[0].id, group_id=group.id, first_name="Синтетический",
+        last_name="Ребёнок", birth_date=date(2020, 1, 1), status="active",
+    )
+    db.add(child); db.flush()
+    guardians = [
+        Guardian(
+            organization_id=users[0].id, first_name=f"Родитель {index}", last_name="Тест",
+            email=f"bulk-{index}@example.test", status="active",
+        )
+        for index in (1, 2)
+    ]
+    db.add_all(guardians); db.flush()
+    db.add_all([
+        ChildGuardian(
+            organization_id=users[0].id, child_id=child.id, guardian_id=guardian.id,
+            relation_type="legal_guardian", status="active",
+        )
+        for guardian in guardians
+    ])
+    db.flush()
+
+    response = client.post("/api/v1/access-accounts/parents/bulk-invite", json={
+        "guardian_ids": [str(guardian.id) for guardian in guardians], "confirm": True,
+    })
+    assert response.status_code == 200
+    assert [item["result"] for item in response.json()["results"]] == ["sent", "failed"]
+    assert sender.calls == 2
+    assert all(guardian.user_id is not None for guardian in guardians)
+    statuses = [db.scalar(select(AccountAccessToken.delivery_status).where(
+        AccountAccessToken.guardian_id == guardian.id,
+    )) for guardian in guardians]
+    assert statuses == ["sent", "failed"]

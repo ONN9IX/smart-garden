@@ -40,6 +40,10 @@
 - Stage 6 includes complete DIRECTOR/ADMIN/TEACHER/PARENT foundations and the current product-module gate.
 - Current migration head is `0012_stage6_teacher_foundation.py`.
 
+The line above is the frozen Stage 6 snapshot. The live repository migration head after
+approved post-freeze deliveries is `0016_account_access_tokens.py`; new work must verify
+the actual Alembic graph rather than treating the historical snapshot as the live head.
+
 ### Active product modules
 
 Keep ON unless a new explicit Master Chat decision changes them:

@@ -2,6 +2,11 @@
 
 Operational snapshot at Stage 6 integrated acceptance.
 
+> **Live repository clarification (Issue #183):** this document preserves the historical
+> Stage 6 snapshot below. The current repository baseline is
+> `d43387bd67a26077796e4917e7558f4b5e682832`, and the live Alembic head is
+> `0016_account_access_tokens.py`. No migration is introduced by the platform QA gate.
+
 ## Frozen baseline
 
 - **Stages 1–5:** FROZEN.

@@ -6,8 +6,7 @@ const groupA = "22222222-2222-4222-8222-222222222222";
 const groupB = "33333333-3333-4333-8333-333333333333";
 const childA = "44444444-4444-4444-8444-444444444444";
 const childB = "55555555-5555-4555-8555-555555555555";
-const account = { id: "66666666-6666-4666-8666-666666666666", username: "staff-synthetic", role: "ADMIN", status: "active", must_change_password: true };
-const employee = { id: employeeId, first_name: "Тест", last_name: "Синтетический", middle_name: null, position: "Сотрудник", category: "administrator" as const, phone: null, email: null, status: "active", account: null as typeof account | null, archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
+const employee = { id: employeeId, first_name: "Тест", last_name: "Синтетический", middle_name: null, position: "Сотрудник", category: "administrator" as const, phone: null, email: null, status: "active", account: null, archived_at: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
 const cors = { "access-control-allow-origin": "http://localhost:3000", "access-control-allow-credentials": "true", "access-control-allow-methods": "GET,POST,PATCH,OPTIONS", "access-control-allow-headers": "content-type" };
 const reply = (route: Route, body: object, status = 200) => route.fulfill({ status, contentType: "application/json", headers: cors, body: JSON.stringify(body) });
 const failure = (route: Route) => reply(route, { error: { code: "INTERNAL_ERROR", message: "Hidden server details", field: null } }, 500);
@@ -70,47 +69,6 @@ test("employee create and edit retain input after save failure", async ({ page }
   await expect(page.getByRole("heading", { name: "Синтетический Тест" })).toBeVisible();
   await expect(page.locator("dd").filter({ hasText: "Новая должность" })).toBeVisible();
   expect([createAttempts, editAttempts]).toEqual([2, 2]);
-});
-
-test.skip("legacy plaintext credential reveal was removed by secure invitation flow", async ({ page }) => {
-  await mockAuth(page);
-  let accountPosts = 0; let detailGets = 0;
-  await page.route("**/api/v1/employees/**", (route) => {
-    const { pathname } = new URL(route.request().url());
-    if (route.request().method() === "GET") { detailGets += 1; return reply(route, { ...employee, account: detailGets === 1 ? null : account }); }
-    if (pathname.endsWith("/account") || pathname.endsWith("/reset-password")) {
-      accountPosts += 1;
-      return reply(route, { account, temporary_password: `temporary-synthetic-${accountPosts}` }, pathname.endsWith("/account") ? 201 : 200);
-    }
-    return failure(route);
-  });
-  await page.goto(`/employees/${employeeId}`);
-  await expect(page.getByRole("button", { name: "Выдать доступ администратора" })).toBeVisible();
-  await page.getByRole("button", { name: "Выдать доступ администратора" }).click();
-  const credentials = page.getByRole("region", { name: "Одноразовые реквизиты" });
-  await expect(credentials).toContainText("temporary-synthetic-1");
-  await expect(credentials).toContainText(account.username);
-  expect(detailGets).toBe(1);
-  await credentials.getByRole("button", { name: "Закрыть и скрыть пароль" }).click();
-  await expect(credentials).toHaveCount(0);
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("Все действующие сеансы");
-    await dialog.accept();
-  });
-  await page.getByRole("button", { name: "Сбросить пароль" }).click();
-  await expect(credentials).toContainText("temporary-synthetic-2");
-  expect(detailGets).toBe(1);
-  await page.getByRole("link", { name: "К сотрудникам" }).click();
-  await expect(credentials).toHaveCount(0);
-  await page.goto(`/employees/${employeeId}`);
-  await expect(credentials).toHaveCount(0);
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Сбросить пароль" }).click();
-  await expect(credentials).toContainText("temporary-synthetic-3");
-  await page.reload();
-  await expect(credentials).toHaveCount(0);
-  expect(await page.evaluate(() => Object.keys(localStorage).length + Object.keys(sessionStorage).length)).toBe(0);
-  expect(accountPosts).toBe(3);
 });
 
 test("attendance date clears old state and child choices track group and status", async ({ page }) => {
