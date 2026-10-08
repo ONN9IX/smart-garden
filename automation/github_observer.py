@@ -101,7 +101,7 @@ def ci_status(checks):
 
 
 def inspect(reader):
-    """Purely observational evaluation; never executes approved Issues."""
+    """Issue syntax observation only; creator/body/labels do not prove owner approval."""
     branch = reader.get("/branches/main")
     main_sha = branch.get("commit", {}).get("sha", "")
     if not HEX_SHA.fullmatch(main_sha):
@@ -161,7 +161,7 @@ def to_markdown(report):
         output.append("| Issue | Scope |")
         output.append("|---|---|")
         output.extend(f"| #{issue['number']} | `{issue['status']}` |" for issue in report["queue"])
-    output += ["", "Approval of an Issue does **not** start an agent in this mode.",
+    output += ["", "Valid Issue syntax is **not** verified owner approval and never starts an agent.",
                "Scheduled runs require this workflow to be on `main`; no merge is automatic."]
     return "\n".join(output) + "\n"
 

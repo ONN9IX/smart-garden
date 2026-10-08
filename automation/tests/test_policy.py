@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'worker'))
-from policy import ScopeError, parse_issue, validate_changed_paths, validate_path
+from policy import ScopeError, parse_issue, validate_changed_paths, validate_path, validate_execution_paths
 
 SHA = 'a' * 40
 
@@ -21,6 +21,16 @@ def issue(paths='- frontend/src/app/demo/page.tsx\n', **kwargs):
     return value
 
 class PolicyTests(unittest.TestCase):
+    def test_no_execution_allowlist_even_for_apparently_safe_scope(self):
+        for paths in ((), ('frontend/src/app/demo/page.tsx',), ('backend/app/api/auth.py',)):
+            with self.assertRaises(ScopeError):
+                validate_execution_paths(paths)
+
+    def test_security_and_dependency_paths_denied(self):
+        for path in ('backend/app/api/auth.py', 'backend/app/services/auth.py', 'frontend/src/lib/api/auth.ts', 'backend/app/api/tenant.py', 'frontend/src/lib/permissions.ts', 'frontend/package.json', 'backend/requirements.txt', 'frontend/next.config.js'):
+            with self.subTest(path=path), self.assertRaises(ScopeError):
+                validate_path(path)
+
     def test_valid_issue(self):
         scope = parse_issue(issue(), SHA)
         self.assertEqual(scope.paths, ('frontend/src/app/demo/page.tsx',))

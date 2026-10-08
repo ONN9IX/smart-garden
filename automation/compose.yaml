@@ -23,20 +23,17 @@ services:
   codex-worker:
     build:
       context: ./worker
-      args:
-        CODEX_VERSION: ${CODEX_VERSION:?Set a reviewed pinned Codex CLI version}
     restart: unless-stopped
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
     volumes:
       - worker_workspace:/workspace
-      - codex_home:/home/agent
     secrets:
       - github_token
       - worker_key
     environment:
-      START_ENABLED: ${START_ENABLED:-false}
+      START_ENABLED: "false" # executor retired; host override cannot enable it
       CODEX_TIMEOUT_SECONDS: ${CODEX_TIMEOUT_SECONDS:-1800}
     networks: [control]
     security_opt: ["no-new-privileges:true"]
@@ -54,7 +51,6 @@ networks:
 volumes:
   n8n_state:
   worker_workspace:
-  codex_home:
 
 secrets:
   github_token:

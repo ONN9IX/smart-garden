@@ -10,6 +10,15 @@ It runs on PR #205 to verify GitHub integration and, **only after human-reviewed
 merge to main**, hourly via GitHub `schedule` on the default branch.
 It has **no merge/commit/AI-execution capability** and requires no paid OpenAI API.
 
+**Security remediation (PR #205):** the legacy executor is retired in code, not
+merely disabled by an environment flag. Issue metadata never authorizes execution;
+`START_ENABLED=true` is ignored; model/branch/publication helpers reject direct calls.
+Compose has no OAuth volume and the worker image installs no Codex CLI.
+The execution allowlist is empty. Future execution requires a separately reviewed
+owner-controlled approval mechanism, credential broker/isolation and audited file
+allowlist. The historical deployment/login/activation commands below are obsolete
+and must not be followed. This does not change the existing Codex Cloud environment.
+
 The sections below document the **legacy OPTIONAL self-hosted n8n/Codex candidate**;
 they are NOT deployed and NOT the selected configuration. Do not procure
 Hetzner/Oracle or set `START_ENABLED=true` under this no-VPS decision.

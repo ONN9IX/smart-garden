@@ -1,7 +1,8 @@
 """Fail-closed allowlist policy for owner-authorized, scoped Smart Garden issues.
 
 Input: GitHub issue and main SHA. Output: an immutable delivery scope, or rejection.
-Never interprets issue prose as permission to alter frozen architecture.
+Syntax inspection only: a successful parse is NOT execution authorization.
+The retired worker rejects all Issues independently of this parser.
 """
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -20,6 +21,13 @@ BLOCKED_PREFIXES = (
     'backend/app/core/', 'backend/app/db/', 'docs/', 'scripts/',
 )
 ALLOWED_PREFIXES = ('frontend/', 'backend/')
+# No product area is approved for autonomous writes in the no-VPS delivery.
+EXECUTION_ALLOWED_PATHS = frozenset()
+
+def validate_execution_paths(paths):
+    if not paths or any(p not in EXECUTION_ALLOWED_PATHS for p in paths):
+        raise ScopeError('No audited execution allowlist; autonomous writes prohibited')
+
 SENSITIVE_NAMES = ('.env', 'secret', 'credential', 'auth.json', 'id_rsa', '.pem')
 
 @dataclass(frozen=True)
@@ -45,6 +53,11 @@ def validate_path(raw: str) -> str:
         raise ScopeError('Protected/shared path requires Master Chat')
     if any(x in path.name.lower() for x in SENSITIVE_NAMES) or path.name.startswith('.'):
         raise ScopeError('Sensitive/hidden file cannot be edited automatically')
+    parts = [part.lower() for part in path.parts]
+    if any(re.search(r'(^|[_.-])(auth|authentication|authorization|rbac|tenant|sessions?|permissions?)([_.-]|$)', part) for part in parts):
+        raise ScopeError('Security-critical path requires Master Chat')
+    if path.name in {'package.json', 'package-lock.json', 'requirements.txt', 'pyproject.toml', 'Dockerfile'} or any('config' in part.lower() for part in path.parts):
+        raise ScopeError('Dependency/config path requires Master Chat')
     return raw
 
 def parse_issue(issue: dict, main_sha: str) -> Scope:
