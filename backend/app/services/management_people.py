@@ -38,8 +38,8 @@ from app.schemas.management_people import (
     GuardianSearchResponse,
 )
 from app.services import audit
-from app.services.attendance_counts import attendance_state, count_group_attendance
 from app.services import children as child_service
+from app.services.attendance_counts import count_group_attendance
 from app.services.auth import utc_now
 
 

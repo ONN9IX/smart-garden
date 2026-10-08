@@ -1,6 +1,6 @@
 """Stage 4 Dashboard current-group, date, tenant, RBAC and query rules."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -170,11 +170,11 @@ def test_dashboard_five_exclusive_attendance_states_and_present_compatibility(cl
         Attendance(organization_id=organization.id, child_id=children[3].id, group_id=group.id,
                    date=day, status="present", created_by=director.id, updated_by=director.id),
         Attendance(organization_id=organization.id, child_id=children[4].id, group_id=group.id,
-                   date=day, status="present", arrival_time=datetime.strptime("08:20", "%H:%M").time(),
+                   date=day, status="present", arrival_time=time(8, 20),
                    created_by=director.id, updated_by=director.id),
         Attendance(organization_id=organization.id, child_id=children[5].id, group_id=group.id,
-                   date=day, status="present", arrival_time=datetime.strptime("08:25", "%H:%M").time(),
-                   departure_time=datetime.strptime("16:10", "%H:%M").time(), created_by=director.id, updated_by=director.id),
+                   date=day, status="present", arrival_time=time(8, 25),
+                   departure_time=time(16, 10), created_by=director.id, updated_by=director.id),
     ]
     db.add_all(records)
     db.commit()
