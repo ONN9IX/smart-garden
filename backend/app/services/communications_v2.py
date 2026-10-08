@@ -337,7 +337,7 @@ def send(db: Session, actor: User, thread_id: UUID, body: str, client_message_id
         return prior
     message = CommunicationMessage(
         organization_id=actor.organization_id, thread_id=thread.id,
-        sender_user_id=actor.id, body=body, client_message_id=client_message_id,
+        sender_user_id=actor.id, body=body, client_message_id=client_message_id, created_at=_now(),
     )
     db.add(message)
     try:
