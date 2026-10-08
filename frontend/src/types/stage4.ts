@@ -50,6 +50,30 @@ export type AnnouncementFields = {
   body: string;
 };
 
+export type CommunicationsAnnouncementAudience = "all" | "parents" | "staff";
+export type CommunicationsAnnouncement = {
+  id: string;
+  target_type: AnnouncementTarget;
+  audience: CommunicationsAnnouncementAudience;
+  group_id: string | null;
+  group_name: string | null;
+  title: string;
+  body: string;
+  published_at: string;
+  status: AnnouncementStatus;
+  archived_at: string | null;
+  unread: boolean;
+  recipient_count: number;
+  can_manage: boolean;
+};
+export type CommunicationsAnnouncementFields = {
+  target_type: AnnouncementTarget;
+  group_id: string | null;
+  audience: CommunicationsAnnouncementAudience;
+  title: string;
+  body: string;
+};
+
 export type DashboardGroup = {
   id: string;
   name: string;
