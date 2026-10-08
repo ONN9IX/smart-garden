@@ -1,0 +1,41 @@
+# GitHub-hosted observer replaces VPS/n8n for free, read-only integration.
+# It never executes Codex, pushes, opens PRs, sends messages or merges.
+name: Smart Garden automation observer (read only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'automation/**'
+      - '.github/workflows/automation-observer.yml'
+      - '.github/workflows/automation-policy.yml'
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  checks: read
+
+concurrency:
+  group: smart-garden-automation-observer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Verify GitHub queue and PR CI (no write)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without credentials
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Read GitHub state and publish job summary
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          AUTONOMOUS_EXECUTION: 'false'
+        run: python3 automation/github_observer.py

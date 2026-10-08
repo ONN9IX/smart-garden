@@ -1,3 +1,18 @@
+# Smart Garden — current no-VPS coordinator (GitHub Actions only)
+
+**CURRENT CHOICE (2026-10-08): no VPS, no credit card, no autonomous code execution.**
+The free GitHub-hosted, read-only queue/CI observer is defined in
+[NO-VPS.md](NO-VPS.md) and `.github/workflows/automation-observer.yml`.
+It runs on PR #205 to verify GitHub integration and, **only after human-reviewed
+merge to main**, hourly via GitHub `schedule` on the default branch.
+It has **no merge/commit/AI-execution capability** and requires no paid OpenAI API.
+
+The sections below document the **legacy OPTIONAL self-hosted n8n/Codex candidate**;
+they are NOT deployed and NOT the selected configuration. Do not procure
+Hetzner/Oracle or set `START_ENABLED=true` under this no-VPS decision.
+
+---
+
 # Smart Garden — bounded autonomous development (deployment candidate)
 
 **Status:** configuration and offline policy tests only; **NOT deployed or authorized to start**.

@@ -11,6 +11,12 @@ from app.api.error_responses import MANAGEMENT_ERRORS
 from app.core.permissions import require_role
 from app.db.session import get_db
 from app.models.user import User
+from app.schemas.communications_v2 import (
+    MessageCreateV2,
+    ReadCursorCreate,
+    ReadStateResponse,
+    ThreadSummaryV2,
+)
 from app.schemas.management_cabinet import (
     DiaryEntryList,
     DiaryEntryResponse,
@@ -46,7 +52,8 @@ from app.schemas.management_cabinet import (
     TeacherTaskPatch,
     TeacherTaskResponse,
 )
-from app.services import management_cabinet
+from app.services import communications_v2, management_cabinet
+from app.services.teacher import communications as teacher_communications
 
 router = APIRouter(tags=["Stage 6 — управление"], responses=MANAGEMENT_ERRORS)
 Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
@@ -166,6 +173,50 @@ def create_group_message(
     db: Database,
 ) -> ManagementMessageResponse:
     return management_cabinet.create_group_message(db, user, group_id, payload)
+
+
+@router.get("/teacher-management/communications/v2/threads", response_model=list[ThreadSummaryV2])
+def list_v2_group_threads(user: Manager, db: Database) -> list[ThreadSummaryV2]:
+    return communications_v2.list_threads(db, user)
+
+
+@router.get("/teacher-management/communications/v2/groups/{group_id}/thread", response_model=ThreadSummaryV2)
+def get_v2_group_thread(
+    group_id: UUID, user: Manager, db: Database, audience: Literal["all", "teachers"] = "all",
+) -> ThreadSummaryV2:
+    thread = communications_v2.group_thread(db, user, group_id, audience)
+    return next(item for item in communications_v2.list_threads(db, user) if item.id == thread.id)
+
+
+@router.get("/teacher-management/communications/v2/threads/{thread_id}/messages", response_model=list[ManagementMessageResponse])
+def list_v2_messages(thread_id: UUID, user: Manager, db: Database) -> list[ManagementMessageResponse]:
+    result = []
+    for item in communications_v2.messages(db, user, thread_id):
+        role, name = teacher_communications._sender_presentation(db, user, item.sender_user_id)
+        result.append(ManagementMessageResponse(
+            id=item.id, thread_id=item.thread_id, sender_user_id=item.sender_user_id,
+            group_id=communications_v2._eligible_thread(db, user, thread_id).group_id,
+            sender_role=role, sender_name=name, audience=communications_v2._eligible_thread(db, user, thread_id).audience,
+            body=item.body, created_at=item.created_at,
+        ))
+    return result
+
+
+@router.post("/teacher-management/communications/v2/threads/{thread_id}/messages", response_model=ManagementMessageResponse, status_code=201)
+def send_v2_message(thread_id: UUID, payload: MessageCreateV2, user: Manager, db: Database) -> ManagementMessageResponse:
+    item = communications_v2.send(db, user, thread_id, payload.body, payload.client_message_id)
+    role, name = teacher_communications._sender_presentation(db, user, item.sender_user_id)
+    return ManagementMessageResponse(
+        id=item.id, thread_id=item.thread_id, sender_user_id=item.sender_user_id,
+        group_id=thread.group_id if (thread := communications_v2._eligible_thread(db, user, thread_id)) else None,
+        sender_role=role, sender_name=name, audience=thread.audience,
+        body=item.body, created_at=item.created_at,
+    )
+
+
+@router.post("/teacher-management/communications/v2/threads/{thread_id}/read", response_model=ReadStateResponse)
+def mark_v2_read(thread_id: UUID, payload: ReadCursorCreate, user: Manager, db: Database) -> ReadStateResponse:
+    return communications_v2.mark_read(db, user, thread_id, payload.last_read_message_id)
 
 
 @router.get("/teacher-management/diary", response_model=DiaryEntryList)

@@ -24,6 +24,13 @@ export type Thread = {
   audience: "all" | "parents" | "teachers";
   child_id: string | null; guardian_id: string | null; created_at: string;
 };
+export type ThreadV2 = {
+  id: string; thread_type: "group" | "direct"; audience: "all" | "parents" | "teachers";
+  group_id: string; group_name: string; child_id: string | null; child_name: string | null;
+  guardian_id: string | null; teacher_employee_id: string | null; teacher_name: string | null;
+  last_message_id: string | null; last_message_at: string | null; preview: string | null; unread_count: number;
+};
+export type EligibleTeacher = { employee_id: string; display_name: string; group_id: string; group_name: string };
 export type Message = { id: string; thread_id: string; sender_user_id: string; sender_role: "DIRECTOR" | "ADMIN" | "TEACHER" | "PARENT"; sender_name: string; body: string; created_at: string };
 export type DiaryEntry = {
   id: string; child_id: string; group_id: string; date: string; author_user_id: string;
@@ -32,6 +39,12 @@ export type DiaryEntry = {
 export type Announcement = {
   id: string; target_type: "all" | "group"; group_id: string | null; title: string; body: string;
   status: "active" | "archived"; created_by: string; created_at: string; updated_at: string;
+};
+export type AnnouncementV2 = {
+  id: string; target_type: "all" | "group"; audience: "all" | "parents" | "staff";
+  group_id: string | null; group_name: string | null; title: string; body: string;
+  published_at: string; status: "active" | "archived"; archived_at: string | null;
+  unread: boolean; recipient_count: number; can_manage: boolean;
 };
 export type Poll = {
   id: string; group_id: string; question: string; status: "active" | "closed" | "archived";

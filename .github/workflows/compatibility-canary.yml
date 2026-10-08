@@ -95,6 +95,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes postgresql-client-18
           pg_dump --version | grep -F '18.'
+          source_version_num="$(psql --no-psqlrc --tuples-only --no-align --host localhost --port 5432 --username smart_garden --dbname smart_garden --command 'SHOW server_version_num')"
+          test "$source_version_num" -ge 180000
+          test "$source_version_num" -lt 190000
+          unset source_version_num
       - name: Install locked backend and validate contracts
         run: |
           python -m pip install --disable-pip-version-check -r backend/requirements.txt
@@ -106,7 +110,7 @@ jobs:
         working-directory: backend
         run: |
           alembic upgrade head
-          pytest tests/test_platform_quality.py tests/test_account_access.py tests/test_auth.py tests/test_product_features.py
+          pytest tests/test_platform_quality.py tests/test_account_access.py tests/test_auth.py tests/test_product_features.py tests/test_communications_v2.py tests/test_stage6_teacher_cabinet.py tests/test_stage4_announcements.py
           test "$(alembic heads | wc -l)" -eq 1
           alembic downgrade -1
           alembic upgrade head
@@ -129,6 +133,10 @@ jobs:
           APP_ENV=test \
           RECOVERY_VERIFICATION_SYNTHETIC=YES \
           ../scripts/verify-backup-restore.sh
+          recovery_version_num="$(psql --no-psqlrc --tuples-only --no-align --host localhost --port 5432 --username smart_garden --dbname smart_garden_recovery_compat_18 --command 'SHOW server_version_num')"
+          test "$recovery_version_num" -ge 180000
+          test "$recovery_version_num" -lt 190000
+          unset recovery_version_num
           unset recovery_database_url
       - name: Sanitized candidate version report
         run: python scripts/version-report.py | tee compatibility-backend.json

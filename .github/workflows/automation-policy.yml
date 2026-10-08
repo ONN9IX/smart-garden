@@ -6,6 +6,7 @@ on:
     paths:
       - 'automation/**'
       - '.github/workflows/automation-policy.yml'
+      - '.github/workflows/automation-observer.yml'
 
 permissions:
   contents: read

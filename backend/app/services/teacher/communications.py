@@ -2,7 +2,8 @@
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -151,6 +152,7 @@ def _direct(db: Session, actor: User, child: Child, guardian: Guardian) -> Threa
         CommunicationThread.group_id == child.group_id,
         CommunicationThread.child_id == child.id,
         CommunicationThread.guardian_id == guardian.id,
+        CommunicationThread.teacher_employee_id.is_(None),
     ))
     if thread is None:
         thread = CommunicationThread(
@@ -202,9 +204,15 @@ def _send(db: Session, actor: User, thread: CommunicationThread, body: str) -> M
         "thread_id": str(thread.id), "group_id": str(thread.group_id), "thread_type": thread.thread_type,
     })
     for recipient_id in _recipient_ids(db, actor, thread):
-        db.add(Notification(
+        db.execute(insert(Notification).values(
             organization_id=actor.organization_id, recipient_user_id=recipient_id,
             kind="communication.message", entity_type="communication_thread", entity_id=thread.id,
+        ).on_conflict_do_nothing(
+            index_elements=[Notification.organization_id, Notification.recipient_user_id, Notification.entity_id],
+            index_where=text(
+                "read_at IS NULL AND kind = 'communication.message' AND "
+                "entity_type = 'communication_thread' AND entity_id IS NOT NULL"
+            ),
         ))
     db.commit()
     db.refresh(message)
