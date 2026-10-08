@@ -65,12 +65,33 @@ test("teacher keeps schedule, communications, announcements, tasks and notificat
 
   const announcement = { id: "00000000-0000-4000-8000-000000000625", target_type: "group", group_id: group.id, group_name: group.name, audience: "parents", title: "Напоминание", body: "Синтетический текст", status: "active", archived_at: null, published_at: "2026-09-30T10:00:00Z", unread: false, recipient_count: 1, can_manage: true };
   await page.route("**/api/v1/communications/v2/announcements?status=all", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([announcement]) }));
+  let previewCalls = 0;
+  let publishCalls = 0;
+  await page.route("**/api/v1/communications/v2/announcements/preview", async (route) => {
+    previewCalls += 1;
+    expect(route.request().postDataJSON()).toEqual({ target_type: "group", group_id: group.id, audience: "parents" });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ recipient_count: 2, parents_count: 2, staff_count: 0 }) });
+  });
+  await page.route("**/api/v1/communications/v2/announcements", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    publishCalls += 1;
+    await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ ...announcement, id: "00000000-0000-4000-8000-000000000626" }) });
+  });
   await page.goto("/teacher/announcements");
   await expect(page.getByText("Напоминание")).toBeVisible();
   await expect(page.getByText("Активно")).toBeVisible();
   await page.getByRole("button", { name: "Опубликовать для группы" }).click();
   await expect(page.getByText("Введите заголовок")).toBeVisible();
   await expect(page.getByText("Введите текст объявления")).toBeVisible();
+  await page.getByLabel("Заголовок").fill("Тестовое объявление");
+  await page.getByLabel("Текст").fill("Синтетическое содержание");
+  await page.getByRole("button", { name: "Проверить аудиторию" }).click();
+  await expect(page.getByText(/Получателей: 2 \(родители: 2, сотрудники: 0\)/)).toBeVisible();
+  expect(publishCalls).toBe(0);
+  await page.getByRole("checkbox", { name: "Подтверждаю выбранную аудиторию и число получателей" }).check();
+  await page.getByRole("button", { name: "Опубликовать для группы" }).click();
+  await expect.poll(() => publishCalls).toBe(1);
+  expect(previewCalls).toBe(1);
 });
 
 test("teacher hides the previous chat while a switched conversation is loading", async ({ page }) => {

@@ -39,7 +39,9 @@ function ParentContent() {
     featureEnabled("polls") ? parentStage6Api.polls() : Promise.resolve([] as Poll[]),
   ]).then(([nextChildren, nextAnnouncements, nextThreads, nextPolls]) => {
     setChildren(nextChildren);
-    setAnnouncements(nextAnnouncements);
+    // The list is navigation metadata only. Keep announcement text out of the
+    // long-lived Parent list state; retrieve it from the authorized detail route on open.
+    setAnnouncements(nextAnnouncements.map((item) => ({ ...item, body: "" })));
     setThreads(nextThreads);
     setPolls(nextPolls);
   }).catch((reason) => setError(userMessage(reason))), []);
@@ -133,23 +135,41 @@ function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
 function Announcements({ items }: { items: AnnouncementV2[] }) {
   const [readIds, setReadIds] = useState<string[]>([]);
   const [openedId, setOpenedId] = useState("");
+  const [openedItem, setOpenedItem] = useState<AnnouncementV2 | null>(null);
+  const [loadingId, setLoadingId] = useState("");
   const [error, setError] = useState("");
-  const reading = useRef(new Set<string>());
+  const requestVersion = useRef(0);
+  useEffect(() => () => { requestVersion.current += 1; }, []);
   async function open(item: AnnouncementV2) {
+    const request = ++requestVersion.current;
+    if (openedId === item.id && openedItem?.id === item.id) {
+      setOpenedId(""); setOpenedItem(null); setLoadingId(""); setError("");
+      return;
+    }
     setOpenedId(item.id);
+    setOpenedItem(null);
+    setLoadingId(item.id);
     setError("");
-    if (!item.unread || readIds.includes(item.id) || reading.current.has(item.id)) return;
-    reading.current.add(item.id);
     try {
-      await parentStage6Api.readV2Announcement(item.id);
-      setReadIds((current) => current.includes(item.id) ? current : [...current, item.id]);
-    } catch (reason) {
-      setError(userMessage(reason));
+      const detail = await parentStage6Api.v2Announcement(item.id);
+      if (requestVersion.current !== request || detail.id !== item.id) return;
+      setOpenedItem(detail);
+      if (item.unread && !readIds.includes(item.id)) {
+        await parentStage6Api.readV2Announcement(item.id);
+        if (requestVersion.current !== request) return;
+        setReadIds((current) => current.includes(item.id) ? current : [...current, item.id]);
+      }
+    } catch {
+      if (requestVersion.current === request) {
+        setOpenedItem(null);
+        setOpenedId("");
+        setError("Объявление больше недоступно.");
+      }
     } finally {
-      reading.current.delete(item.id);
+      if (requestVersion.current === request) setLoadingId("");
     }
   }
-  return <section className={styles.card}><h2>Объявления</h2>{error && <p className={styles.error}>{error}</p>}{items.length === 0 ? <p className={styles.muted}>Новых объявлений нет.</p> : <ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span><button type="button" className={styles.buttonSecondary} aria-expanded={openedId === item.id} onClick={() => void open(item)}><strong>{item.title}</strong></button><small className={styles.threadPreview}>{item.group_name || "Детский сад"} · {item.audience === "parents" ? "Родители" : item.audience === "staff" ? "Сотрудники" : "Все"}{item.unread && !readIds.includes(item.id) ? " · Новое" : ""}</small>{openedId === item.id && <p>{item.body}</p>}</span><small>{new Date(item.published_at).toLocaleDateString("ru-RU")}</small></li>)}</ul>}</section>;
+  return <section className={styles.card}><h2>Объявления</h2>{error && <p className={styles.error}>{error}</p>}{items.length === 0 ? <p className={styles.muted}>Новых объявлений нет.</p> : <ul className={styles.list}>{items.map((item) => <li className={styles.row} key={item.id}><span><button type="button" className={styles.buttonSecondary} aria-expanded={openedId === item.id} onClick={() => void open(item)}><strong>{item.title}</strong></button><small className={styles.threadPreview}>{item.group_name || "Детский сад"} · {item.audience === "parents" ? "Родители" : item.audience === "staff" ? "Сотрудники" : "Все"}{item.unread && !readIds.includes(item.id) ? " · Новое" : ""}</small>{openedId === item.id && (loadingId === item.id ? <p className={styles.muted}>Проверяем доступ…</p> : openedItem?.id === item.id ? <p>{openedItem.body}</p> : null)}</span><small>{new Date(item.published_at).toLocaleDateString("ru-RU")}</small></li>)}</ul>}</section>;
 }
 
 function Messages({ threads, linkedChildren, reload, currentUserId }: {

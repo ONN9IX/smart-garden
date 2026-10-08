@@ -30,6 +30,7 @@ test.beforeEach(async ({ page }) => {
     }),
   }));
   await page.route("**/api/v1/communications/v2/announcements", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([announcement]) }));
+  await page.route(`**/api/v1/communications/v2/announcements/${announcement.id}`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(announcement) }));
   await page.route("**/api/v1/parent/communications/v2/threads", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(threads) }));
   await page.route(`**/api/v1/parent/children/${child.id}/teachers`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ employee_id: teacherId, display_name: "Воспитатель Тестовый", group_id: groupId, group_name: "Ромашка" }]) }));
   await page.route("**/api/v1/parent/communications/v2/groups/*/thread", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...thread, thread_type: "group", teacher_employee_id: null, teacher_name: null, child_id: null, child_name: null, guardian_id: null }) }));
@@ -65,8 +66,66 @@ test("parent sees daily child overview and only enabled modules", async ({ page 
   await expect(page.getByText("Объявление группы")).toBeVisible();
   expect(readAnnouncementIds).toEqual([]);
   await page.getByRole("button", { name: "Объявление группы" }).click();
+  await expect(page.getByText("Синтетический текст")).toBeVisible();
   await expect.poll(() => readAnnouncementIds).toEqual([announcement.id]);
   await expect(page.getByRole("button", { name: "Сообщения" })).toBeVisible();
+});
+
+test("parent hides stale announcement list content when detail access is revoked", async ({ page }) => {
+  let detailCalls = 0;
+  let readCalls = 0;
+  await page.route(`**/api/v1/communications/v2/announcements/${announcement.id}`, async (route) => {
+    detailCalls += 1;
+    await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "NOT_FOUND" } }) });
+  });
+  await page.route(`**/api/v1/communications/v2/announcements/${announcement.id}/read`, async (route) => {
+    readCalls += 1;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ announcement_id: announcement.id, read_at: "2026-09-30T10:00:00Z" }) });
+  });
+  await page.goto("/parent");
+  await page.getByRole("button", { name: "Объявления" }).click();
+  await expect(page.getByRole("button", { name: "Объявление группы" })).toBeVisible();
+  await expect(page.getByText("Синтетический текст")).toHaveCount(0);
+  await page.getByRole("button", { name: "Объявление группы" }).click();
+  await expect(page.getByText("Объявление больше недоступно.")).toBeVisible();
+  await expect(page.getByText("Синтетический текст")).toHaveCount(0);
+  expect(detailCalls).toBe(1);
+  expect(readCalls).toBe(0);
+});
+
+test("parent ignores a late announcement detail response after opening another item", async ({ page }) => {
+  const otherAnnouncement = { ...announcement, id: "00000000-0000-4000-8000-000000000646", title: "Второе объявление", body: "Второй актуальный текст" };
+  await page.route("**/api/v1/communications/v2/announcements", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([announcement, otherAnnouncement]) }));
+  let releaseFirst!: () => void;
+  let firstRequested!: () => void;
+  const firstRequestedPromise = new Promise<void>((resolve) => { firstRequested = resolve; });
+  await page.route(`**/api/v1/communications/v2/announcements/${announcement.id}`, async (route) => {
+    firstRequested();
+    await new Promise<void>((resolve) => { releaseFirst = resolve; });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(announcement) });
+  });
+  await page.route(`**/api/v1/communications/v2/announcements/${otherAnnouncement.id}`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(otherAnnouncement) }));
+  await page.goto("/parent");
+  await page.getByRole("button", { name: "Объявления" }).click();
+  await page.getByRole("button", { name: announcement.title }).click();
+  await firstRequestedPromise;
+  await page.getByRole("button", { name: otherAnnouncement.title }).click();
+  await expect(page.getByText(otherAnnouncement.body)).toBeVisible();
+  releaseFirst();
+  await expect(page.getByText(announcement.body)).toHaveCount(0);
+  await expect(page.getByText(otherAnnouncement.body)).toBeVisible();
+});
+
+test("parent removes an opened announcement if its read authorization is revoked", async ({ page }) => {
+  await page.route(`**/api/v1/communications/v2/announcements/${announcement.id}/read`, (route) => route.fulfill({
+    status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "NOT_FOUND" } }),
+  }));
+  await page.goto("/parent");
+  await page.getByRole("button", { name: "Объявления" }).click();
+  await page.getByRole("button", { name: announcement.title }).click();
+  await expect(page.getByText(announcement.body)).toBeVisible();
+  await expect(page.getByText("Объявление больше недоступно.")).toBeVisible();
+  await expect(page.getByText(announcement.body)).toHaveCount(0);
 });
 
 test("parent child switch filters conversations and ignores a late private response", async ({ page }) => {

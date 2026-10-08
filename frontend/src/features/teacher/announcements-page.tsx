@@ -19,7 +19,12 @@ export function AnnouncementsPage() {
   const [bodyError, setBodyError] = useState("");
   const [showArchive, setShowArchive] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<{ recipient_count: number; parents_count: number; staff_count: number } | null>(null);
+  const [previewFor, setPreviewFor] = useState("");
+  const [confirmedPreviewFor, setConfirmedPreviewFor] = useState("");
   const submitting = useRef(false);
+  const previewKey = JSON.stringify([groupId, audience, title.trim(), body.trim()]);
+  const hasCurrentPreview = Boolean(preview && previewFor === previewKey);
 
   const load = useCallback(() => {
     if (!groupId) return;
@@ -33,6 +38,22 @@ export function AnnouncementsPage() {
     setBody("");
     setTitleError("");
     setBodyError("");
+    setPreview(null);
+    setPreviewFor("");
+    setConfirmedPreviewFor("");
+  }
+
+  async function reviewAudience() {
+    if (!groupId) { setError("Выберите группу."); return; }
+    if (!title.trim() || !body.trim()) { setError("Сначала заполните заголовок и текст объявления."); return; }
+    setBusy(true); setError(""); setConfirmedPreviewFor("");
+    try {
+      const result = await teacherApi.previewV2Announcement({
+        target_type: "group", group_id: groupId, audience,
+      });
+      setPreview(result); setPreviewFor(previewKey);
+    } catch (reason) { setPreview(null); setPreviewFor(""); setError(userMessage(reason)); }
+    finally { setBusy(false); }
   }
 
   async function submit(event: FormEvent) {
@@ -43,6 +64,9 @@ export function AnnouncementsPage() {
     setTitleError(missingTitle ? "Введите заголовок" : "");
     setBodyError(missingBody ? "Введите текст объявления" : "");
     if (missingTitle || missingBody) return;
+    if (!editingId && (!hasCurrentPreview || confirmedPreviewFor !== previewKey)) {
+      setError("Проверьте аудиторию и подтвердите число получателей перед публикацией."); return;
+    }
     submitting.current = true;
     setBusy(true);
     try {
@@ -74,7 +98,15 @@ export function AnnouncementsPage() {
         {!editingId && <label>Аудитория<select value={audience} onChange={(event) => setAudience(event.target.value as typeof audience)}><option value="parents">Родители</option><option value="staff">Сотрудники</option><option value="all">Все участники</option></select></label>}
         <label>Заголовок<input aria-invalid={Boolean(titleError)} value={title} maxLength={120} onChange={(event) => { setTitle(event.target.value); if (event.target.value.trim()) setTitleError(""); }} />{titleError && <small className={styles.error}>{titleError}</small>}</label>
         <label>Текст<textarea aria-invalid={Boolean(bodyError)} value={body} maxLength={2000} onChange={(event) => { setBody(event.target.value); if (event.target.value.trim()) setBodyError(""); }} />{bodyError && <small className={styles.error}>{bodyError}</small>}</label>
-        <button className={styles.button} disabled={busy}>{busy ? "Сохранение..." : editingId ? "Сохранить изменения" : "Опубликовать для группы"}</button>
+        {!editingId && <><button type="button" className={styles.buttonSecondary} disabled={busy} onClick={() => void reviewAudience()}>{busy ? "Проверяем аудиторию..." : "Проверить аудиторию"}</button>
+          {hasCurrentPreview && preview && <div aria-live="polite">
+            <strong>Проверка перед публикацией</strong>
+            <p>{groups.find((group) => group.id === groupId)?.name || "Выбранная группа"} · {audience === "parents" ? "Родители" : audience === "staff" ? "Сотрудники" : "Все участники"}</p>
+            <p>Получателей: {preview.recipient_count} (родители: {preview.parents_count}, сотрудники: {preview.staff_count}). Список людей не раскрывается.</p>
+            <label><input type="checkbox" checked={confirmedPreviewFor === previewKey} onChange={(event) => setConfirmedPreviewFor(event.target.checked ? previewKey : "")} /> Подтверждаю выбранную аудиторию и число получателей</label>
+          </div>}
+        </>}
+        <button className={styles.button} disabled={Boolean(busy || (!editingId && title.trim() && body.trim() && (!hasCurrentPreview || confirmedPreviewFor !== previewKey)))}>{busy ? "Сохранение..." : editingId ? "Сохранить изменения" : "Опубликовать для группы"}</button>
         {editingId && <button type="button" className={styles.buttonSecondary} onClick={clearForm}>Отмена</button>}
       </form>
       <div className={styles.toolbar}><button type="button" className={showArchive ? styles.buttonSecondary : styles.button} onClick={() => setShowArchive(false)}>Активные</button><button type="button" className={showArchive ? styles.button : styles.buttonSecondary} onClick={() => setShowArchive(true)}>Архив</button></div>

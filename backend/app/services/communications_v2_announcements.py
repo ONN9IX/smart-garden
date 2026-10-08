@@ -22,6 +22,8 @@ from app.models.user import User
 from app.schemas.communications_v2 import (
     AnnouncementCreateV2,
     AnnouncementPatchV2,
+    AnnouncementPreviewRequestV2,
+    AnnouncementPreviewV2,
     AnnouncementReadResponse,
     AnnouncementSummaryV2,
 )
@@ -59,7 +61,7 @@ def _eligible_recipients(
             *(([Child.group_id == group_id]) if target_type == "group" and group_id else []),
         ).distinct()
     ))
-    teachers = set(db.scalars(
+    teachers_query = (
         select(User.id).join(Employee, Employee.user_id == User.id)
         .join(TeacherGroupAssignment, TeacherGroupAssignment.employee_id == Employee.id)
         .join(Group, Group.id == TeacherGroupAssignment.group_id)
@@ -70,15 +72,52 @@ def _eligible_recipients(
             Group.organization_id == organization_id, Group.status == "active",
             *(([TeacherGroupAssignment.group_id == group_id]) if target_type == "group" and group_id else []),
         ).distinct()
-    ))
-    managers = set(db.scalars(select(User.id).where(
-        User.organization_id == organization_id, User.role.in_(("DIRECTOR", "ADMIN")), User.status == "active",
-    )))
-    if audience == "parents":
-        return parents
-    if audience == "staff":
-        return teachers | managers
-    return parents | teachers | managers
+    )
+    teachers = set(db.scalars(teachers_query))
+    if target_type == "group":
+        # Group audiences are limited to the Group's active eligible Parents and
+        # assigned Teachers. Management registry access is a separate read rule.
+        staff = teachers
+    else:
+        # Organization audiences include active staff accounts linked to an
+        # Employee record; management registry visibility does not add recipients.
+        staff = set(db.scalars(
+            select(User.id).join(Employee, Employee.user_id == User.id).where(
+                User.organization_id == organization_id,
+                User.role.in_(("TEACHER", "ADMIN")), User.status == "active",
+                Employee.organization_id == organization_id, Employee.status == "active",
+            ).distinct()
+        ))
+    selected_parents = parents if audience in {"all", "parents"} else set()
+    selected_staff = staff if audience in {"all", "staff"} else set()
+    return selected_parents | selected_staff
+
+
+def _authorize_publish_scope(db: Session, actor: User, target_type: str, group_id: UUID | None) -> None:
+    if actor.role == "TEACHER":
+        if target_type != "group" or group_id is None:
+            raise AppError(404, "NOT_FOUND")
+        access.teacher_group(db, actor, group_id)
+    elif actor.role in {"DIRECTOR", "ADMIN"}:
+        if group_id is not None:
+            _group(db, actor, group_id)
+    else:
+        raise AppError(403, "FORBIDDEN")
+
+
+def preview(db: Session, actor: User, payload: AnnouncementPreviewRequestV2) -> AnnouncementPreviewV2:
+    _authorize_publish_scope(db, actor, payload.target_type, payload.group_id)
+    parents = _eligible_recipients(db, actor.organization_id, payload.target_type, payload.group_id, "parents")
+    staff = _eligible_recipients(db, actor.organization_id, payload.target_type, payload.group_id, "staff")
+    if payload.audience == "parents":
+        staff = set()
+    elif payload.audience == "staff":
+        parents = set()
+    parents.discard(actor.id)
+    staff.discard(actor.id)
+    return AnnouncementPreviewV2(
+        recipient_count=len(parents | staff), parents_count=len(parents), staff_count=len(staff),
+    )
 
 
 def _can_read(db: Session, actor: User, item: Announcement) -> bool:
@@ -150,15 +189,8 @@ def get_for_actor(db: Session, actor: User, item_id: UUID) -> AnnouncementSummar
 def create(
     db: Session, actor: User, payload: AnnouncementCreateV2, idempotency_key: str | None = None,
 ) -> AnnouncementSummaryV2:
-    if actor.role == "TEACHER":
-        if payload.target_type != "group" or payload.group_id is None:
-            raise AppError(404, "NOT_FOUND")
-        access.teacher_group(db, actor, payload.group_id)
-    elif actor.role in {"DIRECTOR", "ADMIN"}:
-        if payload.group_id is not None:
-            _group(db, actor, payload.group_id)
-    else:
-        raise AppError(403, "FORBIDDEN")
+    # Reauthorize at publication time; a preview never grants later publish access.
+    _authorize_publish_scope(db, actor, payload.target_type, payload.group_id)
     if idempotency_key:
         existing = db.scalar(select(Announcement).where(
             Announcement.organization_id == actor.organization_id,

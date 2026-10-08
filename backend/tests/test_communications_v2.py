@@ -204,3 +204,138 @@ def test_v2_group_channels_are_role_scoped(client, db, cabinet_world):
         assert parent_client.get(
             f"/api/v1/parent/communications/v2/groups/{world.assigned.id}/thread",
         ).status_code == 200
+
+
+def test_parent_v2_rejects_legacy_parents_group_but_legacy_api_keeps_it(client, db, cabinet_world):
+    world = cabinet_world
+    legacy = CommunicationThread(
+        organization_id=world.organization.id, thread_type="group", audience="parents",
+        group_id=world.assigned.id,
+    )
+    db.add(legacy)
+    db.flush()
+    message = CommunicationMessage(
+        organization_id=world.organization.id, thread_id=legacy.id,
+        sender_user_id=world.teacher.id, body="Синтетическое историческое сообщение",
+    )
+    db.add(message)
+    db.flush()
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as parent_client:
+        assert _login(parent_client, world.parent.username).status_code == 200
+        listed = parent_client.get("/api/v1/parent/communications/v2/threads")
+        assert listed.status_code == 200
+        assert str(legacy.id) not in {item["id"] for item in listed.json()}
+        assert parent_client.get(f"/api/v1/parent/communications/v2/threads/{legacy.id}/messages").status_code == 404
+        assert parent_client.post(f"/api/v1/parent/communications/v2/threads/{legacy.id}/messages", json={
+            "body": "Запрещённая запись", "client_message_id": str(uuid4()),
+        }).status_code == 404
+        assert parent_client.post(f"/api/v1/parent/communications/v2/threads/{legacy.id}/read", json={
+            "last_read_message_id": str(message.id),
+        }).status_code == 404
+        # The historical route and row remain available under the legacy contract.
+        legacy_messages = parent_client.get(f"/api/v1/parent/communications/threads/{legacy.id}/messages")
+        assert legacy_messages.status_code == 200
+        assert legacy_messages.json()[0]["id"] == str(message.id)
+        legacy_send = parent_client.post(f"/api/v1/parent/communications/threads/{legacy.id}/messages", json={
+            "body": "Разрешённое legacy сообщение",
+        })
+        assert legacy_send.status_code == 201
+        # The supported audience=all Parent Group channel remains accessible.
+        group = parent_client.get(f"/api/v1/parent/communications/v2/groups/{world.assigned.id}/thread")
+        assert group.status_code == 200 and group.json()["audience"] == "all"
+
+
+def test_announcement_preview_matches_frozen_audience_matrix_and_group_fanout(client, db, cabinet_world):
+    world = cabinet_world
+    assert _login(client, world.director.username).status_code == 200
+    base = "/api/v1/communications/v2/announcements/preview"
+    expected = {
+        ("group", "all"): (3, 1, 2),
+        ("group", "parents"): (1, 1, 0),
+        ("group", "staff"): (2, 0, 2),
+        ("all", "all"): (3, 1, 2),
+        ("all", "parents"): (1, 1, 0),
+        ("all", "staff"): (2, 0, 2),
+    }
+    for (target, audience), counts in expected.items():
+        payload = {"target_type": target, "audience": audience}
+        if target == "group":
+            payload["group_id"] = str(world.assigned.id)
+        response = client.post(base, json=payload)
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "recipient_count": counts[0], "parents_count": counts[1], "staff_count": counts[2],
+        }
+        assert set(response.json()) == {"recipient_count", "parents_count", "staff_count"}
+
+    foreign_preview = client.post(base, json={
+        "target_type": "group", "group_id": str(world.foreign.id), "audience": "all",
+    })
+    assert foreign_preview.status_code == 404
+
+    created = client.post("/api/v1/communications/v2/announcements", json={
+        "target_type": "group", "group_id": str(world.assigned.id), "audience": "all",
+        "title": "Синтетический охват", "body": "Тестовое групповое сообщение",
+    })
+    assert created.status_code == 201
+    recipient_ids = set(db.scalars(select(Notification.recipient_user_id).where(
+        Notification.kind == "announcement.published", Notification.entity_id == UUID(created.json()["id"]),
+    )))
+    assert recipient_ids == {world.parent.id, world.teacher.id, world.other_teacher.id}
+    assert world.director.id not in recipient_ids
+
+    staff_created = client.post("/api/v1/communications/v2/announcements", json={
+        "target_type": "group", "group_id": str(world.assigned.id), "audience": "staff",
+        "title": "Синтетическое служебное объявление", "body": "Только назначенным воспитателям",
+    })
+    assert staff_created.status_code == 201 and staff_created.json()["recipient_count"] == 2
+    staff_recipients = set(db.scalars(select(Notification.recipient_user_id).where(
+        Notification.kind == "announcement.published", Notification.entity_id == UUID(staff_created.json()["id"]),
+    )))
+    assert staff_recipients == {world.teacher.id, world.other_teacher.id}
+
+    # The author is excluded from notification fanout and count-only preview for a staff audience.
+    assert _login(client, world.teacher.username).status_code == 200
+    teacher_preview = client.post(base, json={
+        "target_type": "group", "group_id": str(world.assigned.id), "audience": "staff",
+    })
+    assert teacher_preview.status_code == 200
+    assert teacher_preview.json() == {"recipient_count": 1, "parents_count": 0, "staff_count": 1}
+    assert client.post(base, json={
+        "target_type": "group", "group_id": str(world.unassigned.id), "audience": "all",
+    }).status_code == 404
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as parent_client:
+        assert _login(parent_client, world.parent.username).status_code == 200
+        assert parent_client.post(base, json={"target_type": "all", "audience": "all"}).status_code == 403
+
+
+def test_parent_announcement_detail_and_read_recheck_revoked_guardian(client, db, cabinet_world):
+    world = cabinet_world
+    assert _login(client, world.director.username).status_code == 200
+    created = client.post("/api/v1/communications/v2/announcements", json={
+        "target_type": "group", "group_id": str(world.assigned.id), "audience": "parents",
+        "title": "Синтетическое объявление", "body": "Скрыть после отзыва",
+    })
+    assert created.status_code == 201
+    announcement_id = created.json()["id"]
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as parent_client:
+        assert _login(parent_client, world.parent.username).status_code == 200
+        assert parent_client.get(f"/api/v1/communications/v2/announcements/{announcement_id}").status_code == 200
+        world.relation.status = "archived"
+        db.flush()
+        assert parent_client.get(f"/api/v1/communications/v2/announcements/{announcement_id}").status_code == 404
+        assert parent_client.post(f"/api/v1/communications/v2/announcements/{announcement_id}/read").status_code == 404

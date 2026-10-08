@@ -142,3 +142,41 @@ test("ADMIN keeps management core but cannot open Audit", async ({ page }) => {
   await page.goto("/audit");
   await expect(page).toHaveURL(/\/403$/);
 });
+
+test("DIRECTOR reviews a count-only audience and explicitly confirms it before publish", async ({ page }) => {
+  await mockManagement(page, "DIRECTOR");
+  let previewPayload: unknown;
+  const previewResponse = { recipient_count: 3, parents_count: 3, staff_count: 0 };
+  let publishCalls = 0;
+  await page.route("**/api/v1/communications/v2/announcements/preview", async (route) => {
+    previewPayload = route.request().postDataJSON();
+    await reply(route, previewResponse);
+  });
+  await page.route("**/api/v1/communications/v2/announcements", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    publishCalls += 1;
+    await reply(route, {
+      id: "99999999-9999-4999-8999-999999999999", target_type: "group", audience: "parents", group_id: groupId,
+      group_name: "Солнышко", title: "Синтетическая рассылка", body: "Синтетический текст",
+      published_at: "2026-09-30T10:00:00Z", status: "active", archived_at: null, unread: false,
+      recipient_count: 3, can_manage: true,
+    }, 201);
+  });
+  await page.goto("/announcements/new");
+  await page.getByLabel("Получатели").selectOption("group");
+  await page.getByLabel("Группа").selectOption(groupId);
+  await page.getByLabel("Аудитория").selectOption("parents");
+  await page.getByLabel("Заголовок").fill("Синтетическая рассылка");
+  await page.getByLabel("Текст").fill("Синтетический текст");
+  const publish = page.getByRole("button", { name: "Опубликовать" });
+  await expect(publish).toBeDisabled();
+  await page.getByRole("button", { name: "Проверить аудиторию" }).click();
+  await expect(page.getByText(/Получателей: 3 \(родители: 3, сотрудники: 0\)/)).toBeVisible();
+  expect(previewPayload).toEqual({ target_type: "group", group_id: groupId, audience: "parents" });
+  expect(Object.keys(previewResponse).sort()).toEqual(["parents_count", "recipient_count", "staff_count"]);
+  await expect(publish).toBeDisabled();
+  await page.getByRole("checkbox", { name: "Подтверждаю выбранную аудиторию и число получателей" }).check();
+  await expect(publish).toBeEnabled();
+  await publish.click();
+  await expect.poll(() => publishCalls).toBe(1);
+});

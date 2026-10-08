@@ -12,6 +12,8 @@ from app.models.user import User
 from app.schemas.communications_v2 import (
     AnnouncementCreateV2,
     AnnouncementPatchV2,
+    AnnouncementPreviewRequestV2,
+    AnnouncementPreviewV2,
     AnnouncementReadResponse,
     AnnouncementSummaryV2,
 )
@@ -37,6 +39,13 @@ def create_announcement(
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=64)] = None,
 ) -> AnnouncementSummaryV2:
     return communications_v2_announcements.create(db, user, payload, idempotency_key)
+
+
+@router.post("/preview", response_model=AnnouncementPreviewV2)
+def preview_announcement(
+    payload: AnnouncementPreviewRequestV2, user: Actor, db: Database,
+) -> AnnouncementPreviewV2:
+    return communications_v2_announcements.preview(db, user, payload)
 
 
 @router.get("/{announcement_id}", response_model=AnnouncementSummaryV2)

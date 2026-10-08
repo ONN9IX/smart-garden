@@ -102,6 +102,24 @@ class AnnouncementCreateV2(StrictModel):
         return self
 
 
+class AnnouncementPreviewRequestV2(StrictModel):
+    target_type: Literal["all", "group"]
+    group_id: UUID | None = None
+    audience: Literal["all", "parents", "staff"] = "all"
+
+    @model_validator(mode="after")
+    def check_target_group(self):
+        if (self.target_type == "group") != (self.group_id is not None):
+            raise ValueError("Announcement target is invalid")
+        return self
+
+
+class AnnouncementPreviewV2(BaseModel):
+    recipient_count: int
+    parents_count: int
+    staff_count: int
+
+
 class AnnouncementPatchV2(StrictModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
     body: str | None = Field(default=None, min_length=1, max_length=2000)

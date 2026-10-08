@@ -112,8 +112,26 @@ function AnnouncementEditor({ id }: { id?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [preview, setPreview] = useState<{ recipient_count: number; parents_count: number; staff_count: number } | null>(null);
+  const [previewFor, setPreviewFor] = useState("");
+  const [confirmedPreviewFor, setConfirmedPreviewFor] = useState("");
   const submitting = useRef(false);
   const createKey = useRef(crypto.randomUUID());
+  const previewKey = JSON.stringify([targetType, groupId, audience, title.trim(), body.trim()]);
+  const hasCurrentPreview = Boolean(preview && previewFor === previewKey);
+
+  async function reviewAudience() {
+    if (targetType === "group" && !groupId) { setError("Выберите группу."); return; }
+    if (!title.trim() || !body.trim()) { setError("Сначала заполните заголовок и текст объявления."); return; }
+    setBusy(true); setError(""); setMessage(""); setConfirmedPreviewFor("");
+    try {
+      const result = await communicationsAnnouncementsApi.preview({
+        target_type: targetType, group_id: targetType === "group" ? groupId : null, audience,
+      });
+      setPreview(result); setPreviewFor(previewKey);
+    } catch (reason) { setPreview(null); setPreviewFor(""); setError(userMessage(reason)); }
+    finally { setBusy(false); }
+  }
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -137,6 +155,9 @@ function AnnouncementEditor({ id }: { id?: string }) {
     event.preventDefault();
     if (submitting.current || item?.status === "archived") return;
     if (targetType === "group" && !groupId) { setError("Выберите группу."); return; }
+    if (!id && (!hasCurrentPreview || confirmedPreviewFor !== previewKey)) {
+      setError("Проверьте аудиторию и подтвердите число получателей перед публикацией."); return;
+    }
     submitting.current = true; setBusy(true); setError(""); setMessage("");
     const fields: CommunicationsAnnouncementFields = {
       target_type: targetType,
@@ -184,7 +205,16 @@ function AnnouncementEditor({ id }: { id?: string }) {
           <FormField id="announcement-title" label="Заголовок"><Input id="announcement-title" maxLength={120} required readOnly={archived} value={title} onChange={(event) => setTitle(event.target.value)} /></FormField>
           <FormField id="announcement-body" label="Текст"><textarea id="announcement-body" className="input announcement-body" maxLength={2000} required readOnly={archived} value={body} onChange={(event) => setBody(event.target.value)} /></FormField>
           <p className="privacy-notice">{privacyNotice}</p>
-          {!archived && <div className="action-row"><Button type="submit" disabled={busy}>{busy ? "Сохранение..." : id ? "Сохранить" : "Опубликовать"}</Button>
+          {!id && !archived && <div className="stack">
+            <Button type="button" variant="secondary" disabled={busy} onClick={() => void reviewAudience()}>{busy ? "Проверяем аудиторию..." : "Проверить аудиторию"}</Button>
+            {hasCurrentPreview && preview && <div className="card section-card" aria-live="polite">
+              <strong>Проверка перед публикацией</strong>
+              <span>{targetType === "all" ? "Весь детский сад" : groups.find((group) => group.id === groupId)?.name || "Выбранная группа"} · {audience === "parents" ? "Родители" : audience === "staff" ? "Сотрудники" : "Все участники"}</span>
+              <span>Получателей: {preview.recipient_count} (родители: {preview.parents_count}, сотрудники: {preview.staff_count}). Список людей не раскрывается.</span>
+              <label><input type="checkbox" checked={confirmedPreviewFor === previewKey} onChange={(event) => setConfirmedPreviewFor(event.target.checked ? previewKey : "")} /> Подтверждаю выбранную аудиторию и число получателей</label>
+            </div>}
+          </div>}
+          {!archived && <div className="action-row"><Button type="submit" disabled={Boolean(busy || (!id && title.trim() && body.trim() && (!hasCurrentPreview || confirmedPreviewFor !== previewKey)))}>{busy ? "Сохранение..." : id ? "Сохранить" : "Опубликовать"}</Button>
             {id && <Button type="button" variant="secondary" disabled={busy} onClick={() => void archive()}>Архивировать</Button>}</div>}
         </form>
       </>}

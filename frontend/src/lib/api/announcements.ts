@@ -27,6 +27,9 @@ export const announcementsApi = {
 };
 
 export const communicationsAnnouncementsApi = {
+  preview(fields: Pick<CommunicationsAnnouncementFields, "target_type" | "group_id" | "audience">) {
+    return api.post<{ recipient_count: number; parents_count: number; staff_count: number }>("/communications/v2/announcements/preview", fields);
+  },
   list(status: AnnouncementStatusFilter) {
     return api.get<CommunicationsAnnouncement[]>(`/communications/v2/announcements?status=${status}`);
   },

@@ -204,6 +204,10 @@ def _eligible_thread(db: Session, actor: User, thread_id: UUID) -> Communication
         return thread
     if actor.role == "PARENT":
         thread = access.parent_thread(db, actor, thread_id)
+        # The legacy Parent API still exposes historical `parents` Group threads,
+        # but v2 only permits the currently approved shared `all` channel.
+        if thread.thread_type == "group" and thread.audience != "all":
+            raise AppError(404, "NOT_FOUND")
         if thread.thread_type == "direct":
             if thread.teacher_employee_id is None:
                 raise AppError(404, "NOT_FOUND")
