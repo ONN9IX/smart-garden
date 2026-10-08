@@ -1,0 +1,59 @@
+# n8n is the coordinator; Codex worker is reachable only on the private Docker network.
+# External access to n8n must use a separately provisioned TLS reverse proxy or SSH tunnel.
+services:
+  n8n:
+    image: ${N8N_IMAGE:?Set a reviewed pinned n8n image tag}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Required}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-false}
+      GENERIC_TIMEZONE: Europe/Berlin
+      TZ: Europe/Berlin
+    volumes:
+      - n8n_state:/home/node/.n8n
+    networks: [control]
+    security_opt: ["no-new-privileges:true"]
+
+  codex-worker:
+    build:
+      context: ./worker
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - worker_workspace:/workspace
+    secrets:
+      - github_token
+      - worker_key
+    environment:
+      START_ENABLED: "false" # executor retired; host override cannot enable it
+      CODEX_TIMEOUT_SECONDS: ${CODEX_TIMEOUT_SECONDS:-1800}
+    networks: [control]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID]
+    pids_limit: 192
+    mem_limit: 4g
+    cpus: 2
+    # Never mount docker.sock or production Smart Garden directories.
+
+networks:
+  control:
+    internal: false # Worker needs outbound GitHub/ChatGPT HTTPS; no published worker port.
+
+volumes:
+  n8n_state:
+  worker_workspace:
+
+secrets:
+  github_token:
+    file: ./secrets/github_token
+  worker_key:
+    file: ./secrets/worker_key

@@ -1,0 +1,30 @@
+# Scope-only gate; no secrets and no privileged self-hosted runner on pull_request.
+name: Automation policy tests
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'automation/**'
+      - '.github/workflows/automation-policy.yml'
+      - '.github/workflows/automation-observer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: Scoped delivery policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Validate policy and worker syntax
+        run: python -m compileall -q automation/worker automation/tests
+      - name: Validate policy behavior with synthetic fixtures
+        run: python -m unittest discover -s automation/tests -v
+      - name: Validate importable n8n workflow shape
+        run: python automation/tests/validate_workflow.py
