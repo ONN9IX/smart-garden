@@ -1,0 +1,58 @@
+name: Dependency upgrade rehearsal
+
+on:
+  schedule:
+    - cron: "41 4 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-upgrade-rehearsal:
+    name: Python candidate lock rehearsal
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_garden
+          POSTGRES_USER: smart_garden
+          POSTGRES_PASSWORD: smart_garden_local_only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U smart_garden -d smart_garden"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://smart_garden:smart_garden_local_only@localhost:5432/smart_garden
+      SECRET_KEY: dependency-rehearsal-synthetic-only
+      AUTH_SESSION_TTL_SECONDS: 3600
+      CORS_ORIGINS: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Compile upgraded candidate lock in disposable checkout
+        working-directory: backend
+        run: |
+          cp requirements.txt requirements.production.txt
+          python -m pip install --disable-pip-version-check uv==0.9.8
+          uv pip compile --upgrade requirements.in -o requirements.candidate.txt
+          diff --unified requirements.production.txt requirements.candidate.txt > dependency-candidate.diff || test "$?" -eq 1
+          python -m venv .candidate-venv
+          .candidate-venv/bin/python -m pip install --disable-pip-version-check -r requirements.candidate.txt
+          .candidate-venv/bin/python -m pip check
+      - name: Candidate import, migrations and focused tests
+        working-directory: backend
+        run: |
+          .candidate-venv/bin/python ../scripts/backend-contract-smoke.py
+          .candidate-venv/bin/alembic upgrade head
+          .candidate-venv/bin/pytest tests/test_platform_quality.py tests/test_auth.py tests/test_account_access.py
+      - name: Publish candidate diff
+        uses: actions/upload-artifact@v6
+        with:
+          name: python-dependency-candidate-diff
+          path: backend/dependency-candidate.diff
+          if-no-files-found: error

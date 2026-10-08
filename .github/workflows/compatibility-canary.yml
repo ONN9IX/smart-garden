@@ -1,0 +1,182 @@
+name: Compatibility canary
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      python-version:
+        description: Stable Python candidate (maintained default 3.14)
+        default: "3.14"
+        required: true
+      node-version:
+        description: Node candidate (maintained default 24)
+        default: "24"
+        required: true
+      postgres-version:
+        description: Next PostgreSQL major (maintained default 17)
+        default: "17"
+        required: true
+      python-prerelease:
+        description: Optional explicit Python prerelease (manual advisory only)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_CANDIDATE: ${{ inputs.python-version || '3.14' }}
+  NODE_CANDIDATE: ${{ inputs.node-version || '24' }}
+  POSTGRES_CANDIDATE: ${{ inputs.postgres-version || '17' }}
+  APP_ENV: test
+  DATABASE_URL: postgresql+psycopg://smart_garden:smart_garden_local_only@localhost:5432/smart_garden
+  SECRET_KEY: compatibility-canary-synthetic-only
+  AUTH_SESSION_TTL_SECONDS: 3600
+  CORS_ORIGINS: http://localhost:3000
+  COMPATIBILITY_LANE: latest-stable-canary
+
+jobs:
+  backend-latest:
+    name: Python latest / PostgreSQL next
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:${{ inputs.postgres-version || '17' }}
+        env:
+          POSTGRES_DB: smart_garden
+          POSTGRES_USER: smart_garden
+          POSTGRES_PASSWORD: smart_garden_local_only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U smart_garden -d smart_garden"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_CANDIDATE }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_CANDIDATE }}
+          package-manager-cache: false
+      - name: Resolve and print exact candidates
+        run: |
+          python -c 'import platform, os; actual=platform.python_version(); expected=os.environ["PYTHON_CANDIDATE"]+"."; assert actual.startswith(expected), (actual, expected); print("Python", actual)'
+          node --version
+          docker exec "${{ job.services.postgres.id }}" postgres --version
+      - name: Install locked backend and validate contracts
+        run: |
+          python -m pip install --disable-pip-version-check -r backend/requirements.txt
+          python -m pip check
+          python -m compileall -q backend/app
+          python scripts/backend-contract-smoke.py
+          python scripts/check-test-policy.py
+      - name: Migrations, locking, security and failure regressions
+        working-directory: backend
+        run: |
+          alembic upgrade head
+          pytest tests/test_platform_quality.py tests/test_account_access.py tests/test_auth.py tests/test_product_features.py
+          test "$(alembic heads | wc -l)" -eq 1
+          alembic downgrade -1
+          alembic upgrade head
+      - name: Sanitized candidate version report
+        run: python scripts/version-report.py | tee compatibility-backend.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: compatibility-backend-versions
+          path: compatibility-backend.json
+
+  frontend-latest:
+    name: Node latest frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_CANDIDATE }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_CANDIDATE }}
+      - name: Install and validate candidate tree
+        working-directory: frontend
+        run: |
+          node --version
+          npm ci
+          npm ls --all
+          npm run lint
+          npx tsc --noEmit
+          npm run build
+          node scripts/check-npm-audit.mjs
+      - name: Sanitized candidate version report
+        run: python scripts/version-report.py | tee compatibility-frontend.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: compatibility-frontend-versions
+          path: compatibility-frontend.json
+
+  browser-portability:
+    name: Browser portability (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_CANDIDATE }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build and install selected browser
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps "${{ matrix.browser }}"
+      - name: Run critical portable journeys
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
+        run: |
+          npm run start -- -H 127.0.0.1 -p 3000 > /tmp/compatibility-frontend.log 2>&1 &
+          frontend_pid=$!
+          trap 'kill "$frontend_pid" 2>/dev/null' EXIT
+          for attempt in $(seq 1 45); do
+            curl --fail --silent http://localhost:3000/login >/dev/null && break
+            sleep 1
+          done
+          curl --fail --silent http://localhost:3000/login >/dev/null
+          npx playwright test tests/platform-compatibility.spec.ts
+
+  prerelease-advisory:
+    name: Explicit Python prerelease advisory
+    if: github.event_name == 'workflow_dispatch' && inputs.python-prerelease != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ inputs.python-prerelease }}
+          allow-prereleases: true
+      - name: Advisory import and deprecation sentry
+        run: |
+          python -m pip install --disable-pip-version-check -r backend/requirements.txt
+          python -m pip check
+          python -W error::DeprecationWarning -m compileall -q backend/app
+          python -W error::DeprecationWarning scripts/backend-contract-smoke.py
+
+  clean-room-images:
+    name: Advisory clean-room images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build pinned images without cache against refreshed bases
+        run: |
+          printf 'SMART_GARDEN_PREVIEW_SECRET_KEY=%s\n' "$(openssl rand -hex 48)" > .env.preview
+          docker compose --env-file .env.preview -f docker-compose.yml -f docker-compose.preview.yml build --pull --no-cache
