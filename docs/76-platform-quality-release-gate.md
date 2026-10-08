@@ -23,13 +23,18 @@ and audit behavior is covered by `account-access.spec.ts` and backend integratio
 ## Advisory compatibility lane
 
 `compatibility-canary.yml` runs weekly and on manual dispatch. Maintained candidates are
-currently Python 3.14, Node 24 and PostgreSQL 17. The workflow prints and validates exact
-resolved versions; an unavailable or incompatible candidate fails visibly. It runs:
+currently Python 3.14 stable, Node 24 LTS, Node 26 Current and PostgreSQL 18 stable.
+PostgreSQL 19 remains a prerelease and is excluded from stable lanes. A checked review
+deadline makes stale classifications fail visibly instead of remaining frozen. The
+workflow prints and validates exact resolved versions; an unavailable or incompatible
+candidate fails visibly. It runs:
 
 - locked backend install, `pip check`, compile/import/OpenAPI and focused security,
-  token-locking and migration tests on PostgreSQL 17;
-- npm tree/lint/TypeScript/build/audit on Node 24;
-- critical 390px login/recovery/management smoke on Chromium, Firefox and WebKit;
+  token-locking and migration tests on PostgreSQL 18;
+- npm tree/lint/TypeScript/build/audit on Node 24 LTS and Node 26 Current;
+- a real FastAPI, Next.js and PostgreSQL 18 journey on Chromium, Firefox and WebKit:
+  activation, password reset, generic recovery, login/logout and a protected group
+  screen, with listeners registered before first navigation and a 390px overflow check;
 - clean-room `--pull --no-cache` image builds.
 
 These scheduled/manual jobs are intentionally separate from the eight PR status checks.
@@ -79,6 +84,12 @@ A deployment candidate requires all of the following evidence:
 
 Automation cannot perform the post-merge decision in advance. A green PR is necessary,
 not sufficient, and does not authorize deployment or claim 152-ФЗ compliance.
+
+The security matrix is deliberately scoped to representative protected management,
+teacher-group and parent-child read operations. It verifies real HTTP responses against
+synthetic PostgreSQL relationships for role, assignment/link, tenant, archive/revocation
+and blocked-account boundaries. It supplements the broader endpoint-specific suite; it
+does not claim that every API operation is covered by one matrix.
 
 ## Machine-readable report
 

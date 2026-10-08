@@ -5,17 +5,21 @@ on:
     - cron: "17 3 * * 1"
   workflow_dispatch:
     inputs:
-      python-version:
-        description: Stable Python candidate (maintained default 3.14)
+      python-stable:
+        description: Stable Python candidate (policy default 3.14)
         default: "3.14"
         required: true
-      node-version:
-        description: Node candidate (maintained default 24)
+      node-lts:
+        description: Node LTS candidate (policy default 24)
         default: "24"
         required: true
-      postgres-version:
-        description: Next PostgreSQL major (maintained default 17)
-        default: "17"
+      node-current:
+        description: Node Current candidate (policy default 26)
+        default: "26"
+        required: true
+      postgres-stable:
+        description: Latest stable PostgreSQL major (policy default 18)
+        default: "18"
         required: true
       python-prerelease:
         description: Optional explicit Python prerelease (manual advisory only)
@@ -26,23 +30,35 @@ permissions:
   contents: read
 
 env:
-  PYTHON_CANDIDATE: ${{ inputs.python-version || '3.14' }}
-  NODE_CANDIDATE: ${{ inputs.node-version || '24' }}
-  POSTGRES_CANDIDATE: ${{ inputs.postgres-version || '17' }}
+  PYTHON_STABLE_CANDIDATE: ${{ inputs.python-stable || '3.14' }}
+  NODE_LTS_CANDIDATE: ${{ inputs.node-lts || '24' }}
+  NODE_CURRENT_CANDIDATE: ${{ inputs.node-current || '26' }}
+  POSTGRES_STABLE_CANDIDATE: ${{ inputs.postgres-stable || '18' }}
+  COMPATIBILITY_POLICY_REVIEW_BY: "2026-11-08"
   APP_ENV: test
   DATABASE_URL: postgresql+psycopg://smart_garden:smart_garden_local_only@localhost:5432/smart_garden
   SECRET_KEY: compatibility-canary-synthetic-only
   AUTH_SESSION_TTL_SECONDS: 3600
   CORS_ORIGINS: http://localhost:3000
-  COMPATIBILITY_LANE: latest-stable-canary
+  NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+  COMPATIBILITY_LANE: stable-forward-canary
 
 jobs:
+  compatibility-policy:
+    name: Maintained stable/LTS/current policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Reject stale or misclassified candidates
+        run: python3 scripts/check-compatibility-policy.py
+
   backend-latest:
-    name: Python latest / PostgreSQL next
+    name: Python stable / PostgreSQL stable
+    needs: compatibility-policy
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:${{ inputs.postgres-version || '17' }}
+        image: postgres:${{ inputs.postgres-stable || '18' }}
         env:
           POSTGRES_DB: smart_garden
           POSTGRES_USER: smart_garden
@@ -55,14 +71,14 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ env.PYTHON_CANDIDATE }}
+          python-version: ${{ env.PYTHON_STABLE_CANDIDATE }}
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_CANDIDATE }}
+          node-version: ${{ env.NODE_LTS_CANDIDATE }}
           package-manager-cache: false
       - name: Resolve and print exact candidates
         run: |
-          python -c 'import platform, os; actual=platform.python_version(); expected=os.environ["PYTHON_CANDIDATE"]+"."; assert actual.startswith(expected), (actual, expected); print("Python", actual)'
+          python -c 'import platform, os; actual=platform.python_version(); expected=os.environ["PYTHON_STABLE_CANDIDATE"]+"."; assert actual.startswith(expected), (actual, expected); print("Python", actual)'
           node --version
           docker exec "${{ job.services.postgres.id }}" postgres --version
       - name: Install locked backend and validate contracts
@@ -88,18 +104,27 @@ jobs:
           path: compatibility-backend.json
 
   frontend-latest:
-    name: Node latest frontend
+    name: Node ${{ matrix.lane }} frontend
+    needs: compatibility-policy
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: LTS
+            version: ${{ inputs.node-lts || '24' }}
+          - lane: Current
+            version: ${{ inputs.node-current || '26' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_CANDIDATE }}
+          node-version: ${{ matrix.version }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ env.PYTHON_CANDIDATE }}
+          python-version: ${{ env.PYTHON_STABLE_CANDIDATE }}
       - name: Install and validate candidate tree
         working-directory: frontend
         run: |
@@ -111,51 +136,85 @@ jobs:
           npm run build
           node scripts/check-npm-audit.mjs
       - name: Sanitized candidate version report
-        run: python scripts/version-report.py | tee compatibility-frontend.json
+        run: python scripts/version-report.py | tee "compatibility-frontend-${{ matrix.lane }}.json"
       - uses: actions/upload-artifact@v6
         with:
-          name: compatibility-frontend-versions
-          path: compatibility-frontend.json
+          name: compatibility-frontend-${{ matrix.lane }}-versions
+          path: compatibility-frontend-${{ matrix.lane }}.json
 
   browser-portability:
-    name: Browser portability (${{ matrix.browser }})
+    name: Real browser portability (${{ matrix.browser }})
+    needs: compatibility-policy
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         browser: [chromium, firefox, webkit]
+    services:
+      postgres:
+        image: postgres:${{ inputs.postgres-stable || '18' }}
+        env:
+          POSTGRES_DB: smart_garden
+          POSTGRES_USER: smart_garden
+          POSTGRES_PASSWORD: smart_garden_local_only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U smart_garden -d smart_garden"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_STABLE_CANDIDATE }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_CANDIDATE }}
+          node-version: ${{ env.NODE_LTS_CANDIDATE }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Install, migrate and create disposable browser fixtures
+        run: |
+          python -m pip install --disable-pip-version-check -r backend/requirements.txt
+          npm ci --prefix frontend
+          cd backend
+          alembic upgrade head
+          cd ..
+          fixture_env="$(mktemp)"
+          python scripts/compatibility-browser-fixtures.py "$fixture_env"
+          while IFS='=' read -r name value; do
+            test -n "$name" && test -n "$value"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done < "$fixture_env"
+          rm -f "$fixture_env"
       - name: Build and install selected browser
         working-directory: frontend
-        env:
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
         run: |
-          npm ci
           npm run build
           npx playwright install --with-deps "${{ matrix.browser }}"
-      - name: Run critical portable journeys
-        working-directory: frontend
+      - name: Run real critical portable journey
         env:
           PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
         run: |
-          npm run start -- -H 127.0.0.1 -p 3000 > /tmp/compatibility-frontend.log 2>&1 &
+          python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --no-access-log > /tmp/compatibility-backend.log 2>&1 &
+          backend_pid=$!
+          npm --prefix frontend run start -- -H 127.0.0.1 -p 3000 > /tmp/compatibility-frontend.log 2>&1 &
           frontend_pid=$!
-          trap 'kill "$frontend_pid" 2>/dev/null' EXIT
+          trap 'kill "$backend_pid" "$frontend_pid" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 45); do
-            curl --fail --silent http://localhost:3000/login >/dev/null && break
+            if curl --fail --silent http://localhost:8000/api/v1/health >/dev/null && curl --fail --silent http://localhost:3000/login >/dev/null; then
+              break
+            fi
             sleep 1
           done
+          curl --fail --silent http://localhost:8000/api/v1/health >/dev/null
           curl --fail --silent http://localhost:3000/login >/dev/null
-          npx playwright test tests/platform-compatibility.spec.ts
+          npm --prefix frontend exec -- playwright test tests/platform-compatibility.spec.ts
 
   prerelease-advisory:
     name: Explicit Python prerelease advisory
+    needs: compatibility-policy
     if: github.event_name == 'workflow_dispatch' && inputs.python-prerelease != ''
     runs-on: ubuntu-latest
     steps:
@@ -173,6 +232,7 @@ jobs:
 
   clean-room-images:
     name: Advisory clean-room images
+    needs: compatibility-policy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

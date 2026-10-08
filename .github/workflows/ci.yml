@@ -273,6 +273,16 @@ jobs:
           echo "CI_STAGE3_OTHER_DIRECTOR_PASSWORD=$stage3_other_password" >> "$GITHUB_ENV"
           echo "CI_STAGE4_DIRECTOR_PASSWORD=$stage4_password" >> "$GITHUB_ENV"
           echo "CI_STAGE4_OTHER_DIRECTOR_PASSWORD=$stage4_other_password" >> "$GITHUB_ENV"
+      - name: Seed synthetic compatibility journey
+        run: |
+          fixture_env="$(mktemp)"
+          python scripts/compatibility-browser-fixtures.py "$fixture_env"
+          while IFS='=' read -r name value; do
+            test -n "$name" && test -n "$value"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done < "$fixture_env"
+          rm -f "$fixture_env"
       - name: Build Frontend and install test browser
         working-directory: frontend
         run: |
