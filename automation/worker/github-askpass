@@ -1,0 +1,7 @@
+#!/bin/sh
+# Supplies a GitHub token only to coordinator-owned git push, never Codex.
+case "$1" in
+  *sername*) printf 'x-access-token\n' ;;
+  *assword*) printf '%s\n' "$SG_GH_TOKEN" ;;
+  *) exit 1 ;;
+esac
