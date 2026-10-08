@@ -115,7 +115,8 @@ def test_v2_direct_scope_idempotency_unread_and_revocation(client, db, cabinet_w
     assert client.get(f"/api/v1/teacher/communications/v2/threads/{separate.json()['id']}/messages").status_code == 404
     # Legacy direct conversations are preserved but not visible or mutable through v2.
     legacy = legacy_communications.parent_direct(db, world.parent, world.child.id)
-    assert legacy.teacher_employee_id is None
+    legacy_record = db.get(CommunicationThread, legacy.id)
+    assert legacy_record.teacher_employee_id is None
     v2_list = client.get("/api/v1/teacher/communications/v2/threads").json()
     assert legacy.id not in {item["id"] for item in v2_list}
 
