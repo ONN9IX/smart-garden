@@ -56,7 +56,11 @@ export function CommunicationsPage() {
     if (thread.thread_type === "group") {
       return `${communicationAudienceLabels[thread.audience]} · ${thread.group_name}`;
     }
-    if (thread.child_name && thread.guardian_id) return `${thread.child_name} · ${guardians.find((g) => g.id === thread.guardian_id)?.last_name || "родитель"}`;
+    if (thread.child_name && thread.guardian_id) {
+      const guardian = guardians.find((item) => item.id === thread.guardian_id);
+      const guardianName = guardian ? `${guardian.last_name} ${guardian.first_name}`.trim() : "родитель";
+      return `${thread.child_name} · ${guardianName}`;
+    }
     return "Личный диалог";
   }
   async function send(event: FormEvent) {

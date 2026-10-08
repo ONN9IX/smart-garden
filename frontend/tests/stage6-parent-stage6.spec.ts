@@ -65,7 +65,7 @@ test("parent bootstraps direct chat from linked child", async ({ page }) => {
   await page.getByRole("button", { name: "Личный диалог" }).click();
   await expect(page.getByRole("button", { name: /Воспитатель Тестовый · Ребёнок Тестовый/ })).toBeVisible();
   await expect(page.getByText("Сообщение воспитателя")).toBeVisible();
-  await expect(page.getByText("Воспитатель Тестовый")).toBeVisible();
+  await expect(page.locator("li strong", { hasText: "Воспитатель Тестовый" })).toBeVisible();
   await page.getByLabel("Ответ").fill("Ответ родителя");
   await page.getByRole("button", { name: "Отправить" }).click();
 });
