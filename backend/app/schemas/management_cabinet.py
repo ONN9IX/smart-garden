@@ -25,8 +25,11 @@ class ManagementTodayGroup(BaseModel):
     group_name: str
     active_children: int
     present: int
+    on_site: int
+    departed: int
     absent: int
     unknown: int
+    needs_arrival: int
     has_active_teacher: bool
     has_active_weekly_schedule: bool
 
@@ -35,8 +38,11 @@ class ManagementToday(BaseModel):
     date: date
     active_children: int
     present: int
+    on_site: int
+    departed: int
     absent: int
     unknown: int
+    needs_arrival: int
     active_groups: int
     active_employees: int
     groups_without_active_teacher_assignment: int

@@ -88,46 +88,50 @@ function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
   const [childId, setChildId] = useState("");
   const [data, setData] = useState<ParentToday | null>(null);
   const [error, setError] = useState("");
+  const requestId = useRef(0);
   const selectedChildId = childId || linkedChildren[0]?.id || "";
 
   useEffect(() => {
+    const request = ++requestId.current;
     if (!selectedChildId) return;
     parentStage6Api.today(selectedChildId)
-      .then((value) => { setData(value); setError(""); })
-      .catch((reason) => { setData(null); setError(userMessage(reason)); });
+      .then((value) => { if (request === requestId.current && value.child.id === selectedChildId) setData(value); })
+      .catch((reason) => { if (request === requestId.current) { setData(null); setError(userMessage(reason)); } });
+    return () => { requestId.current += 1; };
   }, [selectedChildId]);
 
   if (linkedChildren.length === 0) {
     return <section className={styles.card}><h2>Сегодня</h2><p className={styles.muted}>Нет доступных карточек детей.</p></section>;
   }
 
-  const attendanceLabel = data?.attendance.status === "present"
-    ? "В детском саду"
-    : data?.attendance.status === "absent"
+  const visibleData = data?.child.id === selectedChildId ? data : null;
+  const attendanceLabel = visibleData?.attendance.status === "present"
+    ? visibleData.attendance.departure_time ? "Ушёл" : !visibleData.attendance.arrival_time ? "Уточнить приход" : "В саду"
+    : visibleData?.attendance.status === "absent"
       ? "Отсутствует"
-      : "Пока не отмечен";
+      : "Не отмечен";
 
-  const attendanceClass = data?.attendance.status === "present"
+  const attendanceClass = visibleData?.attendance.status === "present"
     ? `${styles.statusPill} ${styles.statusPresent}`
-    : data?.attendance.status === "absent"
+    : visibleData?.attendance.status === "absent"
       ? `${styles.statusPill} ${styles.statusAbsent}`
       : `${styles.statusPill} ${styles.statusUnknown}`;
 
   return <section className={styles.card}>
-    <h2>{data ? `Группа ${data.group.name}` : "Сегодня"}</h2>
+    <h2>{visibleData ? `Группа ${visibleData.group.name}` : "Сегодня"}</h2>
     <div className={styles.toolbar}>
-      <label>Ребёнок<select value={selectedChildId} onChange={(event) => setChildId(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
+      <label>Ребёнок<select value={selectedChildId} onChange={(event) => { requestId.current += 1; setData(null); setError(""); setChildId(event.target.value); }}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
     </div>
     {error && <p className={styles.error}>{error}</p>}
     {!data && !error && <p className={styles.muted}>Загружаем данные дня…</p>}
-    {data && <div className={styles.stack}>
+    {visibleData && <div className={styles.stack}>
       <div className={styles.todaySummary}>
-        <article className={`${styles.card} ${styles.todayIdentity}`}><small>Ежедневная информация</small><br/><strong>{data.child.last_name} {data.child.first_name}</strong></article>
-        <article className={styles.card}><span className={attendanceClass}>{attendanceLabel}</span><br/><small>{data.attendance.arrival_time ? `Приход: ${data.attendance.arrival_time.slice(0, 5)}` : "Отметку ставит воспитатель"}{data.attendance.departure_time ? ` · Уход: ${data.attendance.departure_time.slice(0, 5)}` : ""}</small></article>
+        <article className={`${styles.card} ${styles.todayIdentity}`}><small>Ежедневная информация</small><br/><strong>{visibleData.child.last_name} {visibleData.child.first_name}</strong></article>
+        <article className={styles.card}><span className={attendanceClass}>{attendanceLabel}</span><br/><small>{visibleData.attendance.arrival_time ? `Приход: ${visibleData.attendance.arrival_time.slice(0, 5)}` : "Приход не отмечен"}{visibleData.attendance.departure_time ? ` · Уход: ${visibleData.attendance.departure_time.slice(0, 5)}` : ""}</small></article>
       </div>
-      <div><strong className={styles.scheduleTitle}>Расписание на сегодня</strong>{data.schedule.length === 0
+      <div><strong className={styles.scheduleTitle}>Расписание на сегодня</strong>{visibleData.schedule.length === 0
         ? <p className={styles.muted}>На сегодня занятий в расписании нет.</p>
-        : <ul className={styles.list}>{data.schedule.map((item) => <li className={styles.row} key={item.id}><span><strong>{item.title}</strong></span><small>{item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}</small></li>)}</ul>}</div>
+        : <ul className={styles.list}>{visibleData.schedule.map((item) => <li className={styles.row} key={item.id}><span><strong>{item.title}</strong></span><small>{item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}</small></li>)}</ul>}</div>
     </div>}
   </section>;
 }

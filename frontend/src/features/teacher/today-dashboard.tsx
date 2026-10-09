@@ -36,7 +36,7 @@ export function TodayDashboard() {
           ? <p className={styles.muted}>Нет групп для ежедневной отметки.</p>
           : <ul className={styles.list}>{data.attendance.map((item) => <li className={styles.row} key={item.group_id}>
               <strong>{data.groups.find((group) => group.id === item.group_id)?.name ?? "Группа"}</strong>
-              <span>В саду: {item.present} · Отсутствуют: {item.absent} · Без отметки: {item.unknown}</span>
+              <span>В саду: {item.on_site} · Ушли: {item.departed} · Отсутствуют: {item.absent} · Без отметки: {item.unknown}{item.needs_arrival ? ` · Уточнить приход: ${item.needs_arrival}` : ""} · Посещали: {item.present}</span>
             </li>)}</ul>}
       </section>
     </>}

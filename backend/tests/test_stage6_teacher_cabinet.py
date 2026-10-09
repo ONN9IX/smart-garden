@@ -245,7 +245,7 @@ def test_teacher_daily_groups_attendance_schedule_and_security(client, db, cabin
     assert {item["id"] for item in guardians} == {str(world.guardian.id)}
     assert guardians[0]["can_message"] is True
 
-    day = datetime.now(UTC).date().isoformat()
+    day = organization_today(world.organization).isoformat()
     listed = client.get(f"/api/v1/teacher/attendance?date={day}&group_id={world.assigned.id}")
     assert listed.status_code == 200 and listed.json()[0]["status"] == "unknown"
     saved = client.post("/api/v1/teacher/attendance", json={
@@ -257,6 +257,9 @@ def test_teacher_daily_groups_attendance_schedule_and_security(client, db, cabin
         "child_id": str(world.child.id), "date": day, "status": "present", "arrival_time": "08:30",
     })
     assert saved.status_code == 201
+    today_payload = client.get("/api/v1/teacher/today").json()
+    today_counts = next(item for item in today_payload["attendance"] if item["group_id"] == str(world.assigned.id))
+    assert (today_counts["present"], today_counts["on_site"], today_counts["departed"], today_counts["needs_arrival"]) == (1, 1, 0, 0)
     record_id = saved.json()["record_id"]
     assert client.post("/api/v1/teacher/attendance", json={
         "child_id": str(world.other_child.id), "date": day, "status": "absent",

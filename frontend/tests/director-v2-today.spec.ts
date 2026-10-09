@@ -13,12 +13,12 @@ const ids = {
 };
 
 const today = {
-  date: "2026-10-07", active_children: 12, present: 8, absent: 2, unknown: 2,
+  date: "2026-10-07", active_children: 12, present: 8, on_site: 6, departed: 2, absent: 2, unknown: 2, needs_arrival: 0,
   active_groups: 2, active_employees: 4, groups_without_active_teacher_assignment: 1,
   open_tasks: 3, overdue_tasks: 1, open_incidents: 0, unread_notifications: 1,
   groups: [
-    { group_id: ids.group, group_name: "Солнышко", active_children: 7, present: 5, absent: 1, unknown: 1, has_active_teacher: true, has_active_weekly_schedule: true },
-    { group_id: ids.groupWithoutSchedule, group_name: "Ромашка", active_children: 5, present: 3, absent: 1, unknown: 1, has_active_teacher: false, has_active_weekly_schedule: false },
+    { group_id: ids.group, group_name: "Солнышко", active_children: 7, present: 5, on_site: 4, departed: 1, absent: 1, unknown: 1, needs_arrival: 0, has_active_teacher: true, has_active_weekly_schedule: true },
+    { group_id: ids.groupWithoutSchedule, group_name: "Ромашка", active_children: 5, present: 3, on_site: 2, departed: 1, absent: 1, unknown: 1, needs_arrival: 0, has_active_teacher: false, has_active_weekly_schedule: false },
   ],
   attention_items: [
     { kind: "attendance_missing", entity_type: "attendance", entity_id: ids.group, count: 1 },
@@ -61,7 +61,7 @@ test("DIRECTOR gets the v2 navigation and a single-read exception-first Today", 
   expect(navLabels).toEqual(["Сегодня", "Группы", "Дети", "Родители", "Сотрудники", "Доступ и аккаунты", "Посещаемость", "Расписание", "Задачи", "Сообщения", "Объявления", "Уведомления", "Журнал действий", "Настройки"]);
   await expect(page.getByRole("link", { name: "Воспитатели", exact: true })).toHaveCount(0);
 
-  for (const label of ["В саду", "Отсутствуют", "Не отмечены", "Активные группы", "Без воспитателя", "Просроченные задачи"]) {
+  for (const label of ["В саду", "Ушли", "Отсутствуют", "Без отметки", "Активные группы", "Без воспитателя", "Просроченные задачи"]) {
     await expect(page.getByRole("link", { name: new RegExp(label) })).toBeVisible();
   }
   await expect(page.getByRole("heading", { name: "Группы сегодня" })).toBeVisible();

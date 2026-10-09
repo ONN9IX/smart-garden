@@ -79,16 +79,22 @@ export type DashboardGroup = {
   name: string;
   active_children: number;
   present: number;
+  on_site: number;
+  departed: number;
   absent: number;
   unknown: number;
+  needs_arrival: number;
 };
 
 export type DashboardSummary = {
   date: string;
   active_children: number;
   present: number;
+  on_site: number;
+  departed: number;
   absent: number;
   unknown: number;
+  needs_arrival: number;
   active_groups: number;
   active_employees: number;
   groups: DashboardGroup[];

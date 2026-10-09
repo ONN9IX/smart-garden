@@ -167,8 +167,11 @@ def management_today(db: Session, actor: User) -> ManagementToday:
             group_name=group.name,
             active_children=group.active_children,
             present=group.present,
+            on_site=group.on_site,
+            departed=group.departed,
             absent=group.absent,
             unknown=group.unknown,
+            needs_arrival=group.needs_arrival,
             has_active_teacher=group.id in assigned_group_ids,
             has_active_weekly_schedule=group.id in scheduled_group_ids,
         )
@@ -197,8 +200,8 @@ def management_today(db: Session, actor: User) -> ManagementToday:
 
     attention: list[ManagementAttentionItem] = []
     attention.extend(
-        ManagementAttentionItem(kind="attendance_missing", entity_type="attendance", entity_id=group.group_id, count=group.unknown)
-        for group in groups if group.unknown
+        ManagementAttentionItem(kind="attendance_missing", entity_type="attendance", entity_id=group.group_id, count=group.unknown + group.needs_arrival)
+        for group in groups if group.unknown or group.needs_arrival
     )
     attention.extend(
         ManagementAttentionItem(kind="group_without_teacher", entity_type="group", entity_id=group.group_id)
@@ -216,8 +219,11 @@ def management_today(db: Session, actor: User) -> ManagementToday:
         date=base.date,
         active_children=base.active_children,
         present=base.present,
+        on_site=base.on_site,
+        departed=base.departed,
         absent=base.absent,
         unknown=base.unknown,
+        needs_arrival=base.needs_arrival,
         active_groups=base.active_groups,
         active_employees=base.active_employees,
         groups_without_active_teacher_assignment=len(without_teacher),

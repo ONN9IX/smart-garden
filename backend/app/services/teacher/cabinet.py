@@ -1,10 +1,9 @@
 """Assigned Groups, roster, attendance, schedule and Today aggregation."""
 
-from collections import Counter
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -37,6 +36,7 @@ from app.schemas.teacher.contracts import (
     TodayResponse,
 )
 from app.services import attendance
+from app.services.attendance_counts import count_group_attendance
 from app.services.teacher import access
 
 
@@ -261,22 +261,9 @@ def today(db: Session, actor: User) -> TodayResponse:
             id=item.id, group_id=item.group_id, weekday=item.weekday,
             start_time=item.start_time, end_time=item.end_time, title=item.title,
         ) for item in raw_schedule]
+        counts_by_group = count_group_attendance(db, actor.organization_id, group_ids, day)
         for item in assigned_groups:
-            roster_count = db.scalar(select(func.count(Child.id)).where(
-                Child.organization_id == actor.organization_id,
-                Child.group_id == item.id,
-                Child.status == "active",
-            )) or 0
-            states = Counter(db.scalars(select(Attendance.status).where(
-                Attendance.organization_id == actor.organization_id,
-                Attendance.group_id == item.id,
-                Attendance.date == day,
-            )))
-            known = states["present"] + states["absent"]
-            attendance_items.append(AttendanceSummary(
-                group_id=item.id, present=states["present"], absent=states["absent"],
-                unknown=max(roster_count - known, 0),
-            ))
+            attendance_items.append(AttendanceSummary(group_id=item.id, **counts_by_group[item.id].__dict__))
     tasks = db.scalars(select(TeacherTask).where(
         TeacherTask.organization_id == actor.organization_id,
         TeacherTask.assignee_employee_id == employee.id,

@@ -39,6 +39,7 @@ from app.schemas.management_people import (
 )
 from app.services import audit
 from app.services import children as child_service
+from app.services.attendance_counts import count_group_attendance
 from app.services.auth import utc_now
 
 
@@ -235,9 +236,9 @@ def group_profile(db: Session, actor: User, group_id: UUID) -> GroupProfile:
         Child.status == "active",
     ).order_by(Child.last_name, Child.first_name, Child.id)))
     child_ids = [item.id for item in children_rows]
-    attendance_by_child: dict[UUID, str] = {}
+    attendance_by_child: dict[UUID, Attendance] = {}
     if child_ids:
-        attendance_by_child = {child_id: status for child_id, status in db.execute(select(Attendance.child_id, Attendance.status).where(
+        attendance_by_child = {row.child_id: row for row in db.scalars(select(Attendance).where(
             Attendance.organization_id == actor.organization_id,
             Attendance.group_id == group.id,
             Attendance.child_id.in_(child_ids),
@@ -259,12 +260,12 @@ def group_profile(db: Session, actor: User, group_id: UUID) -> GroupProfile:
     children = [GroupProfileChild(
         id=item.id, first_name=item.first_name, last_name=item.last_name,
         middle_name=item.middle_name, status=item.status,
-        today_attendance=attendance_by_child.get(item.id),
+        today_attendance=attendance_by_child[item.id].status if item.id in attendance_by_child else None,
+        arrival_time=attendance_by_child[item.id].arrival_time if item.id in attendance_by_child else None,
+        departure_time=attendance_by_child[item.id].departure_time if item.id in attendance_by_child else None,
         active_guardian_count=guardian_count_by_child.get(item.id, 0),
     ) for item in children_rows]
-    present = sum(item.today_attendance == "present" for item in children)
-    absent = sum(item.today_attendance == "absent" for item in children)
-    unknown = len(children) - present - absent
+    attendance_counts = count_group_attendance(db, actor.organization_id, [group.id], today)[group.id]
 
     employees = [GroupProfileEmployee(
         id=employee.id, first_name=employee.first_name, last_name=employee.last_name,
@@ -339,8 +340,7 @@ def group_profile(db: Session, actor: User, group_id: UUID) -> GroupProfile:
         TeacherTask.due_at.is_not(None), TeacherTask.due_at < now,
     )) or 0
     return GroupProfile(
-        group=group, local_date=today, active_children=len(children), present=present,
-        absent=absent, unknown=unknown, active_teacher_count=len(employees),
+        group=group, local_date=today, **attendance_counts.__dict__, active_teacher_count=len(employees),
         parent_count=len({item.id for item in parents}), active_schedule_count=len(schedule),
         open_tasks=open_tasks, overdue_tasks=overdue_tasks, children=children,
         employees=employees, parents=parents, schedule=schedule,
@@ -356,24 +356,8 @@ def group_overviews(db: Session, actor: User, status: str = "active") -> GroupOv
     if not group_ids:
         return GroupOverviewList(items=[])
 
-    child_counts = {group_id: count for group_id, count in db.execute(select(Child.group_id, func.count(Child.id)).where(
-        Child.organization_id == actor.organization_id, Child.group_id.in_(group_ids), Child.status == "active",
-    ).group_by(Child.group_id))}
-
-    attendance_counts: dict[UUID, dict[str, int]] = {}
     today = organization_today(actor.organization)
-    attendance_rows = db.execute(
-        select(Attendance.group_id, Attendance.status, func.count(Attendance.id))
-        .join(Child, Child.id == Attendance.child_id)
-        .where(
-            Attendance.organization_id == actor.organization_id,
-            Attendance.group_id.in_(group_ids), Attendance.date == today,
-            Child.organization_id == actor.organization_id, Child.group_id == Attendance.group_id,
-            Child.status == "active",
-        ).group_by(Attendance.group_id, Attendance.status)
-    )
-    for group_id, attendance_status, count in attendance_rows:
-        attendance_counts.setdefault(group_id, {})[attendance_status] = count
+    attendance_counts = count_group_attendance(db, actor.organization_id, group_ids, today)
 
     teacher_names: dict[UUID, list[str]] = {}
     teacher_rows = db.execute(
@@ -409,13 +393,9 @@ def group_overviews(db: Session, actor: User, status: str = "active") -> GroupOv
 
     items = []
     for group in groups:
-        counts = attendance_counts.get(group.id, {})
-        present = counts.get("present", 0)
-        absent = counts.get("absent", 0)
-        child_count = child_counts.get(group.id, 0)
+        counts = attendance_counts[group.id]
         items.append(GroupOverviewItem(
-            group=group, active_children=child_count, present=present, absent=absent,
-            unknown=max(0, child_count - present - absent),
+            group=group, **counts.__dict__,
             active_teacher_names=teacher_names.get(group.id, []),
             has_active_weekly_schedule=group.id in scheduled,
             open_tasks=open_task_counts.get(group.id, 0),

@@ -105,6 +105,8 @@ class GroupProfileChild(BaseModel):
     middle_name: str | None
     status: Literal["active", "archived"]
     today_attendance: Literal["present", "absent", "unknown"] | None
+    arrival_time: time | None = None
+    departure_time: time | None = None
     active_guardian_count: int
 
 
@@ -144,8 +146,11 @@ class GroupProfile(BaseModel):
     local_date: date
     active_children: int
     present: int
+    on_site: int
+    departed: int
     absent: int
     unknown: int
+    needs_arrival: int
     active_teacher_count: int
     parent_count: int
     active_schedule_count: int
@@ -161,8 +166,11 @@ class GroupOverviewItem(BaseModel):
     group: GroupResponse
     active_children: int
     present: int
+    on_site: int
+    departed: int
     absent: int
     unknown: int
+    needs_arrival: int
     active_teacher_names: list[str]
     has_active_weekly_schedule: bool
     open_tasks: int

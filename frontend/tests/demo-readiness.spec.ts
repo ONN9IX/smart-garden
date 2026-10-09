@@ -36,7 +36,7 @@ test("management attendance defaults to garden-local server date", async ({ page
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
-      date: "2026-10-01", active_children: 1, present: 0, absent: 0, unknown: 1,
+      date: "2026-10-01", active_children: 1, present: 0, on_site: 0, departed: 0, absent: 0, unknown: 1, needs_arrival: 0,
       active_groups: 1, active_employees: 1, groups: [],
     }),
   }));

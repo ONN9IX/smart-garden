@@ -21,7 +21,13 @@ function localDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 const time = (value: string | null) => value?.slice(0, 5) ?? "";
-const labels = { present: "В саду", absent: "Отсутствует", unknown: "Не отмечен" };
+function rowState(row: AttendanceRow) {
+  if (row.status === "absent") return "absent";
+  if (row.status !== "present") return "unknown";
+  if (row.departure_time) return "departed";
+  return row.arrival_time ? "on_site" : "needs_arrival";
+}
+const labels = { on_site: "В саду", departed: "Ушёл", absent: "Отсутствует", unknown: "Без отметки", needs_arrival: "Уточнить приход" };
 const displayDate = (value: string) => value.split("-").reverse().join(".");
 
 export function AttendancePage() { return <AuthGate route="dashboard"><AttendanceContent /></AuthGate>; }
@@ -56,15 +62,17 @@ function AttendanceContent() {
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
   const statusRows = status === "all" ? rows : rows.filter((row) => row.status === status);
   const visible = childId ? statusRows.filter((row) => row.child.id === childId) : statusRows;
-  const counts = rows.reduce((total, row) => ({ ...total, [row.status]: total[row.status] + 1 }), { present: 0, absent: 0, unknown: 0 });
+  const counts = rows.reduce((total, row) => ({ ...total, [rowState(row)]: total[rowState(row)] + 1 }), { on_site: 0, departed: 0, absent: 0, unknown: 0, needs_arrival: 0 });
   return <AppShell><div className="page-heading"><span className="eyebrow">Учёт</span><h1>Посещаемость</h1><p>Ручные отметки детей за выбранный день.</p></div>
-    <div className="filter-row"><label>Дата <Input type="date" value={day} max={gardenToday || undefined} onChange={(event) => { userChangedDay.current = true; invalidate(); setDay(event.target.value); setGroupId(""); setStatus("all"); setChildId(""); }} /><span className="muted">Выбрано: {displayDate(day)}</span></label><label>Группа <select className="input" value={groupId} onChange={(event) => { invalidate(); setGroupId(event.target.value); setChildId(""); }}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><label>Статус <select className="input" value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setChildId(""); }}><option value="all">Все</option><option value="present">В саду</option><option value="absent">Отсутствует</option><option value="unknown">Не отмечен</option></select></label><label>Ребёнок <select className="input" value={childId} onChange={(event) => setChildId(event.target.value)}><option value="">Все дети</option>{statusRows.map((row) => <option key={row.child.id} value={row.child.id}>{row.child.last_name} {row.child.first_name}</option>)}</select></label></div>
+    <div className="filter-row"><label>Дата <Input type="date" value={day} max={gardenToday || undefined} onChange={(event) => { userChangedDay.current = true; invalidate(); setDay(event.target.value); setGroupId(""); setStatus("all"); setChildId(""); }} /><span className="muted">Выбрано: {displayDate(day)}</span></label><label>Группа <select className="input" value={groupId} onChange={(event) => { invalidate(); setGroupId(event.target.value); setChildId(""); }}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><label>Статус <select className="input" value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setChildId(""); }}><option value="all">Все</option><option value="present">Посещали сегодня</option><option value="absent">Отсутствует</option><option value="unknown">Не отмечен</option></select></label><label>Ребёнок <select className="input" value={childId} onChange={(event) => setChildId(event.target.value)}><option value="">Все дети</option>{statusRows.map((row) => <option key={row.child.id} value={row.child.id}>{row.child.last_name} {row.child.first_name}</option>)}</select></label></div>
     {error && <Alert>{error}</Alert>}
     {!loading && !error && <section className="dashboard-grid" aria-label="Сводка посещаемости">
       <article className="card metric-card"><span>Всего</span><strong>{rows.length}</strong></article>
-      <article className="card metric-card"><span>В саду</span><strong>{counts.present}</strong></article>
+      <article className="card metric-card"><span>В саду</span><strong>{counts.on_site}</strong></article>
+      <article className="card metric-card"><span>Ушли</span><strong>{counts.departed}</strong></article>
       <article className="card metric-card"><span>Отсутствуют</span><strong>{counts.absent}</strong></article>
-      <article className="card metric-card"><span>Не отмечены</span><strong>{counts.unknown}</strong></article>
+      <article className="card metric-card"><span>Без отметки</span><strong>{counts.unknown}</strong></article>
+      {counts.needs_arrival > 0 && <article className="card metric-card"><span>Уточнить приход</span><strong>{counts.needs_arrival}</strong></article>}
     </section>}
     {loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : visible.length === 0 ? <p className="empty-state">По выбранным фильтрам дети не найдены.</p> : <div className="attendance-list">{visible.map((row) => <AttendanceItem key={`${row.date}:${row.child.id}`} row={row} refresh={load} />)}</div>}
   </AppShell>;
@@ -76,13 +84,14 @@ function AttendanceItem({ row, refresh }: { row: AttendanceRow; refresh: () => P
   const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [message, setMessage] = useState("");
   async function save(event: React.FormEvent) {
     event.preventDefault(); if (busy) return;
+    if (row.status === "present" && (row.arrival_time || row.departure_time) && mark !== "present" && !window.confirm("Изменить статус и очистить сохранённые времена прихода и ухода?")) return;
     if (mark === "present" && departure && (!arrival || departure < arrival)) { setError("Время ухода должно быть не раньше прихода."); return; }
     setBusy(true); setError(""); setMessage("");
     try { await attendanceApi.save({ child_id: row.child.id, date: row.date, status: mark, arrival_time: mark === "present" ? arrival || null : null, departure_time: mark === "present" ? departure || null : null }); setMessage("Отметка сохранена."); await refresh(); }
     catch (reason) { setError(userMessage(reason)); } finally { setBusy(false); }
   }
   return <form className="card section-card section-space" onSubmit={(event) => void save(event)}>
-    <h2>{row.child.last_name} {row.child.first_name} {row.child.middle_name ?? ""}</h2><p><strong>{labels[row.status]}</strong> · {row.group.name}</p>{row.status === "present" && (row.arrival_time || row.departure_time) && <p className="muted">Время: {row.arrival_time ? time(row.arrival_time) : "—"}{row.departure_time ? `–${time(row.departure_time)}` : ""}</p>}
+    <h2>{row.child.last_name} {row.child.first_name} {row.child.middle_name ?? ""}</h2><p><strong>{labels[rowState(row)]}</strong> · {row.group.name}</p>{(row.arrival_time || row.departure_time) && <p className="muted">Приход: {row.arrival_time ? time(row.arrival_time) : "—"} · Уход: {row.departure_time ? time(row.departure_time) : "—"}</p>}
     {row.child.status === "archived" ? <p>Карточка в архиве. Сохранённая отметка доступна для просмотра.</p> : <><div className="form-grid"><label>Отметка состояния <select className="input" value={mark} onChange={(event) => { const next = event.target.value as AttendanceStatus; setMark(next); if (next !== "present") { setArrival(""); setDeparture(""); } }}><option value="unknown">Не отмечен</option><option value="present">В саду</option><option value="absent">Отсутствует</option></select></label>{mark === "present" && <><label>Приход (необязательно) <Input type="time" value={arrival} onChange={(event) => setArrival(event.target.value)} /></label><label>Уход (необязательно) <Input type="time" value={departure} onChange={(event) => setDeparture(event.target.value)} /></label></>}</div><Button disabled={busy}>{busy ? "Сохранение..." : "Сохранить отметку"}</Button></>}
     {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
   </form>;

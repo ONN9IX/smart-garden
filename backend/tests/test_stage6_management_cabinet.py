@@ -371,6 +371,7 @@ def test_management_today_aggregate_is_tenant_scoped_and_uses_active_assignments
     assert payload["active_children"] == 5
     assert payload["present"] == 1
     assert payload["unknown"] == 4
+    assert payload["active_children"] == sum(payload[key] for key in ("on_site", "departed", "absent", "unknown", "needs_arrival"))
     assert payload["active_groups"] == 5
     assert payload["open_tasks"] == payload["overdue_tasks"] == 1
     assert payload["open_incidents"] == 0
