@@ -243,3 +243,13 @@ personal data in Issues or prompts.
 - [ ] Existing #196 cleared; scoped small approval Issue created with exact SHA
 - [ ] Pilot generated only approved files/one PR, CI completed, no auto-merge
 - [ ] Explicit owner authorization given for `START_ENABLED=true`
+
+## Windows dispatcher candidate — Issue #207
+
+See [Windows security boundary and candidate commands](windows/SECURITY.md).
+This delivery adds an offline controller core and negative-test harness; activation
+remains **NO-GO**. It does not revive the retired worker or authorize the historical
+installation/activation checklist above. Task Scheduler XML is disabled, runs at
+two-hour cadence, and requires separate owner host approval before installation.
+No worker, OAuth transport or publisher is installed. Live credential-isolation
+acceptance remains untested; Python dry-run does not imply working autonomy.
