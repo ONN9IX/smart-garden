@@ -18,7 +18,7 @@ foreach ($item in @(@{Name='OAuth';Path=$OAuthCanary;Write=$false}, @{Name='Git'
     $stream = $null
     try {
         $access = [IO.FileAccess]::Read
-        if ($item.Write) { $access = [IO.FileAccess]::ReadWrite }
+        if ($item.Write) { $access = [IO.FileAccess]::Write }
         # Open existing file only; do not read or change any content.
         $stream = [IO.File]::Open($item.Path, [IO.FileMode]::Open, $access, [IO.FileShare]::ReadWrite)
         Write-Output ('FAIL: {0} accessible' -f $item.Name)

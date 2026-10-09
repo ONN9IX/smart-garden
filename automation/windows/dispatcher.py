@@ -180,7 +180,7 @@ class Delivery:
     pr: int | None = None
     repairs: int = 0
 
-    def observe(self, approval, snapshot):
+    def observe(self, approval, snapshot, *, merge_evidence=None, owner_modulus=None):
         """Validated controller snapshot only. No Issue/PR prose is interpreted."""
         if self.approval_id != approval["id"] or self.issue != approval["issue"] or self.base != approval["base"] or self.branch != approval["branch"]:
             raise Denied("state identity mismatch")
@@ -204,9 +204,28 @@ class Delivery:
             raise Denied("duplicate PR")
         self.pr, self.head = pr["number"], pr["head"]
         if snapshot.get("merged", False):
-            if not snapshot.get("owner_merge_verified", False) or not SHA.fullmatch(snapshot.get("merge_sha", "")):
+            # Evidence and pinned root come from the protected controller, never
+            # from the GitHub snapshot. Booleans cannot authenticate a merge.
+            if (snapshot.get("merged") is not True
+                    or not isinstance(merge_evidence, dict)
+                    or set(merge_evidence) != {"record", "signature"}):
                 raise Denied("unverified merge")
-            self.state = "DONE" if ci_passed(snapshot["post_merge_checks"], snapshot["merge_sha"]) else "POST_MERGE_CI"
+            record = merge_evidence["record"]
+            merge_sha = snapshot.get("merge_sha")
+            if (not isinstance(merge_sha, str) or not SHA.fullmatch(merge_sha)
+                    or snapshot["main"] != merge_sha
+                    or pr.get("merged") is not True
+                    or pr.get("merge_commit_sha") != merge_sha
+                    or not isinstance(record, dict)
+                    or set(record) != {"approval_id", "repo", "issue", "pr", "head", "merge_sha"}
+                    or type(record.get("issue")) is not int
+                    or type(record.get("pr")) is not int
+                    or record != dict(approval_id=self.approval_id, repo=REPO,
+                                      issue=self.issue, pr=self.pr, head=self.head,
+                                      merge_sha=merge_sha)):
+                raise Denied("merge identity mismatch")
+            verify_signature(record, merge_evidence["signature"], owner_modulus)
+            self.state = "DONE" if ci_passed(snapshot.get("post_merge_checks"), merge_sha) else "POST_MERGE_CI"
         elif ci_passed(snapshot["checks"], self.head):
             self.state = "READY_FOR_MASTER_CHAT"
         elif snapshot.get("ci_failed", False):

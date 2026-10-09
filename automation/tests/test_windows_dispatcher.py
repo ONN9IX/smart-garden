@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 WINDOWS = Path(__file__).resolve().parents[1] / "windows"
 sys.path.insert(0, str(WINDOWS))
@@ -35,6 +36,21 @@ def snapshot():
 def delivery():
     a = approval()
     return d.Delivery(a["id"], a["issue"], a["base"], a["branch"])
+
+
+MERGE = "c" * 40
+ROOT = (1 << 3072) - 1
+
+
+def merged_snapshot():
+    event = snapshot()
+    event.update(main=MERGE, merged=True, merge_sha=MERGE,
+                 post_merge_checks=checks(MERGE))
+    event["prs"][0].update(merged=True, merge_commit_sha=MERGE)
+    evidence = dict(record=dict(approval_id=approval()["id"], repo=d.REPO,
+                                issue=207, pr=208, head=HEAD, merge_sha=MERGE),
+                    signature="synthetic-signature-oracle")
+    return event, evidence
 
 
 def hold_lock(path, ready):
@@ -107,15 +123,22 @@ class DispatcherTests(unittest.TestCase):
             job.observe(approval(), dict(main=BASE, prs=[]))
 
     def test_merge_requires_owner_evidence_and_exact_post_merge_ci(self):
-        event = snapshot()
-        event.update(merged=True, merge_sha="c" * 40, post_merge_checks=checks())
+        event, evidence = merged_snapshot()
         with self.assertRaises(d.Denied):
             delivery().observe(approval(), event)
         event["owner_merge_verified"] = True
+        with self.assertRaises(d.Denied):
+            delivery().observe(approval(), event)
         job = delivery()
-        self.assertEqual(job.observe(approval(), event), "POST_MERGE_CI")
-        event["post_merge_checks"] = checks("c" * 40)
-        self.assertEqual(job.observe(approval(), event), "DONE")
+        event["post_merge_checks"] = checks()
+        # Signature oracle only: real signature/tamper tests are separate.
+        with patch.object(d, "verify_signature") as verifier:
+            self.assertEqual(job.observe(approval(), event, merge_evidence=evidence,
+                                         owner_modulus=ROOT), "POST_MERGE_CI")
+            verifier.assert_called_once_with(evidence["record"], evidence["signature"], ROOT)
+            event["post_merge_checks"] = checks(MERGE)
+            self.assertEqual(job.observe(approval(), event, merge_evidence=evidence,
+                                         owner_modulus=ROOT), "DONE")
 
     def test_ci_missing_duplicate_failed_skipped_and_new_head(self):
         self.assertTrue(d.ci_passed(checks(), HEAD))

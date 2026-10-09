@@ -16,6 +16,8 @@ Lifecycle tests use synthetic controller snapshots; they do not execute Issues.
 `synthetic-signature.json` is a disposable test-only public key/signature, never
 a production trust root; its private key was discarded. Verification tests use
 this real RSA signature and reject altered records and roots.
+`synthetic-merge-signature.json` likewise holds only a disposable public key and
+signed synthetic merge evidence; its private key was discarded.
 GitHub prose is never parsed as authority, shell code or scheduler configuration.
 
 The signer uses an owner-only private RSA key outside model reach. The public key
@@ -62,6 +64,15 @@ response stops work. No merge command exists. Repairs consume durable budgets
 before launch; future adapter must bound total runtime/tokens, apply backoff,
 and stop after recurrent failures. Scheduler runtime candidate is ten minutes.
 
+Merge completion additionally requires a separately supplied signed owner record
+with exactly `approval_id`, `repo`, `issue`, `pr`, `head`, `merge_sha`, verified
+against the controller's pinned owner root. `observe` accepts that envelope and
+root only as controller arguments, never snapshot fields. Its identity must match
+the delivery and authenticated PR; its merge SHA must equal both the PR's actual
+`merge_commit_sha` and current trusted main. Snapshot booleans alone cannot finish
+a delivery. Collect PR/main/checks through the future authenticated adapter;
+signed evidence does not authenticate GitHub data supplied by a worker.
+
 ## Confirmed limitation and local security gate
 
 This delivery has no privileged Windows account/ACL provisioning authorization,
@@ -79,6 +90,14 @@ missing paths and wrong identity fail. Owner separately verifies canary existenc
 effective ACLs, all credential locations, Credential Manager, process handles,
 environment and network boundaries. Do not pass actual secret file paths.
 
+The registry probe opens with write-only access, without requesting read rights
+or changing content. `test-probe-write-only.ps1` provisions only a disposable
+synthetic file under the current non-admin identity, denies ReadData while
+allowing writes, and verifies the actual probe exits 1. It restores the ACL and
+removes that exact file. This regression does not prove a production worker's
+credential isolation. New merge evidence and tests contain synthetic identifiers
+and public signature metadata only; the privacy/152-FZ review below applies.
+
 ```powershell
 powershell.exe -NoProfile -File automation/windows/probe-isolation.ps1 -ExpectedWorkerSid <worker-SID> -OAuthCanary <synthetic-protected-file> -GitCanary <synthetic-protected-file> -RegistryCanary <synthetic-protected-file>
 ```
@@ -95,6 +114,14 @@ fixed disabled status. The n8n workflow structural validator passed. PowerShell
 changed or bypassed. Thus task status, script runtime and credential denial
 under a separate worker SID have NOT been validated live. Syntax/static tests
 do not substitute for those gates.
+
+P1 repair validation on 2026-10-09: 70 Windows unittest cases pass (one existing
+OpenSSL installer skip). The write-allowed/read-denied ACL regression passed
+under the current non-admin identity with PowerShell 7 `-File`, without changing
+execution policy; actual probe exit 1 and unchanged canary content were checked.
+This is a synthetic ACL regression, not witnessed dedicated-worker acceptance.
+Signed merge completion/tamper rejection and mismatched main/PR/evidence negative
+tests pass. Autonomous execution remains NO-GO.
 
 ## Windows candidate commands
 
