@@ -96,13 +96,22 @@ STATIC/SYNTHETIC cannot be upgraded to LIVE-WITNESSED by editing JSON or flags.
 
 ## Offline acceptance command and exit semantics
 
-`pwsh -NoProfile -NonInteractive -File automation/windows/acceptance.ps1`
+`python automation/windows/controller.py --report`
 prints a fixed STATIC/NO_GO report and deliberately exits **1**. It reads no
 credentials, host configs, arbitrary evidence or Issue text; creates no files;
 changes no ACL/accounts/tasks; launches no model/publisher. Report repetition
 is deterministic. Unknown modes/arguments fail. This is a readiness reporter,
 not a witnessed isolation test or activation certificate. Existing
 `probe-isolation.ps1` remains the separate canary test requiring real worker SID.
+
+The Python wrapper sets POWERSHELL_TELEMETRY_OPTOUT=1 before launching PowerShell,
+disables its update check, filters the child environment to OS/runtime metadata,
+closes stdin and bounds runtime. It overrides inherited telemetry opt-in.
+Calling acceptance.ps1 directly does not suppress startup telemetry: use the
+wrapper. See [Microsoft telemetry documentation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_telemetry).
+The wrapper is not a model controller, accepted interpreter or trust anchor;
+its PATH-resolved runtime cannot establish host acceptance. Missing PowerShell
+returns NO_GO/NOT_TESTED. A zero child exit cannot authorize activation.
 
 ## Rollback and privacy
 
@@ -112,7 +121,9 @@ rollback: revoke approval first, stop execution, disable task, remove only newly
 approved components, restore specifically changed ACL/rules, verify disabled
 status. Never recursively remove a path computed from worker text.
 
-All new reporter fields are fixed enums/numbers; tests use synthetic temporary
+All new reporter fields are fixed enums/numbers; the wrapper handles only local
+runtime metadata, passes no ambient credential variables and launches no model.
+Tests use synthetic temporary
 files and fake environment flags. No PII, usernames, paths, secret contents,
 Issue prose or model logs are emitted. Future audit requires owner-approved
 retention and protected ACLs. This is technical review, not 152-FZ legal acceptance.

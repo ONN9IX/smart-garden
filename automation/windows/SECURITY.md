@@ -164,4 +164,7 @@ supported separated transport and concrete host plan can be reviewed.
 not a verifier of OS isolation. It cannot consume an accepted flag or workspace
 evidence to enable execution. No host provisioning or live credential test was
 performed. Existing execution denial and disabled task candidate are unchanged.
-Its fixed output and synthetic tests introduce no personal-data processing.
+Use `python automation/windows/controller.py --report` to disable PowerShell
+startup telemetry before launch and avoid passing ambient credential variables.
+This wrapper is not a runtime model controller. Fixed report fields and synthetic
+tests introduce no business personal-data processing; host metadata stays local.

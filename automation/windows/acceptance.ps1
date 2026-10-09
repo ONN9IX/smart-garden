@@ -1,5 +1,6 @@
 # Offline readiness report only. Never provisions or probes real protected assets.
 # Exit 1 is intentional: this delivery cannot accept a credential transport.
+# Use controller.py --report: startup opt-out must be set BEFORE pwsh starts.
 [CmdletBinding()]
 param([ValidateSet('Report')][string]$Mode = 'Report')
 $ErrorActionPreference = 'Stop'

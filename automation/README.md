@@ -261,3 +261,6 @@ of existing ChatGPT authentication from model shell access. The offline
 `windows/acceptance.ps1` report always returns STATIC/NO_GO and exit 1;
 this is expected readiness status, not live isolation acceptance. No controller,
 worker, publisher, account, ACL or scheduler is activated by this delivery.
+Use `python automation/windows/controller.py --report`; this offline wrapper
+sets the PowerShell telemetry opt-out before startup. Direct pwsh invocation
+does not guarantee that privacy boundary.
