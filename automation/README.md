@@ -253,3 +253,11 @@ installation/activation checklist above. Task Scheduler XML is disabled, runs at
 two-hour cadence, and requires separate owner host approval before installation.
 No worker, OAuth transport or publisher is installed. Live credential-isolation
 acceptance remains untested; Python dry-run does not imply working autonomy.
+
+## Windows credential-transport gate — Issue #209
+
+[Host plan and blocker](windows/HOST_PLAN.md) records the unresolved separation
+of existing ChatGPT authentication from model shell access. The offline
+`windows/acceptance.ps1` report always returns STATIC/NO_GO and exit 1;
+this is expected readiness status, not live isolation acceptance. No controller,
+worker, publisher, account, ACL or scheduler is activated by this delivery.

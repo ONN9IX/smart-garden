@@ -153,3 +153,15 @@ Future protected audit should contain approval ID, Issue/PR numbers, SHAs, enum
 state/reason and timestamp only, with owner-approved retention and ACLs. No
 production personal-data processing is introduced; this technical review is
 not production legal compliance under 152-FZ.
+
+## Issue #209 first-gate follow-up
+
+See [HOST_PLAN.md](HOST_PLAN.md) for the credential-transport blocker, trust/action
+matrix and exact acceptance sequence. This follow-up is the contract-permitted
+blocker delivery; controller/worker/publisher adapters are deferred until a
+supported separated transport and concrete host plan can be reviewed.
+`acceptance.ps1` is an offline STATIC readiness reporter, always NO_GO (exit 1),
+not a verifier of OS isolation. It cannot consume an accepted flag or workspace
+evidence to enable execution. No host provisioning or live credential test was
+performed. Existing execution denial and disabled task candidate are unchanged.
+Its fixed output and synthetic tests introduce no personal-data processing.
