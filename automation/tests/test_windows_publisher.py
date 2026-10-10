@@ -70,5 +70,15 @@ class SyntheticPublisherTests(unittest.TestCase):
                                   other: p.SyntheticBlob("2" * 40)})
 
 
+    def test_nested_git_configuration_never_allowed_even_if_approved(self):
+        for name in ("automation/.gitattributes", "automation/nested/.gitattributes",
+                     "automation/.gitmodules", "frontend/.lfsconfig"):
+            with self.subTest(path=name):
+                expanded = self.a | {"paths": sorted([self.path, name])}
+                edited = self.new | {name: p.SyntheticBlob("4" * 40)}
+                with self.assertRaises(d.Denied):
+                    self.verify(approval=expanded, new_tree=edited)
+
+
 if __name__ == "__main__":
     unittest.main()
