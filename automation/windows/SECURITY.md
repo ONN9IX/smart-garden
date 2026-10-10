@@ -223,3 +223,48 @@ auth changes, scheduler installation or model launch. Host evidence requires
 owner-approved retention/access. This is technical privacy/152-FZ review, not
 production legal compliance. Blocker delivery is valid; provisioning, functional
 transport tests, adapters, merge and activation still need separate decisions.
+
+
+## A2 / Issue #214 — offline protected-core implementation boundaries (2026-10-10)
+
+This addition is **STATIC/SYNTHETIC only**. The new importable modules are
+`controller_core.py`, `approval_store.py`, `worker_adapter.py`, and
+`publisher.py`. They are independent offline harnesses and do **not**
+replace the existing `dispatcher.py`, retired worker or `controller.py`.
+A2 code must never become the privileged production trust anchor by copying
+the files or setting an environment flag.
+
+- `SyntheticApprovalStore`: isolated disposable test directory, RSA signed
+  approval checked using existing #207 strict verifier, durable lock,
+  reservations/consumption/revocation. It does not attest real directory ACLs,
+  signing-key custody, independent approval issuance or actual revocation feed.
+  `require_live_store()` always denies.
+- `SyntheticControllerCore`: bounded, serialized state transitions over
+  owner-supplied **synthetic** snapshots; relies on existing exact eight-job
+  checks and independently signed merge evidence from #207; persists crash
+  state and blocks pending post-merge after timeout. Not a real GitHub reader.
+  `require_execution()` always denies.
+- `FakeWorkerAdapter`: fixed synthetic event strings only; no shell, CLI,
+  model, login, network, credentials or output publication; launch/publish/
+  merge always deny. Simulation is not isolation.
+- `publisher.py`: validates complete *synthetic* Git tree dictionaries and
+  computes delta independent of worker-reported changed paths; rejects
+  out-of-scope changes, unsafe modes, path aliases, hardlink/reparse metadata
+  and Git execution-configuration changes. The returned decision is always
+  NO_GO. Actual immutable OS snapshot, real Git object provenance,
+  link-race prevention, isolated Git process/environment and independent
+  GitHub authenticated state remain **NOT TESTED**.
+
+All new files are permanently non-privileged; they cannot launch worker/model,
+provision host, install scheduler, read credentials, push, create/update PR or
+merge. Synthetic status/result fields cannot assert LIVE-WITNESSED or GO.
+No production PII, secrets, host paths or SIDs are required; tests use only
+temporary synthetic records/objects. Each function has a minimized-data privacy
+boundary; this is not 152-FZ production legal acceptance.
+
+SAM-1 design #213 remains **INACTIVE / AUTO-MERGE NO-GO**. No trusted
+security-check publisher, actual signed single-use merge permit, owner
+root/ledger provisioning, branch-protection change, real credential transport
+or Windows isolation acceptance is delivered in A2. Further permissions,
+rulesets, host provisioning, real publication or activation require separate
+owner decision and LIVE-WITNESSED evidence where appropriate.
