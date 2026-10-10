@@ -70,5 +70,29 @@ class OfflineApprovalStoreTests(unittest.TestCase):
                 store.require_live_store()
 
 
+    def test_symlink_and_hardlink_lock_cannot_modify_external_file(self):
+        import os
+        envelope, root = fixture()
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside:
+            victim = Path(outside) / "unrelated"
+            victim.write_bytes(b"")
+            storage = store.SyntheticApprovalStore(tmp)
+            try:
+                os.symlink(victim, storage.lock)
+            except (OSError, NotImplementedError):
+                self.skipTest("synthetic symlink permission unavailable")
+            with self.assertRaises(d.Denied):
+                storage.reserve(envelope, root, main=BASE, now=NOW)
+            self.assertEqual(victim.read_bytes(), b"")
+            storage.lock.unlink()
+            try:
+                os.link(victim, storage.lock)
+            except (OSError, NotImplementedError):
+                self.skipTest("synthetic hardlink permission unavailable")
+            with self.assertRaises(d.Denied):
+                storage.reserve(envelope, root, main=BASE, now=NOW)
+            self.assertEqual(victim.read_bytes(), b"")
+
+
 if __name__ == "__main__":
     unittest.main()

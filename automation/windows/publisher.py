@@ -68,7 +68,7 @@ def validate_offline_delta(*, approval, old_tree, new_tree, main_sha,
     for path in sorted(set(old) | set(new)):
         if old.get(path) == new.get(path):
             continue
-        if path.casefold() in {p.casefold() for p in _FORBIDDEN}:
+        if path.rsplit("/", 1)[-1].casefold() in _FORBIDDEN:
             raise d.Denied("Git execution configuration changed")
         if path not in paths:
             raise d.Denied("write set escape")

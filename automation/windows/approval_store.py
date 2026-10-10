@@ -3,10 +3,12 @@
 Only a protected host installation with independently witnessed OS boundaries
 could supply a real approval store. This module never grants runtime authority.
 """
+from contextlib import contextmanager
 from datetime import datetime
 import os
 from pathlib import Path
 import re
+import stat
 import tempfile
 
 import dispatcher as d
@@ -38,6 +40,74 @@ def _validate(state):
             or set(state["revoked"]) & set(reserved)):
         raise d.Denied("invalid synthetic ledger")
     return state
+
+
+@contextmanager
+def synthetic_lock(path):
+    """Lock a disposable fixture using a checked file handle, never a followed link.
+
+    POSIX O_NOFOLLOW closes the final-symlink race; native Windows reparse/ACL
+    acceptance remains NOT TESTED and this is not a privileged host lock.
+    """
+    path = Path(path)
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_BINARY", 0)
+    if os.name != "nt":
+        if not hasattr(os, "O_NOFOLLOW"):
+            raise d.Denied("safe synthetic lock unavailable")
+        flags |= os.O_NOFOLLOW
+
+    def checked(info):
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or getattr(info, "st_file_attributes", 0) & 1024):
+            raise d.Denied("unsafe synthetic lock")
+
+    fd = None
+    locked = False
+    try:
+        if os.path.lexists(path):
+            checked(path.lstat())
+        fd = os.open(path, flags, 0o600)
+        info = os.fstat(fd)
+        checked(info)
+        path_info = path.lstat()
+        checked(path_info)
+        if (path_info.st_dev, path_info.st_ino) != (info.st_dev, info.st_ino):
+            raise d.Denied("synthetic lock replaced")
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        locked = True
+        final = path.lstat()
+        checked(final)
+        if (final.st_dev, final.st_ino) != (info.st_dev, info.st_ino):
+            raise d.Denied("synthetic lock replaced")
+        if os.fstat(fd).st_size == 0:
+            os.lseek(fd, 0, os.SEEK_SET)
+            os.write(fd, b"0")
+            os.fsync(fd)
+        yield
+    except OSError:
+        raise d.Denied("unsafe synthetic lock") from None
+    finally:
+        if fd is not None:
+            if locked:
+                try:
+                    if os.name == "nt":
+                        import msvcrt
+                        os.lseek(fd, 0, os.SEEK_SET)
+                        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                    else:
+                        import fcntl
+                        fcntl.flock(fd, fcntl.LOCK_UN)
+                finally:
+                    os.close(fd)
+            else:
+                os.close(fd)
 
 
 class SyntheticApprovalStore:
@@ -89,7 +159,7 @@ class SyntheticApprovalStore:
         """Record one synthetic reservation only after existing RSA verification."""
         if not isinstance(now, datetime) or now.tzinfo is None:
             raise d.Denied("invalid time")
-        with d.global_lock(self.lock):
+        with synthetic_lock(self.lock):
             state = self._read()
             record = d.verified_approval(envelope, trust_root, main=main, now=now,
                                          revoked=set(state["revoked"]),
@@ -103,7 +173,7 @@ class SyntheticApprovalStore:
 
     def check(self, envelope, trust_root, *, main, now):
         """Recheck signature, expiry, revocation and exact stored reservation."""
-        with d.global_lock(self.lock):
+        with synthetic_lock(self.lock):
             state = self._read()
             record = d.verified_approval(envelope, trust_root, main=main, now=now,
                                          revoked=set(state["revoked"]),
@@ -115,7 +185,7 @@ class SyntheticApprovalStore:
     def _transition(self, ident, field):
         if not isinstance(ident, str) or not _ID.fullmatch(ident):
             raise d.Denied("invalid approval identity")
-        with d.global_lock(self.lock):
+        with synthetic_lock(self.lock):
             state = self._read()
             if field == "consumed" and ident not in state["reserved"]:
                 raise d.Denied("cannot consume unreserved approval")

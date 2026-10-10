@@ -84,5 +84,60 @@ class ControllerCoreTests(unittest.TestCase):
                                        merge_root=root), "DONE")
 
 
+    def test_late_success_cannot_bypass_existing_post_merge_deadline(self):
+        with tempfile.TemporaryDirectory() as temp:
+            control = core.SyntheticControllerCore(temp, post_merge_timeout=timedelta(seconds=2))
+            self.tick(control, snapshot())
+            event, evidence = merged_snapshot()
+            root, signature = root_fixture("synthetic-merge-signature.json")
+            evidence["signature"] = signature
+            event["post_merge_checks"] = checks()  # pending on merge SHA
+            self.assertEqual(self.tick(control, event, merge_evidence=evidence,
+                                       merge_root=root), "POST_MERGE_CI")
+            event["post_merge_checks"] = checks(MERGE)  # too late
+            self.assertEqual(control.tick(envelope=self.envelope, public_root=self.root,
+                snapshot=event, main=MERGE, now=NOW + timedelta(seconds=3),
+                merge_evidence=evidence, merge_root=root), "BLOCKED")
+            self.assertEqual(self.tick(control, event, merge_evidence=evidence,
+                                       merge_root=root), "BLOCKED")
+
+    def test_malformed_snapshot_is_bounded_denial_not_key_error(self):
+        valid = snapshot()
+        fake_pr = valid["prs"][0]
+        malformed = (
+            {"main": BASE},
+            {"main": BASE, "prs": [], "checks": None},
+            {"main": BASE, "prs": {}, "checks": []},
+            {"main": BASE, "prs": [{}], "checks": []},
+            {"main": BASE, "prs": [fake_pr | {"head": None}], "checks": []},
+            {"main": BASE, "prs": [fake_pr | {"number": True}], "checks": []},
+            {"main": BASE, "prs": [fake_pr], "checks": [{}]},
+            {"main": BASE, "prs": [fake_pr], "checks": ["fake"]},
+            {"main": BASE, "prs": [fake_pr], "checks": [], "merged": "true"},
+            {"main": BASE, "prs": [fake_pr], "checks": [], "merged": True},
+            {"main": BASE, "prs": [fake_pr], "checks": [], "untrusted": True},
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            control = core.SyntheticControllerCore(temp)
+            for bad in malformed:
+                with self.subTest(snapshot=repr(bad)[:70]), self.assertRaises(d.Denied):
+                    control.tick(envelope=self.envelope, public_root=self.root,
+                                 snapshot=bad, main=BASE, now=NOW)
+
+    def test_controller_lock_link_cannot_write_outside_fixture(self):
+        import os
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as external:
+            victim = Path(external) / "unrelated"
+            victim.write_bytes(b"")
+            control = core.SyntheticControllerCore(temp)
+            try:
+                os.symlink(victim, control.lock)
+            except (OSError, NotImplementedError):
+                self.skipTest("synthetic symlink permission unavailable")
+            with self.assertRaises(d.Denied):
+                self.tick(control, snapshot())
+            self.assertEqual(victim.read_bytes(), b"")
+
+
 if __name__ == "__main__":
     unittest.main()
