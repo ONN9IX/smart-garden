@@ -306,15 +306,46 @@ class LooseFixtureGitReader:
         except (ValueError, zlib.error):
             raise d.Denied("corrupt Git fixture object") from None
 
-    def tree(self, commit):
-        content = self.object(commit, "commit")
-        first = content.split(b"\n", 1)[0]
-        if not first.startswith(b"tree ") or len(first) != 45:
+    def commit(self, oid):
+        """Validate the complete supported single-parent fixture commit grammar.
+
+        Optional/signature/encoding/continuation headers are unsupported, not
+        silently ignored. Identities/messages are never executed or reported.
+        """
+        content = self.object(oid, "commit")
+        if b"\0" in content or b"\n\n" not in content:
             raise d.Denied("invalid Git fixture commit")
-        try:
-            tree_id = first[5:].decode("ascii")
-        except UnicodeError:
-            raise d.Denied("invalid Git fixture commit") from None
+        header = content.split(b"\n\n", 1)[0]
+        if len(header) > 16384:
+            raise d.Denied("oversized Git fixture commit header")
+        lines = header.split(b"\n")
+        if len(lines) not in (3, 4) or not re.fullmatch(rb"tree [0-9a-f]{40}", lines[0]):
+            raise d.Denied("invalid Git fixture commit")
+        parent = None
+        if len(lines) == 4:
+            if not re.fullmatch(rb"parent [0-9a-f]{40}", lines[1]):
+                raise d.Denied("invalid Git fixture commit parent")
+            parent = lines[1][7:].decode("ascii")
+        tree_id = lines[0][5:].decode("ascii")
+        if tree_id == "0" * 40 or parent == "0" * 40:
+            raise d.Denied("null Git fixture object ID")
+        for expected, line in zip((b"author", b"committer"), lines[-2:]):
+            # Exclude angle delimiters and non-ASCII/control bytes before
+            # matching, rather than accepting an ambiguous identity then filtering.
+            identity = re.fullmatch(
+                rb"(author|committer) ([^<>\x00-\x1f\x7f-\xff]+) "
+                rb"<([^<>\x00-\x20\x7f-\xff]+)> "
+                rb"(0|[1-9][0-9]{0,18}) ([+-])([0-9]{2})([0-9]{2})", line)
+            if identity is None:
+                raise d.Denied("invalid Git fixture identity")
+            kind, name, _, timestamp, _, hour, minute = identity.groups()
+            if (kind != expected or name != name.strip()
+                    or int(timestamp) > 2**63 - 1 or int(hour) > 23 or int(minute) > 59):
+                raise d.Denied("invalid Git fixture identity")
+        return tree_id, parent
+
+    def tree(self, commit):
+        tree_id, _ = self.commit(commit)
         entries = {}
 
         def walk(oid, prefix, depth):
@@ -366,20 +397,15 @@ class LooseFixtureGitReader:
         seen = set()
         current = head
         for _ in range(64):
-            if current == base:
-                return
             if current in seen:
                 break
             seen.add(current)
-            commit = self.object(current, "commit")
-            headers = commit.split(b"\n\n", 1)[0].split(b"\n")
-            parents = [line[7:] for line in headers if line.startswith(b"parent ")]
-            if len(parents) != 1:
+            _, parent = self.commit(current)
+            if current == base:
+                return
+            if parent is None:
                 break
-            try:
-                current = parents[0].decode("ascii")
-            except UnicodeError:
-                break
+            current = parent
         raise d.Denied("Git fixture baseline ancestry unproven")
 
     def recheck(self):

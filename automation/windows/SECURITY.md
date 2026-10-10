@@ -338,6 +338,11 @@ as a trusted online collector. `SYNTHETIC` can never claim `LIVE-WITNESSED`.
 `LooseFixtureGitReader` independently reads/hashes complete raw loose commit,
 tree and blob objects from a disposable stopped fixture. It verifies object
 header/type/size/hash, baseline ancestry and loose HEAD/branch/main refs; denies
+malformed commit headers, missing/duplicate/out-of-order identities, invalid
+identity timestamps/timezones, NULs, null object IDs and unsupported optional
+headers. The conservative ASCII fixture grammar supports one tree, zero/one
+parent, author, committer and a message separator; all traversed ancestors and
+the baseline are validated, not only the candidate's first tree line. It denies
 noncanonical raw tree ordering using Git's directory-as-name-plus-slash rule,
 packs, gitdir/commondir indirection, alternates/replacements/grafts/shallow data,
 links/reparse/hardlinks, path/case/directory aliases, unsafe modes, oversized or

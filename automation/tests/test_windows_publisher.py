@@ -203,6 +203,15 @@ def make_git_fixture(directory, old=None, new=None, a=None, *, canonical_order=T
     return a | {'base': base}, head
 
 
+def put_commit_fixture(directory, content):
+    raw = b'commit ' + str(len(content)).encode() + b'\0' + content
+    oid = hashlib.sha1(raw).hexdigest()
+    path = Path(directory) / '.git/objects' / oid[:2] / oid[2:]
+    path.parent.mkdir(exist_ok=True)
+    path.write_bytes(zlib.compress(raw))
+    return oid
+
+
 class A3PublisherTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -403,6 +412,94 @@ class A3PublisherTests(unittest.TestCase):
             a, head = make_git_fixture(tmp, new=files, canonical_order=False)
             with self.assertRaisesRegex(d.Denied, 'noncanonical raw Git tree order'):
                 p.LooseFixtureGitReader(tmp).tree(head)
+
+    def test_hash_valid_malformed_commit_cannot_reach_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a, head = make_git_fixture(tmp)
+            valid = p.LooseFixtureGitReader(tmp).object(head, 'commit')
+            tree, parent, author, committer = valid.split(b'\n\n', 1)[0].split(b'\n')
+            if shutil.which('git'):
+                env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+                env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_SYSTEM=os.devnull)
+                canonical = subprocess.run(['git', 'fsck', '--strict', '--no-reflogs'],
+                    cwd=tmp, env=env, capture_output=True, timeout=10, check=False)
+                self.assertEqual(canonical.returncode, 0, canonical.stderr)
+            malformed = {
+                'missing_author': valid.replace(author + b'\n', b''),
+                'missing_committer': valid.replace(committer + b'\n', b''),
+                'duplicate_author': valid.replace(author, author + b'\n' + author),
+                'duplicate_committer': valid.replace(committer, committer + b'\n' + committer),
+                'identity_order': valid.replace(author + b'\n' + committer, committer + b'\n' + author),
+                'duplicate_tree': valid.replace(tree, tree + b'\n' + tree),
+                'duplicate_parent': valid.replace(parent, parent + b'\n' + parent),
+                'null_tree': valid.replace(tree, b'tree ' + b'0' * 40),
+                'null_parent': valid.replace(parent, b'parent ' + b'0' * 40),
+                'invalid_parent': valid.replace(parent, b'parent ' + b'X' * 40),
+                'optional_header': valid.replace(b'\n\n', b'\nencoding UTF-8\n\n', 1),
+                'continuation_header': valid.replace(b'\n\n', b'\n ignored continuation\n\n', 1),
+                'invalid_email': valid.replace(b'<fixture@example.invalid>', b'fixture@example.invalid'),
+                'nested_email': valid.replace(b'<fixture@example.invalid>', b'<<fixture@example.invalid>>'),
+                'padded_date': valid.replace(b'1577836800', b'01577836800'),
+                'date_overflow': valid.replace(b'1577836800', b'9223372036854775808'),
+                'bad_timezone': valid.replace(b'+0000', b'+2460'),
+                'missing_separator': valid.replace(b'\n\n', b'\n', 1),
+                'nul_message': valid + b'\0',
+                'header_cr': valid.replace(author, author + b'\r'),
+            }
+            for name, content in malformed.items():
+                with self.subTest(name=name):
+                    oid = put_commit_fixture(tmp, content)
+                    (Path(tmp) / '.git/refs/heads' / a['branch']).write_text(oid + '\n')
+                    for action in ('tree', 'ancestry', 'candidate'):
+                        with self.subTest(action=action), self.assertRaises(d.Denied):
+                            reader = p.LooseFixtureGitReader(tmp)
+                            if action == 'tree':
+                                reader.tree(oid)
+                            elif action == 'ancestry':
+                                reader.verify_ancestry(a['base'], oid)
+                            else:
+                                event = snapshot()
+                                event['main'] = a['base']
+                                event['prs'][0]['head'] = oid
+                                event['checks'] = checks(oid)
+                                evidence = signed_evidence(self.signer, event, a=a)
+                                p.verify_loose_fixture_candidate(directory=tmp, approval=a,
+                                    feed=p.SyntheticEvidenceFeed((evidence, evidence)),
+                                    evidence_root=self.signer.root, now=NOW, policy=self.policy)
+                    if name == 'missing_author' and shutil.which('git'):
+                        result = subprocess.run(['git', 'fsck', '--strict', '--no-reflogs'],
+                            cwd=tmp, env=env, capture_output=True, timeout=10, check=False)
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn(b'missingAuthor', result.stderr)
+
+    def test_ancestry_validates_baseline_and_intermediate_commit_grammar(self):
+        for position in ('baseline', 'intermediate'):
+            with self.subTest(position=position), tempfile.TemporaryDirectory() as tmp:
+                a, head = make_git_fixture(tmp)
+                reader = p.LooseFixtureGitReader(tmp)
+                valid = reader.object(head, 'commit')
+                target = a['base'] if position == 'baseline' else head
+                bad = reader.object(target, 'commit')
+                bad = b'\n'.join(line for line in bad.split(b'\n') if not line.startswith(b'author '))
+                bad_oid = put_commit_fixture(tmp, bad)
+                new_head = put_commit_fixture(tmp, valid.replace(
+                    ('parent ' + a['base']).encode(), ('parent ' + bad_oid).encode()))
+                if position == 'baseline':
+                    a['base'] = bad_oid
+                    (Path(tmp) / '.git/refs/heads/main').write_text(bad_oid + '\n')
+                (Path(tmp) / '.git/refs/heads' / a['branch']).write_text(new_head + '\n')
+                for base, candidate in ((a['base'], new_head), (bad_oid, bad_oid)):
+                    with self.assertRaises(d.Denied):
+                        p.LooseFixtureGitReader(tmp).verify_ancestry(base, candidate)
+                event = snapshot()
+                event['main'] = a['base']
+                event['prs'][0]['head'] = new_head
+                event['checks'] = checks(new_head)
+                evidence = signed_evidence(self.signer, event, a=a)
+                with self.assertRaises(d.Denied):
+                    p.verify_loose_fixture_candidate(directory=tmp, approval=a,
+                        feed=p.SyntheticEvidenceFeed((evidence, evidence)),
+                        evidence_root=self.signer.root, now=NOW, policy=self.policy)
 
     def test_refs_drift_and_object_replacement_are_not_accepted(self):
         with tempfile.TemporaryDirectory() as tmp:
