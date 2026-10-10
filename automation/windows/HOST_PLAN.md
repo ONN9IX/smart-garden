@@ -284,3 +284,27 @@ Linux startup-cache launcher around the real interpreter; repository launchers
 were not changed. n8n structural checks and two identical disabled dispatcher
 dry-runs passed. No native Windows operation or actual worker isolation was
 witnessed; all such host gates remain NOT TESTED / NO-GO.
+
+
+## A2 / Issue #214 — non-activating offline handoff (2026-10-10)
+
+The added `SyntheticControllerCore`, `SyntheticApprovalStore`,
+`FakeWorkerAdapter`, and read-only offline `publisher.py` form an executable
+**synthetic test harness**, not the separately privileged Windows controller,
+restricted worker or trusted publisher. No new host paths, service identities,
+ACLs, credentials, secrets, network endpoints, scheduler or executable model
+transport are configured by this change. All concrete host values remain
+UNRESOLVED and owner-protected outside this repository.
+
+Testing new offline Python modules is allowed with a disposable synthetic
+directory; it does not demonstrate native Windows ACL/token/process,
+Credential Manager, isolated environment, IPC, loopback/network confinement,
+exact OS write-set enforcement, exclusive stopped-worker Git snapshot, or
+real GitHub write-publication ability. Mark them **NOT TESTED** until separately
+approved real Windows witness checks. Do not bind a live owner approval root
+to these synthetic components. Do not enable the old worker, Task Scheduler,
+GitHub Merge, SAM-1, or any credential-bearing action.
+
+After A2 is merged with exact post-merge CI success, rebaseline #209 and
+propose a *separate* owner-approved concrete Windows host provisioning and
+witnessed acceptance plan. SAM-1 #213 is an architecture decision only.
