@@ -171,6 +171,16 @@ class SyntheticControllerCore:
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, self.deadline_file)
+            # POSIX rename is not power-failure durable until the directory
+            # entry is fsynced. This must happen BEFORE saving lifecycle state;
+            # otherwise a surviving stale PR_PENDING state can drop the gate.
+            if os.name != "nt":
+                directory_fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+            # Native Windows persistence/isolation remains NOT TESTED / NO_GO.
         finally:
             if temporary is not None and temporary.exists():
                 temporary.unlink()

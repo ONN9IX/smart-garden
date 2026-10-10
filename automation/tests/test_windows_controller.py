@@ -126,6 +126,40 @@ class ControllerCoreTests(unittest.TestCase):
                 snapshot=event, main=MERGE, now=NOW + timedelta(seconds=3),
                 merge_evidence=evidence, merge_root=root), "BLOCKED")
 
+    def test_deadline_directory_sync_precedes_state_commit(self):
+        import os
+        import stat
+        from unittest.mock import patch
+        if os.name == "nt":
+            self.skipTest("native Windows directory durability not witnessed")
+        with tempfile.TemporaryDirectory() as temp:
+            control = core.SyntheticControllerCore(temp)
+            self.tick(control, snapshot())
+            event, evidence = merged_snapshot()
+            root, signature = root_fixture("synthetic-merge-signature.json")
+            evidence["signature"] = signature
+            event["post_merge_checks"] = checks()
+            sequence = []
+            original_sync = os.fsync
+            original_save = d.save_state
+
+            def traced_sync(fd):
+                if stat.S_ISDIR(os.fstat(fd).st_mode):
+                    sequence.append("directory_synced")
+                return original_sync(fd)
+
+            def traced_save(*args):
+                sequence.append("state_saved")
+                return original_save(*args)
+
+            with patch("os.fsync", side_effect=traced_sync), patch.object(
+                    d, "save_state", side_effect=traced_save):
+                self.assertEqual(self.tick(control, event, merge_evidence=evidence,
+                                           merge_root=root), "POST_MERGE_CI")
+            self.assertIn("directory_synced", sequence)
+            self.assertLess(sequence.index("directory_synced"),
+                            sequence.index("state_saved"))
+
     def test_malformed_snapshot_is_bounded_denial_not_key_error(self):
         valid = snapshot()
         fake_pr = valid["prs"][0]
