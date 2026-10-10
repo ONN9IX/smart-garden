@@ -133,10 +133,21 @@ class SyntheticControllerCore:
             job = self._current(approval)
             if job.state in ("DONE", "BLOCKED"):
                 return job.state
-            if job.state == "POST_MERGE_CI" and self._check_deadline(job, now):
-                job.state = "BLOCKED"
-                d.save_state(self.state_file, job)
-                return job.state
+            # The durable deadline, not a mutable lifecycle state, controls
+            # acceptance: a crash may leave an older PR_PENDING state while
+            # the post-merge deadline file has already been committed.
+            deadline_exists = self.deadline_file.exists()
+            if deadline_exists:
+                if self._check_deadline(job, now):
+                    job.state = "BLOCKED"
+                    d.save_state(self.state_file, job)
+                    return job.state
+                # Once any merged observation was recorded, a non-merged PR
+                # snapshot must not rewind the lifecycle and reset its timer.
+                if snapshot.get("merged") is not True:
+                    raise d.Denied("post-merge snapshot regression")
+            elif job.state == "POST_MERGE_CI":
+                raise d.Denied("missing post-merge deadline")
             state = job.observe(approval, snapshot, merge_evidence=merge_evidence,
                                 owner_modulus=merge_root)
             if state == "POST_MERGE_CI":

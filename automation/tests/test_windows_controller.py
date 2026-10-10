@@ -101,6 +101,31 @@ class ControllerCoreTests(unittest.TestCase):
             self.assertEqual(self.tick(control, event, merge_evidence=evidence,
                                        merge_root=root), "BLOCKED")
 
+    def test_durable_deadline_survives_regressed_state_and_crash(self):
+        with tempfile.TemporaryDirectory() as temp:
+            control = core.SyntheticControllerCore(temp, post_merge_timeout=timedelta(seconds=2))
+            self.tick(control, snapshot())
+            event, evidence = merged_snapshot()
+            root, signature = root_fixture("synthetic-merge-signature.json")
+            evidence["signature"] = signature
+            event["post_merge_checks"] = checks()  # starts the deadline
+            self.assertEqual(self.tick(control, event, merge_evidence=evidence,
+                                       merge_root=root), "POST_MERGE_CI")
+            # An unmerged snapshot must never rewind an already-merged delivery.
+            with self.assertRaises(d.Denied):
+                self.tick(control, snapshot())
+            # Simulate crash/partial recovery: state was rolled back after
+            # deadline fsync but before durable state update.
+            approval_record = self.envelope["record"]
+            stale = d.Delivery(approval_record["id"], approval_record["issue"],
+                               approval_record["base"], approval_record["branch"])
+            stale.state = "PR_PENDING"
+            d.save_state(control.state_file, stale)
+            event["post_merge_checks"] = checks(MERGE)
+            self.assertEqual(control.tick(envelope=self.envelope, public_root=self.root,
+                snapshot=event, main=MERGE, now=NOW + timedelta(seconds=3),
+                merge_evidence=evidence, merge_root=root), "BLOCKED")
+
     def test_malformed_snapshot_is_bounded_denial_not_key_error(self):
         valid = snapshot()
         fake_pr = valid["prs"][0]
