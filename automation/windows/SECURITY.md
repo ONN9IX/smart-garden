@@ -168,3 +168,58 @@ Use `python automation/windows/controller.py --report` to disable PowerShell
 startup telemetry before launch and avoid passing ambient credential variables.
 This wrapper is not a runtime model controller. Fixed report fields and synthetic
 tests introduce no business personal-data processing; host metadata stays local.
+
+## A1 / Issue #211: transport qualification security review
+
+Approved four-file baseline `92aea397b4ecee449084d3a8e04ccce64c57004b`.
+Research reference: Codex 0.162.0, commit
+`c1382380de69521303b416720a52f42d51af6248`, not the installed Windows artifact.
+[HOST_PLAN.md](HOST_PLAN.md) contains immutable sources, feasibility, future
+checklist/approvals/rollback. Existing gates and retired worker stay unchanged.
+Activation **NO-GO**; actual Windows isolation **NOT TESTED**.
+
+Binary paths/pins/resource metadata, environment, workspace, RPC, Issue prose and
+model output are untrusted. Hash match to caller input is not authority. Shell
+and descendants must lack file/key-store credentials, credential-process memory/
+handles/debug/dumps/environment and privileged IPC/loopback access. Refresh and
+restart must preserve separation. `auto` storage fallback, backend fallback,
+broad workspace writes and upgrades are risks. Storage modes and RPC are not
+boundaries; #209's independent OS identities remain mandatory.
+
+### New-function privacy/boundary review
+
+| Function / helper | Data/effect | Limit |
+| --- | --- | --- |
+| `New-TransportReport` | Fixed enums and PowerShell version; no writes | STATIC, never GO |
+| `Read-TransportArguments` | Bounded path/hash/version/Report; rejects duplicates/unknowns | No arbitrary commands/evidence or invalid-value echo |
+| `Test-CandidatePath` | String-only validation | No artifact/owner attestation |
+| `Get-TransportHostMetadata` | OS/platform/architecture versions | No credentials/policy/identity/backend inspection |
+| `Get-CandidateMetadata`, native `Open`/`Inspect` | Fixed-source in-memory compilation; locked executable hash/metadata; disposed handles | No execution/secret paths; native behavior NOT TESTED in Cloud |
+| `Invoke-TransportPreflight` | Validated output and fixed errors; always NO_GO | No network/auth/model/publication/provisioning |
+| Test helpers | Disposable synthetic markers/fake metadata; bounded child env, telemetry opt-out before startup, no stdin | SYNTHETIC; AST overrides only in tests, no production simulation/acceptance input |
+
+Only an explicitly selected owner-approved executable is hashed (256 MiB max).
+Never pass renamed credential files or real secrets; owner verifies provenance.
+Native code checks canonical fixed-drive paths, reparse ancestors, final handle
+paths and single-link regular files; file read sharing denies concurrent write/
+delete, directory handles deny deletion until inspection finishes. This is not
+a sandbox, trusted publisher or proof of a protected Windows host.
+
+No paths/SIDs/user/account IDs/raw exceptions/arbitrary resource strings appear
+in reports. Version strings are bounded numeric fields; unknown resource versions
+are NOT_TESTED. Set startup telemetry opt-out/update checks off before PowerShell;
+script cannot retroactively suppress startup. Interpreter caches are outside the
+script's no-persistent-write guarantee; Linux tests redirect them to disposable
+fixtures. C# compilation can be tested on Linux, not Windows file enforcement.
+
+Valid reports exit 1; invalid inputs exit 2 without parameter-binder echo. No env
+booleans, workspace evidence, flags or modes can grant GO or change isolation
+fields. STATIC, SYNTHETIC, LIVE-WITNESSED and NOT TESTED remain distinct; A1 has
+no LIVE-WITNESSED acceptance. Future evidence needs protected provenance/freshness,
+actual token/host binding and independent witness.
+
+No production personal data, real credential reads, Windows ACL/accounts/policy/
+auth changes, scheduler installation or model launch. Host evidence requires
+owner-approved retention/access. This is technical privacy/152-FZ review, not
+production legal compliance. Blocker delivery is valid; provisioning, functional
+transport tests, adapters, merge and activation still need separate decisions.
