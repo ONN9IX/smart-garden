@@ -323,6 +323,7 @@ class LooseFixtureGitReader:
             raw = self.object(oid, "tree")
             position = 0
             names = set()
+            previous_key = None
             while position < len(raw):
                 end = raw.find(b"\0", position)
                 if end < 0 or end + 21 > len(raw):
@@ -333,6 +334,12 @@ class LooseFixtureGitReader:
                     raise d.Denied("invalid raw Git path") from None
                 if "/" in name or name.casefold() in names:
                     raise d.Denied("aliased raw Git tree")
+                # Git base_name_compare orders a directory as name + '/',
+                # and a blob as name + NUL; sorting bare names is insufficient.
+                key = name.encode("ascii") + (b"/" if mode == "40000" else b"\0")
+                if previous_key is not None and key <= previous_key:
+                    raise d.Denied("noncanonical raw Git tree order")
+                previous_key = key
                 names.add(name.casefold())
                 path = tree_path(prefix + name)
                 child = raw[end + 1:end + 21].hex()

@@ -282,9 +282,9 @@ def validate_delivery_ledger(state):
     delivery = state["delivery"]
     if delivery is None:
         return state
-    fields = {"record", "fingerprint", "state", "attempts", "started", "deadline",
+    fields = {"record", "fingerprint", "approval_root_fingerprint", "merge_root_fingerprint", "state", "attempts", "started", "deadline",
               "max_tokens", "attempt_tokens", "attempt_seconds", "head", "pr",
-              "merge_sha", "post_deadline", "polls"}
+              "merge_sha", "post_started", "post_deadline", "polls"}
     if not isinstance(delivery, dict) or set(delivery) != fields:
         raise d.Denied("invalid delivery reservation")
     record = delivery["record"]
@@ -295,6 +295,10 @@ def validate_delivery_ledger(state):
     except (KeyError, TypeError):
         raise d.Denied("invalid reserved scope") from None
     if (delivery["fingerprint"] != fingerprint(record)
+            or type(delivery["approval_root_fingerprint"]) is not str
+            or not re.fullmatch(r"[0-9a-f]{64}", delivery["approval_root_fingerprint"])
+            or type(delivery["merge_root_fingerprint"]) is not str
+            or not re.fullmatch(r"[0-9a-f]{64}", delivery["merge_root_fingerprint"])
             or not isinstance(delivery["state"], str)
             or delivery["state"] not in _DELIVERY_STATES
             or not started < fixture_time(delivery["deadline"]) <= fixture_time(record["expires"])
@@ -334,9 +338,12 @@ def validate_delivery_ledger(state):
         raise d.Denied("invalid reserved PR")
     if type(delivery["polls"]) is not int or not 0 <= delivery["polls"] <= 20:
         raise d.Denied("invalid post-merge polls")
+    if (delivery["post_deadline"] is None) != (delivery["post_started"] is None):
+        raise d.Denied("incomplete post-merge deadline")
     if delivery["post_deadline"] is not None:
+        observed = fixture_time(delivery["post_started"])
         end = fixture_time(delivery["post_deadline"])
-        if not started < end <= started + timedelta(days=2):
+        if not started <= observed < end <= observed + timedelta(hours=2):
             raise d.Denied("invalid post-merge deadline")
     if delivery["state"] in ("WAITING_FOR_OWNER", "POST_MERGE_CI", "DONE") and (
             not delivery["head"] or delivery["pr"] is None):

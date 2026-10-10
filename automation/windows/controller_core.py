@@ -259,15 +259,21 @@ class SyntheticProtectedController:
     The legacy #207 approval schema is intentionally unchanged in this delivery.
     """
 
-    def __init__(self, directory):
+    def __init__(self, directory, *, approval_root=None, merge_root=None):
         from approval_store import SyntheticDeliveryStore
+        for configured in (approval_root, merge_root):
+            if type(configured) is not int or not 3072 <= configured.bit_length() <= 8192:
+                raise d.Denied("independently configured owner roots required")
+        self.approval_root = approval_root
+        self.merge_root = merge_root
         self.store = SyntheticDeliveryStore(directory)
 
     def initialize(self):
         self.store.initialize()
 
-    @staticmethod
-    def _verify(envelope, root, state, main, now, *, allow_completed=False):
+    def _verify(self, envelope, root, state, main, now, *, allow_completed=False):
+        if root != self.approval_root:
+            raise d.Denied("owner approval root substitution")
         if not isinstance(now, datetime) or now.tzinfo is None:
             raise d.Denied("invalid clock")
         consumed = set(state["consumed"])
@@ -281,10 +287,11 @@ class SyntheticProtectedController:
         except (TypeError, KeyError):
             raise d.Denied("invalid signed scope") from None
 
-    @staticmethod
-    def _bound(job, approval):
+    def _bound(self, job, approval):
         from approval_store import fingerprint
-        if job is None or job["record"] != approval or job["fingerprint"] != fingerprint(approval):
+        if (job is None or job["record"] != approval or job["fingerprint"] != fingerprint(approval)
+                or job["approval_root_fingerprint"] != fingerprint(self.approval_root)
+                or job["merge_root_fingerprint"] != fingerprint(self.merge_root)):
             raise d.Denied("reservation scope changed")
 
     def run_fake(self, *, envelope, root, main, now, worker, cancelled=False,
@@ -310,12 +317,14 @@ class SyntheticProtectedController:
             job = state["delivery"]
             if job is None or job["state"] == "DONE":
                 job = {"record": approval, "fingerprint": fingerprint(approval),
+                    "approval_root_fingerprint": fingerprint(self.approval_root),
+                    "merge_root_fingerprint": fingerprint(self.merge_root),
                     "state": "READY", "attempts": [], "started": now.isoformat(),
                     "deadline": min(now + timedelta(seconds=600),
                                     fixture_time(approval["expires"])).isoformat(),
                     "max_tokens": max_tokens, "attempt_tokens": attempt_tokens,
                     "attempt_seconds": attempt_seconds, "head": "", "pr": None,
-                    "merge_sha": "", "post_deadline": None, "polls": 0}
+                    "merge_sha": "", "post_started": None, "post_deadline": None, "polls": 0}
                 state["delivery"] = job
             self._bound(job, approval)
             # Persisted limits win after restart; caller cannot enlarge them.
@@ -357,7 +366,7 @@ class SyntheticProtectedController:
         """Offline publication candidate; no branch/PR creation or write token."""
         import publisher as p
         from approval_store import fixture_time
-        if root == evidence_root:
+        if root == evidence_root or self.merge_root == evidence_root:
             raise d.Denied("owner and collector roots must be independent")
         with self.store.transaction() as state:
             approval = self._verify(envelope, root, state, main, now)
@@ -390,7 +399,8 @@ class SyntheticProtectedController:
         """
         import publisher as p
         from approval_store import fixture_time
-        if type(feed) is not p.SyntheticEvidenceFeed or root == evidence_root:
+        if (type(feed) is not p.SyntheticEvidenceFeed or root == evidence_root
+                or self.merge_root == evidence_root or merge_root != self.merge_root):
             raise d.Denied("independent synthetic collector required")
         with self.store.transaction() as state:
             job = state["delivery"]
@@ -429,6 +439,9 @@ class SyntheticProtectedController:
                     raise d.Denied("merge SHA changed")
                 job["merge_sha"] = event["merge_sha"]
                 if job["post_deadline"] is None:
+                    if now < fixture_time(job["started"]):
+                        raise d.Denied("merge observation clock regressed")
+                    job["post_started"] = now.isoformat()
                     job["post_deadline"] = (now + timedelta(hours=2)).isoformat()
                 post = event["post_merge_checks"]
                 if (len(post) != 8 or {check["name"] for check in post} != d.CI

@@ -149,7 +149,7 @@ def signed_evidence(signer, event=None, *, a=None, when=NOW, **updates):
     return signer.sign(record)
 
 
-def make_git_fixture(directory, old=None, new=None, a=None):
+def make_git_fixture(directory, old=None, new=None, a=None, *, canonical_order=True):
     root = Path(directory)
     git = root / '.git'
     git.mkdir()
@@ -178,7 +178,10 @@ def make_git_fixture(directory, old=None, new=None, a=None):
 
         def serialize(node):
             raw = b''
-            for name in sorted(node):
+            ordered = sorted(node, key=lambda n: n.encode('ascii') + (b'/' if isinstance(node[n], dict) else b'\0'))
+            if not canonical_order:
+                ordered.reverse()
+            for name in ordered:
                 value = node[name]
                 if isinstance(value, dict):
                     mode, oid = '40000', serialize(value)
@@ -189,8 +192,9 @@ def make_git_fixture(directory, old=None, new=None, a=None):
             return object_('tree', raw)
         return serialize(nested)
 
-    base = object_('commit', ('tree ' + tree(old) + '\n\nsynthetic baseline\n').encode())
-    head = object_('commit', ('tree ' + tree(new) + '\nparent ' + base + '\n\nsynthetic candidate\n').encode())
+    identity = 'author Synthetic <fixture@example.invalid> 1577836800 +0000\ncommitter Synthetic <fixture@example.invalid> 1577836800 +0000\n'
+    base = object_('commit', ('tree ' + tree(old) + '\n' + identity + '\nsynthetic baseline\n').encode())
+    head = object_('commit', ('tree ' + tree(new) + '\nparent ' + base + '\n' + identity + '\nsynthetic candidate\n').encode())
     (git / 'HEAD').write_bytes(('ref: refs/heads/' + a['branch'] + '\n').encode())
     branch = git / 'refs/heads' / a['branch']
     branch.parent.mkdir(parents=True)
@@ -376,6 +380,29 @@ class A3PublisherTests(unittest.TestCase):
                 reader.object(head, 'tree')
             with self.assertRaises(d.Denied):
                 reader.verify_ancestry('f' * 40, head)
+
+    def test_hash_valid_unsorted_tree_rejected_including_directory_order_rule(self):
+        files = {'a': (b'a', '100644'), 'z': (b'z', '100644')}
+        with tempfile.TemporaryDirectory() as tmp:
+            a, head = make_git_fixture(tmp, new=files, canonical_order=False)
+            with self.assertRaisesRegex(d.Denied, 'noncanonical raw Git tree order'):
+                p.LooseFixtureGitReader(tmp).tree(head)
+            if shutil.which('git'):
+                env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+                env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_SYSTEM=os.devnull)
+                result = subprocess.run(['git', 'fsck', '--strict', '--no-reflogs'],
+                    cwd=tmp, env=env, capture_output=True, timeout=10, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(b'treeNotSorted', result.stderr)
+        # Directory foo sorts AFTER blob foo.bar, despite sorting bare names.
+        files = {'foo/child.txt': (b'child', '100644'), 'foo.bar': (b'blob', '100644')}
+        with tempfile.TemporaryDirectory() as tmp:
+            a, head = make_git_fixture(tmp, new=files)
+            self.assertEqual(set(p.LooseFixtureGitReader(tmp).tree(head)), set(files))
+        with tempfile.TemporaryDirectory() as tmp:
+            a, head = make_git_fixture(tmp, new=files, canonical_order=False)
+            with self.assertRaisesRegex(d.Denied, 'noncanonical raw Git tree order'):
+                p.LooseFixtureGitReader(tmp).tree(head)
 
     def test_refs_drift_and_object_replacement_are_not_accepted(self):
         with tempfile.TemporaryDirectory() as tmp:

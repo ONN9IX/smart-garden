@@ -323,6 +323,12 @@ independent disposable collector root; the controller rejects reuse of its
 owner root for the collector. Fixture policy binds repository, Issue, policy,
 PR origin/branch/base/head, review identity, exact App-like IDs, expiry and
 collection time. Eight checks must be SUCCESS on the exact current HEAD.
+The owner approval and merge public roots are configured independently at
+controller creation and their fingerprints are bound into the reservation.
+Action/reconciliation arguments or a restarted process cannot replace them;
+both must differ from the evidence collector root. The persisted
+two-hour post-merge window starts at the first verified merge observation, even
+when human review lasted days; a restart cannot reset that observation time.
 Named checks alone, implementer review, stale review/policy, blocking findings,
 fake merge fields, foreign forks and HEAD/base drift are rejected. Recollect
 after tree verification. These signatures authenticate test data, NOT real
@@ -332,6 +338,7 @@ as a trusted online collector. `SYNTHETIC` can never claim `LIVE-WITNESSED`.
 `LooseFixtureGitReader` independently reads/hashes complete raw loose commit,
 tree and blob objects from a disposable stopped fixture. It verifies object
 header/type/size/hash, baseline ancestry and loose HEAD/branch/main refs; denies
+noncanonical raw tree ordering using Git's directory-as-name-plus-slash rule,
 packs, gitdir/commondir indirection, alternates/replacements/grafts/shallow data,
 links/reparse/hardlinks, path/case/directory aliases, unsafe modes, oversized or
 corrupt objects and detectable replacement. Config/hooks/filters, external diff,

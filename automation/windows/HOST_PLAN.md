@@ -500,7 +500,7 @@ remain unimplemented; no paid API/VPS/OAuth-to-Actions fallback is allowed.
 | Signed fixture collector, atomic delivery ledger, finite fake work, raw loose Git object hashing | SYNTHETIC | Offline disposable data only; never GO |
 | Real GitHub authenticated collector/check providers, packed-object publication, OS-exclusive snapshot | NOT TESTED | No live adapter or privileged action exists |
 | Windows token/ACL/key-store/env/process/IPC/network/refresh isolation | NOT TESTED | No LIVE-WITNESSED evidence in Cloud |
-| Windows provisioning, execution, scheduler, publisher write, SAM-1 auto-merge | NO-GO | Separate approvals and accepted adapters required |
+| Windows provisioning, execution, scheduler, publisher write, SAM-1 auto-merge | NOT TESTED | NO-GO; separate approvals and accepted adapters required |
 
 Next owner step after code review is explicit merge approval for this exact PR
 HEAD. After post-merge CI 8/8, provide the resolved host manifest through the
