@@ -264,3 +264,31 @@ worker, publisher, account, ACL or scheduler is activated by this delivery.
 Use `python automation/windows/controller.py --report`; this offline wrapper
 sets the PowerShell telemetry opt-out before startup. Direct pwsh invocation
 does not guarantee that privacy boundary.
+
+## A3 / Issue #216 — inactive protected transport preparation
+
+On baseline `cb5072aa39fb73a4cf3bae4cae4f10ee5773c2e3`, A3 extends the
+accepted A2 core with one atomic synthetic delivery ledger, reserved finite
+fake work units, independent signed fixture CI/review evidence, raw loose Git
+object verification and sanitized acceptance probes. These are offline
+integration candidates; execution, real GitHub writes, scheduler and SAM-1
+remain **NO-GO**. Windows isolation is **NOT TESTED** in Cloud.
+
+Use `python -m unittest discover -s automation/tests -v` for synthetic
+regressions, `python automation/windows/dispatcher.py --dry-run` for the
+disabled deterministic dispatcher, and `python automation/windows/controller.py
+--report` for the static reporter (exit 1 intentionally). The integrated two
+identical synthetic delivery dry-runs are in `test_windows_controller.py`.
+Only disposable synthetic keys/data are used; no real worker/model or
+credential access is needed. See [Windows HOST_PLAN](windows/HOST_PLAN.md) and
+[Windows SECURITY](windows/SECURITY.md) for limits and owner gates.
+
+**Current notification decision:** existing ChatGPT Task **Smart Garden — PR и
+подтверждения** + Master Chat. No Telegram/n8n notification integration, second
+monitor, unofficial ChatGPT API or privileged approval button. Sensitive
+changes use explicit text authorization binding PR number and exact HEAD;
+Tasks/labels/comments/model output never authorize autonomous execution or
+Merge. A3 itself is delivered as one reviewed PR, without Merge. Post-merge
+8/8 precedes the next Issue. Local scheduling requires an available PC/app;
+continuous authenticated cloud dispatch while PC is off remains unimplemented.
+Legacy Telegram/VPS/activation instructions above remain obsolete.

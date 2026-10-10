@@ -4,7 +4,6 @@ This code is deliberately incapable of invoking a live worker; even an
 accepted-looking issue or synthetic signed fixture cannot enable execution.
 """
 from dataclasses import dataclass
-from datetime import datetime
 
 import dispatcher as d
 
@@ -39,7 +38,7 @@ class SyntheticWorkUnit:
 
 class FakeWorkerAdapter:
     """Deterministic TEST-ONLY observer that can never execute supplied text."""
-    EVENTS = frozenset(("TEST_PASS", "TEST_FAIL", "CANCELLED"))
+    EVENTS = frozenset(("TEST_PASS", "TEST_FAIL", "CANCELLED", "TIMED_OUT", "BUDGET_EXCEEDED"))
 
     def __init__(self, events=("TEST_PASS",)):
         if (not isinstance(events, (tuple, list)) or not 1 <= len(events) <= 4
@@ -63,6 +62,17 @@ class FakeWorkerAdapter:
         self._cursor += 1
         return event
 
+    def simulate_reserved(self, work_unit):
+        """Receive a minimized, immutable fixture without environment or commands.
+
+        The controller persists its reservation BEFORE calling this method.
+        This is synthetic accounting, NOT OS resource or secret confinement.
+        """
+        if type(work_unit) is not ReservedSyntheticUnit:
+            raise d.Denied("invalid reserved fake unit")
+        work_unit.validate()
+        return self.simulate(work_unit.scope, attempt=work_unit.attempt)
+
     @staticmethod
     def launch(*_args, **_kwargs):
         raise d.Denied("NO_GO: live model transport disabled")
@@ -78,3 +88,33 @@ class FakeWorkerAdapter:
 
 def require_execution():
     raise d.Denied("NO_GO: model execution not authorized")
+
+
+@dataclass(frozen=True)
+class ReservedSyntheticUnit:
+    scope: SyntheticWorkUnit
+    attempt: int
+    scope_fingerprint: str
+    deadline: str
+    max_seconds: int
+    max_tokens: int
+
+    def validate(self):
+        from approval_store import fixture_time
+        if (type(self.scope) is not SyntheticWorkUnit
+                or type(self.attempt) is not int or not 0 <= self.attempt <= self.scope.max_repairs
+                or type(self.scope_fingerprint) is not str
+                or len(self.scope_fingerprint) != 64
+                or any(c not in "0123456789abcdef" for c in self.scope_fingerprint)
+                or type(self.max_seconds) is not int or not 1 <= self.max_seconds <= 120
+                or type(self.max_tokens) is not int or not 1 <= self.max_tokens <= 1024):
+            raise d.Denied("invalid reserved fake limits")
+        fixture_time(self.deadline)
+
+
+def transport_status():
+    """No host discovery, auth status, account data or token reads."""
+    return {"evidence": "STATIC", "transport": "FAKE_ONLY", "execution": "DISABLED",
+            "chatgpt_subscription": "SUPPORTED_CANDIDATE",
+            "installed_windows_pin": "NOT_TESTED", "credential_separation": "NOT_TESTED",
+            "decision": "NO_GO"}

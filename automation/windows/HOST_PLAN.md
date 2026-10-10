@@ -308,3 +308,203 @@ GitHub Merge, SAM-1, or any credential-bearing action.
 After A2 is merged with exact post-merge CI success, rebaseline #209 and
 propose a *separate* owner-approved concrete Windows host provisioning and
 witnessed acceptance plan. SAM-1 #213 is an architecture decision only.
+
+## A3 / Issue #216 — protected transport integration candidate (INACTIVE)
+
+Implementation baseline: `cb5072aa39fb73a4cf3bae4cae4f10ee5773c2e3`;
+A2 #214/#215 merged, post-merge CI #366 SUCCESS 8/8. #209 remains the host
+security contract; #213 SAM-1 remains design-only. This section supersedes
+older prospective Telegram/n8n notification requirements: **ChatGPT Tasks and
+Master Chat only**, no second monitor. Code acceptance and host activation are
+separate decisions. Nothing here provisions the owner computer.
+
+### Transport decision first — STATIC research, Windows NOT TESTED
+
+Public primary documentation rechecked on 2026-10-10:
+
+- [Codex authentication](https://learn.chatgpt.com/docs/auth): existing ChatGPT
+  sign-in is the first candidate, using subscription allowances. File/keyring/
+  auto/ephemeral custody still needs the A1 pin and real boundary verification.
+- [App-server auth lifecycle](https://learn.chatgpt.com/docs/app-server): managed
+  ChatGPT browser/device-code sign-in is available. External-token mode is an
+  experimental host-owned lifecycle; do not extract or repurpose the owner's
+  existing OAuth. An RPC boundary alone is not a process/credential boundary.
+- [SIWC plan usage](https://developers.openai.com/siwc/token-sharing-open-source):
+  an optional mechanism for eligible open-source/local clients; account,
+  registration, scopes and licensing eligibility are UNVERIFIED for Smart
+  Garden. It is not permission to register a client or change authorization.
+- [SIWC app-server](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server):
+  the documented provider passes an access token in the child environment.
+  Such an example fails our gate if model commands can inherit that environment
+  or inspect the credential-bearing process. No token broker is implemented.
+- [Windows sandbox](https://learn.chatgpt.com/docs/windows/windows-sandbox):
+  MXC is a candidate on supported builds; a preference permits fallback,
+  explicit MXC fails when unavailable. Legacy unelevated lacks denied-read
+  paths and cannot meet #209 as a fallback. Elevated setup changes host
+  users/ACL/firewall/policy and needs separate approval. MXC host-loopback
+  access requires independent examination of privileged local services.
+
+Reference source remains A1's Codex 0.162.0 / `rust-v0.162.0` /
+`c1382380de69521303b416720a52f42d51af6248`. This is NOT the installed
+Windows pin. Owner must supply actual artifact provenance, version, SHA256,
+source commit, OS capabilities and effective backend through the protected
+channel. Reuse unchanged `transport-preflight.ps1` for metadata-only checking;
+never execute a binary merely to determine its version. Its pin cannot prove
+authentication, backend selection or effective identity.
+
+**Concrete blocker:** no witnessed installed transport binds a restricted
+worker to denial of OAuth/GitHub caches, Credential Manager, inherited secrets,
+controller/broker process handles/memory, IPC and network/loopback. Native
+Windows cannot be inspected in this Linux Cloud environment. Status is
+**NOT TESTED / NO-GO**, not a claim that all supported transports are impossible.
+The implemented adapter is FAKE_ONLY. No real Codex/model launch, account
+login, credential transport or GitHub write is part of A3.
+
+### Reviewable two-principal host matrix — owner values UNRESOLVED
+
+The protected controller/publisher principal and non-admin worker principal
+must be different; the independent owner signer/trust root is outside both
+worker reach and repository control. Splitting publisher into a third
+principal is a later least-privilege option, not assumed provisioned here.
+
+| Boundary | Protected controller / publisher | Restricted worker | Witness required |
+| --- | --- | --- | --- |
+| Pinned runtime, controller and public roots | Controlled read/execute; owner-only updates | No modification, no protected-profile access | Actual effective token and matching canaries |
+| Approval / nonce / revocation / state / audit / global lock | Read/atomic write; out of repo | No write, rename, delete or directory-create | Seven scoped write/read canaries plus directory rights |
+| Owner signing key | Independent signer custody only | No access | Owner-controlled trust root; never an exported key |
+| OAuth auth process / caches / refresh | Only approved transport identity | No read/write/handles/debug/dumps | Synthetic markers, never authentic credential content |
+| GitHub publisher credentials | Approved publisher identity only | No read/env/key-store/process access | Credential Manager test with a disposable synthetic entry |
+| Workspace and Git objects | Stopped-worker exclusive read snapshot | Exact approved file writes only; no privileged Git metadata | OS write-set / links / untracked / refs / race checks |
+| IPC and loopback | Narrow authenticated command-independent interface | No privileged control endpoint | Named-pipe/socket impersonation and authorization negatives |
+| Network | Narrow approved model/GitHub endpoints by intended process | No arbitrary exfiltration or local privileged services | Synthetic marker sink, egress and loopback denial |
+| Scheduler | Absent/disabled | No install/enable | Protected status; no task created by A3 |
+
+### Command-by-command proposal: NOT AUTHORIZED, NOT RUN
+
+Before approving any host changes, owner fills a protected deployment manifest
+with concrete SIDs, actual absolute paths, hashes, effective permissions,
+endpoint policy, source/build and rollback targets. Do not put these values,
+ACL exports, usernames or local reports in GitHub. The steps below are a
+reviewable proposal using symbolic variables, not a deployable unattended script.
+Missing values/capabilities or a vendor backend failing #209 => STOP; no fallback.
+
+1. **Metadata only, no model execution:** privately inspect OS version,
+   installed artifact metadata and `transport-preflight.ps1` with exact
+   `-CodexBinaryPath`, `-ExpectedSha256`, `-ExpectedVersion`. Record only its
+   sanitized fixed statuses publicly. No `login status`, auth/config store
+   dumps, account/read refresh, environment dumps or process-memory reads.
+2. **Approval of concrete provisioning separately:** owner reviews account
+   selection, controller/interpreter placement, ACL changes, credential
+   process custody and firewall/IPC changes for the chosen backend. Existing
+   accounts may be selected only when their separation is proven. For legacy
+   elevated sandbox the vendor proposal is `codex sandbox setup --elevated
+   --user <approved-identity> --codex-home <approved-private-location>`;
+   it reads configuration and changes host state, so it MUST NOT run in A3.
+   MXC compatibility/startup commands also launch real processes and are
+   deferred to the separately approved witnessed session.
+3. **Snapshot specifically approved ACL metadata privately:** proposed owner
+   command `icacls $ApprovedControllerRoot /save $PrivateAclBackup /t /c`.
+   Obtain backup success and restoration mapping before any change. This
+   metadata is sensitive host information, never upload it.
+4. **Protect the resolved controller tree:** proposed, separately approved
+   command `icacls $ApprovedControllerRoot /inheritance:r /grant:r
+   "$($ApprovedControllerSid):(OI)(CI)F" "$($ApprovedOwnerSid):(OI)(CI)F"`.
+   Owner must inspect/remove any pre-existing grants permitting worker access
+   and verify effective rights, ancestors, replacement/delete-child rights,
+   lock location and interpreter custody. This template alone is NOT an
+   effective-ACL proof and is not applied recursively to arbitrary paths.
+5. **Workspace confinement / process / IPC / network:** use only the reviewed
+   vendor backend and a protected manifest. Deny reads of protected profiles;
+   allow writes only to exact approved files and fixed disposable scratch
+   paths. Pin the approved effective backend and disable unreviewed fallback.
+   Record exact native provisioning commands for the selected installed
+   backend before approval; none can be inferred safely from Cloud mocks.
+6. **Owner provisions synthetic canaries privately:** use pre-existing,
+   disposable marker files with independently witnessed existence and the
+   SAME effective ACL as the tested assets. No authentic secret file path
+   may be passed to `probe-isolation.ps1`. Preserve positive controls and
+   metadata proof outside the worker; do not create a readable token canary
+   beside a differently protected real cache and claim equivalence.
+7. **Run sanitized open-only probe under actual worker identity:**
+   `pwsh -NoProfile -NonInteractive -File <approved-probe-copy>
+   -ExpectedWorkerSid <approved-worker-SID> -OAuthCanary <synthetic-file>
+   -GitCanary <synthetic-file> -RegistryCanary <synthetic-file>
+   -ControllerCanary <synthetic-file> -RootCanary <synthetic-file>
+   -StateCanary <synthetic-file> -AuditCanary <synthetic-file>`.
+   Missing arguments/paths, aliases, wrong/admin identity, inaccessible
+   metadata, hardlink or race ambiguity => NOT TESTED. Read-only failure
+   cannot substitute for a write-only open. The script transfers no file
+   content and ALWAYS returns NO_GO; it cannot attest Credential Manager,
+   process, environment, IPC, network or complete directory permissions.
+8. **Independent witnessed native tests:** after separate host approval,
+   owner tests synthetic Credential Manager/env/process/IPC/network markers,
+   refresh/restart/backend drift, exact write confinement, hardlink/junction
+   substitution and stopped-worker exclusive snapshot. Do not test denial
+   by reading actual credentials or memory of real credential processes.
+   Each result binds source/pin/token/policy/canary provenance and witness;
+   Linux results remain SYNTHETIC regardless of passing count.
+9. **Scheduler and live publication remain disabled:** host acceptance does
+   not grant model execution, push/PR/merge, ruleset changes or SAM activation.
+   Each requires its own concrete permission and reviewed live adapter.
+
+### Rollback proposal and owner approvals
+
+No host rollback is needed for A3 because it changes no host state. For the
+later plan: revoke delivery first; stop only approved execution processes;
+leave/remove any newly approved task disabled; preserve ledger/reservations
+for reconciliation; restore only explicitly changed ACLs via the privately
+verified `icacls <mapped-parent> /restore $PrivateAclBackup` mapping; undo
+only listed firewall/IPC changes; remove only newly created approved canaries
+and accounts after data ownership is reconciled. Never reset consumed nonces,
+remove a lock to defeat a running process, restore/export OAuth caches, or
+recursively delete a worker-supplied path. Vendor-created components need a
+reviewed vendor rollback; no undocumented uninstall command is assumed.
+Verify denied activation, protected state custody and main integrity after
+rollback. Reverting a code PR is a separate owner decision, not auto-recovery.
+
+Required owner approvals, separately: exact host manifest/provisioning and
+rollback; synthetic witnessed session; later bounded live worker pilot;
+read-only-to-write publisher transition; trusted check providers/ruleset;
+SAM-1 activation. The PR merge itself requires an explicit PR/HEAD decision.
+
+### ChatGPT notification and approval workflow
+
+Use the existing hourly **Smart Garden — PR и подтверждения** read-only
+ChatGPT Task. A3 neither creates nor reconfigures it. No Telegram bot,
+n8n alert flow or unofficial ChatGPT messaging API is required.
+
+After PR + exact-HEAD CI 8/8 + independent Codex Security Review, the existing
+Task may notify on meaningful new readiness/blocker changes. Notification
+delivery depends on the owner's ChatGPT settings. Master Chat presents the
+PR URL, full HEAD SHA, CI/review links and remaining risks, and requests:
+`Разрешаю merge PR #N при HEAD <40-character SHA>`.
+The human-authorized chat action rechecks main/head/review/checks before
+merge; checks actual merge SHA and all eight post-merge jobs afterward.
+No next Issue starts before that gate. A button is optional only with an
+official authenticated callback that binds identity, PR/HEAD and authority;
+no such integration is implemented or presumed. Tasks, comments, labels and
+model text never supply the autonomous publisher's cryptographic approval.
+
+For a switched-off PC, existing manually delegated Codex Cloud work can
+continue in `smart-garden`; local scheduled Git tasks need the host/app running
+([official scheduled tasks](https://learn.chatgpt.com/docs/automations)). An
+hourly observer does not dispatch a new authenticated coding task. A supported
+always-available dispatch/execution path, protected custody and usage limits
+remain unimplemented; no paid API/VPS/OAuth-to-Actions fallback is allowed.
+
+### Evidence and next gated handoff
+
+| Result | Evidence class | Limit |
+| --- | --- | --- |
+| Supported subscription / backend documentation and A1 source reference | STATIC | No installed Windows identity or auth is attested |
+| Signed fixture collector, atomic delivery ledger, finite fake work, raw loose Git object hashing | SYNTHETIC | Offline disposable data only; never GO |
+| Real GitHub authenticated collector/check providers, packed-object publication, OS-exclusive snapshot | NOT TESTED | No live adapter or privileged action exists |
+| Windows token/ACL/key-store/env/process/IPC/network/refresh isolation | NOT TESTED | No LIVE-WITNESSED evidence in Cloud |
+| Windows provisioning, execution, scheduler, publisher write, SAM-1 auto-merge | NOT TESTED | NO-GO; separate approvals and accepted adapters required |
+
+Next owner step after code review is explicit merge approval for this exact PR
+HEAD. After post-merge CI 8/8, provide the resolved host manifest through the
+protected owner channel for a separate witnessed acceptance decision. Future
+SAM-1 still needs semantic NORMAL/SENSITIVE classification, trusted App-bound
+checks, ruleset acceptance and a durable single-use merge permit with HEAD/base/
+revocation race guarantees; no synthetic status or Codex comment substitutes.

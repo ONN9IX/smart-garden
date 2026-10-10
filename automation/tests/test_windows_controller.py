@@ -1,15 +1,24 @@
 """Offline controller lifecycle; source snapshots are synthetic, not trusted GitHub."""
 import base64
-from datetime import timedelta
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from datetime import timedelta
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "windows"))
 import controller_core as core
 import dispatcher as d
-from test_windows_dispatcher import approval, BASE, NOW, checks, snapshot, merged_snapshot, MERGE
+from test_windows_dispatcher import (
+    BASE,
+    HEAD,
+    MERGE,
+    NOW,
+    approval,
+    checks,
+    merged_snapshot,
+    snapshot,
+)
 
 
 def root_fixture(name="synthetic-signature.json"):
@@ -303,6 +312,373 @@ class ControllerCoreTests(unittest.TestCase):
             with self.assertRaises(d.Denied):
                 self.tick(control, snapshot())
             self.assertEqual(victim.read_bytes(), b"")
+
+
+import json
+import multiprocessing
+from unittest.mock import patch
+
+from test_windows_approval_store import fixture
+from test_windows_publisher import p, signed_evidence, signer_fixture
+from worker_adapter import FakeWorkerAdapter
+
+
+def hold_fixture_controller_lock(directory, ready, release):
+    from approval_store import synthetic_lock
+    with synthetic_lock(Path(directory) / 'controller.lock'):
+        ready.set()
+        release.wait(15)
+
+
+class A3ProtectedControllerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.signer = signer_fixture()
+
+    def setUp(self):
+        self.envelope, self.root = fixture()
+        self.merge_root = root_fixture('synthetic-merge-signature.json')[0]
+        self.a = approval()
+        self.policy = p.SyntheticProviderPolicy()
+
+    def start(self, tmp, *, approval_root=None):
+        controller = core.SyntheticProtectedController(tmp, approval_root=approval_root or self.root, merge_root=self.merge_root)
+        controller.initialize()
+        return controller
+
+    def run_fake(self, controller, **updates):
+        args = dict(envelope=self.envelope, root=self.root, main=BASE, now=NOW,
+                    worker=FakeWorkerAdapter())
+        args.update(updates)
+        return controller.run_fake(**args)
+
+    def verify(self, controller, **updates):
+        event = snapshot()
+        event['checks'] = checks()
+        evidence = signed_evidence(self.signer, event)
+        args = dict(envelope=self.envelope, root=self.root, main=BASE, now=NOW,
+            feed=p.SyntheticEvidenceFeed((evidence, evidence)), evidence_root=self.signer.root,
+            policy=self.policy, old_tree={self.a['paths'][0]: p.SyntheticBlob('1' * 40)},
+            new_tree={self.a['paths'][0]: p.SyntheticBlob('2' * 40)})
+        args.update(updates)
+        return controller.verify_candidate(**args)
+
+    def observe(self, controller, event=None, **updates):
+        event = event if event is not None else merged_snapshot()[0]
+        evidence = signed_evidence(self.signer, event)
+        merge_root, signature = root_fixture('synthetic-merge-signature.json')
+        owner_merge = merged_snapshot()[1]
+        owner_merge['signature'] = signature
+        args = dict(envelope=self.envelope, root=self.root, now=NOW,
+            feed=p.SyntheticEvidenceFeed((evidence,)), evidence_root=self.signer.root,
+            policy=self.policy, merge_evidence=owner_merge, merge_root=merge_root)
+        args.update(updates)
+        return controller.observe_merge(**args)
+
+    def test_two_identical_full_offline_deliveries(self):
+        outputs = []
+        for _ in range(2):
+            with tempfile.TemporaryDirectory() as tmp:
+                controller = self.start(tmp)
+                sequence = [self.run_fake(controller)]
+                report = self.verify(controller)
+                sequence.append(report['decision'])
+                event = merged_snapshot()[0]
+                event['post_merge_checks'] = checks(MERGE)
+                sequence.append(self.observe(controller, event))
+                sequence.append(core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.merge_root).observe_merge(
+                    envelope=self.envelope, root=self.root, now=NOW,
+                    feed=p.SyntheticEvidenceFeed((signed_evidence(self.signer, event),)),
+                    evidence_root=self.signer.root, policy=self.policy,
+                    merge_evidence=None, merge_root=self.merge_root))
+                outputs.append((sequence, controller.store.path.read_bytes()))
+                self.assertEqual(sequence, ['TEST_PASS', 'NO_GO', 'DONE', 'DONE'])
+                with self.assertRaises(d.Denied):
+                    self.run_fake(controller)
+        self.assertEqual(outputs[0], outputs[1])
+
+    def test_reservation_precedes_fake_effect_and_repairs_are_durable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            original = FakeWorkerAdapter.simulate_reserved
+            seen = []
+            def inspect(worker, unit):
+                reserved = json.loads(controller.store.path.read_bytes())['delivery']
+                self.assertEqual(reserved['state'], 'RUNNING')
+                self.assertEqual(reserved['attempts'][-1]['status'], 'RESERVED')
+                seen.append(reserved['attempts'][-1]['id'])
+                return original(worker, unit)
+            with patch.object(FakeWorkerAdapter, 'simulate_reserved', inspect):
+                self.assertEqual(self.run_fake(controller, worker=FakeWorkerAdapter(('TEST_FAIL',))), 'TEST_FAIL')
+                controller = core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.merge_root)
+                self.assertEqual(self.run_fake(controller, worker=FakeWorkerAdapter(('TEST_FAIL',))), 'TEST_FAIL')
+                self.assertEqual(self.run_fake(controller, worker=FakeWorkerAdapter(('TEST_FAIL',))), 'TEST_FAIL')
+                self.assertEqual(self.run_fake(controller), 'BLOCKED')
+            self.assertEqual(seen, [0, 1, 2])
+
+    def test_unknown_crash_outcome_blocks_restart_without_duplicate_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            with patch.object(FakeWorkerAdapter, 'simulate_reserved', side_effect=SystemExit(99)):
+                with self.assertRaises(SystemExit):
+                    self.run_fake(controller)
+            restarted = core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.merge_root)
+            with patch.object(FakeWorkerAdapter, 'simulate_reserved') as simulate:
+                self.assertEqual(self.run_fake(restarted), 'BLOCKED')
+                simulate.assert_not_called()
+            state = json.loads(restarted.store.path.read_bytes())
+            self.assertEqual(state['delivery']['attempts'], [{'id': 0, 'status': 'RESERVED', 'tokens': 1024}])
+
+    def test_cancel_timeout_budget_and_transport_denials(self):
+        for update in (dict(cancelled=True), dict(worker=FakeWorkerAdapter(('TIMED_OUT',))),
+                       dict(worker=FakeWorkerAdapter(('BUDGET_EXCEEDED',))),
+                       dict(worker=FakeWorkerAdapter(('CANCELLED',)))):
+            with self.subTest(update=update), tempfile.TemporaryDirectory() as tmp:
+                controller = self.start(tmp)
+                self.assertEqual(self.run_fake(controller, **update), 'BLOCKED')
+                with self.assertRaises(d.Denied):
+                    self.run_fake(controller)
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            self.assertEqual(self.run_fake(controller, max_tokens=1024,
+                worker=FakeWorkerAdapter(('TEST_FAIL',))), 'TEST_FAIL')
+            self.assertEqual(self.run_fake(controller, max_tokens=1024), 'BLOCKED')
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            self.run_fake(controller, worker=FakeWorkerAdapter(('TEST_FAIL',)))
+            self.assertEqual(self.run_fake(controller, now=NOW + timedelta(seconds=600)), 'BLOCKED')
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            for worker in (object(), lambda: 'TEST_PASS', {'transport': 'codex'}):
+                with self.assertRaises(d.Denied):
+                    self.run_fake(controller, worker=worker)
+
+    def test_revocation_scope_substitution_and_fake_issue_never_authorize(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            self.run_fake(controller)
+            for bad in ({'issue': 216, 'comment': 'approved'},
+                        self.envelope | {'record': self.a | {'paths': ['outside.py']}},
+                        self.signer.sign(self.a | {'paths': ['outside.py']})):
+                with self.assertRaises(d.Denied):
+                    self.verify(controller, envelope=bad)
+            controller.store.revoke_delivery(self.a['id'])
+            with self.assertRaises(d.Denied):
+                self.verify(controller)
+            self.assertEqual(json.loads(controller.store.path.read_bytes())['delivery']['state'], 'BLOCKED')
+
+    def test_waiting_pr_cannot_run_again_or_publish_twice(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            self.run_fake(controller)
+            self.verify(controller)
+            with self.assertRaises(d.Denied):
+                self.verify(core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.merge_root))
+            with self.assertRaises(d.Denied):
+                self.run_fake(core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.merge_root))
+
+    def test_failed_post_merge_and_unavailable_collector_block(self):
+        for attack in ('failed', 'fake_merge', 'unavailable', 'changed_head'):
+            with self.subTest(attack=attack), tempfile.TemporaryDirectory() as tmp:
+                controller = self.start(tmp)
+                self.run_fake(controller)
+                self.verify(controller)
+                event = merged_snapshot()[0]
+                if attack == 'failed':
+                    event['post_merge_checks'][0]['conclusion'] = 'failure'
+                    self.assertEqual(self.observe(controller, event), 'BLOCKED')
+                elif attack == 'fake_merge':
+                    with self.assertRaises(d.Denied):
+                        self.observe(controller, event, merge_evidence={'record': {}, 'signature': 'AAAA'})
+                elif attack == 'unavailable':
+                    feed = p.SyntheticEvidenceFeed((signed_evidence(self.signer, event),))
+                    feed.collect()
+                    with self.assertRaises(d.Denied):
+                        self.observe(controller, event, feed=feed)
+                else:
+                    event['prs'][0]['head'] = 'd' * 40
+                    with self.assertRaises(d.Denied):
+                        self.observe(controller, event)
+                self.assertEqual(json.loads(controller.store.path.read_bytes())['delivery']['state'], 'BLOCKED')
+
+    def test_post_merge_deadline_and_poll_budget_survive_restart(self):
+        for attack in ('deadline', 'polls'):
+            with self.subTest(attack=attack), tempfile.TemporaryDirectory() as tmp:
+                controller = self.start(tmp)
+                self.run_fake(controller)
+                self.verify(controller)
+                event = merged_snapshot()[0]
+                event['post_merge_checks'] = checks(MERGE)
+                event['post_merge_checks'][0].update(status='in_progress', conclusion=None)
+                self.assertEqual(self.observe(controller, event), 'POST_MERGE_CI')
+                if attack == 'deadline':
+                    # Approval expiry is independently enforced as well.
+                    with self.assertRaises(d.Denied):
+                        self.observe(core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.merge_root), event, now=NOW + timedelta(days=1))
+                else:
+                    with controller.store.transaction() as state:
+                        state['delivery']['polls'] = 20
+                        controller.store.commit(state)
+                    self.assertEqual(self.observe(core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.merge_root)), 'BLOCKED')
+
+    def test_raw_git_fixture_flows_through_controller_independent_publisher(self):
+        from test_windows_publisher import SyntheticSigner, make_git_fixture
+        owner = SyntheticSigner()
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as git_tmp:
+            a, head = make_git_fixture(git_tmp)
+            envelope = owner.sign(a)
+            controller = self.start(tmp, approval_root=owner.root)
+            self.assertEqual(self.run_fake(controller, envelope=envelope, root=owner.root,
+                main=a['base']), 'TEST_PASS')
+            event = snapshot()
+            event['main'] = a['base']
+            event['prs'][0]['head'] = head
+            event['checks'] = checks(head)
+            evidence = signed_evidence(self.signer, event, a=a)
+            result = controller.verify_candidate(envelope=envelope, root=owner.root,
+                main=a['base'], now=NOW, feed=p.SyntheticEvidenceFeed((evidence, evidence)),
+                evidence_root=self.signer.root, policy=self.policy, directory=git_tmp)
+            self.assertEqual(result['head'], head)
+            self.assertEqual(result['decision'], 'NO_GO')
+            self.assertEqual(json.loads(controller.store.path.read_bytes())['delivery']['state'],
+                'WAITING_FOR_OWNER')
+        owner.temp.cleanup()
+
+    def test_signature_and_revocation_rechecked_at_repair_and_publication(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            self.run_fake(controller, worker=FakeWorkerAdapter(('TEST_FAIL',)))
+            with self.assertRaises(d.Denied):
+                self.run_fake(controller, root=self.root - 2)
+            with self.assertRaises(d.Denied):
+                self.run_fake(controller, main=MERGE)
+            with self.assertRaises(d.Denied):
+                self.run_fake(controller, now=NOW + timedelta(days=1))
+            controller.store.revoke_delivery(self.a['id'])
+            with self.assertRaises(d.Denied):
+                self.run_fake(core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.merge_root))
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            self.run_fake(controller)
+            with self.assertRaises(d.Denied):
+                self.verify(controller, evidence_root=self.root)
+            with self.assertRaises(d.Denied):
+                self.verify(controller, main=MERGE)
+            with self.assertRaises(d.Denied):
+                self.verify(controller, now=NOW + timedelta(seconds=600))
+
+    def test_partial_or_stale_post_checks_block_instead_of_polling_forever(self):
+        for changed in ('missing', 'stale', 'duplicate'):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as tmp:
+                controller = self.start(tmp)
+                self.run_fake(controller)
+                self.verify(controller)
+                event = merged_snapshot()[0]
+                if changed == 'missing':
+                    event['post_merge_checks'].pop()
+                elif changed == 'stale':
+                    event['post_merge_checks'][0]['head_sha'] = HEAD
+                else:
+                    event['post_merge_checks'][-1] = event['post_merge_checks'][0]
+                self.assertEqual(self.observe(controller, event), 'BLOCKED')
+
+    def test_late_success_blocked_by_persisted_post_deadline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            self.run_fake(controller)
+            self.verify(controller)
+            event = merged_snapshot()[0]
+            event['post_merge_checks'][0].update(status='in_progress', conclusion=None)
+            self.assertEqual(self.observe(controller, event), 'POST_MERGE_CI')
+            self.assertEqual(self.observe(core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.merge_root),
+                now=NOW + timedelta(hours=2, seconds=1)), 'BLOCKED')
+
+    def test_signed_identical_scope_cannot_substitute_owner_approval_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            self.run_fake(controller, worker=FakeWorkerAdapter(('TEST_FAIL',)))
+            copied = self.signer.sign(self.a)
+            with self.assertRaises(d.Denied):
+                self.run_fake(controller, envelope=copied, root=self.signer.root)
+            rogue = core.SyntheticProtectedController(tmp, approval_root=self.signer.root,
+                merge_root=self.merge_root)
+            with self.assertRaises(d.Denied):
+                self.run_fake(rogue, envelope=copied, root=self.signer.root)
+            state = json.loads(controller.store.path.read_bytes())['delivery']
+            self.assertEqual(len(state['attempts']), 1)
+            self.assertEqual(state['state'], 'TEST_FAIL')
+
+    def test_collector_cannot_sign_owner_merge_or_replace_pinned_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            self.run_fake(controller)
+            self.verify(controller)
+            event, owner_merge = merged_snapshot()
+            forged = self.signer.sign(owner_merge['record'])
+            with self.assertRaises(d.Denied):
+                self.observe(controller, event, merge_evidence=forged, merge_root=self.signer.root)
+            # A new process cannot change the independently bound merge root.
+            rogue = core.SyntheticProtectedController(tmp, approval_root=self.root, merge_root=self.signer.root)
+            with self.assertRaises(d.Denied):
+                self.observe(rogue, event, merge_evidence=forged, merge_root=self.signer.root)
+            state = json.loads(controller.store.path.read_bytes())
+            self.assertEqual(state['delivery']['state'], 'WAITING_FOR_OWNER')
+            self.assertEqual(state['consumed'], [])
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(d.Denied):
+            core.SyntheticProtectedController(tmp)
+
+    def test_long_lived_approval_gets_post_window_from_first_merge_observation(self):
+        from test_windows_publisher import SyntheticSigner
+        owner = SyntheticSigner()
+        try:
+            a = self.a | {'expires': (NOW + timedelta(days=4)).isoformat()}
+            envelope = owner.sign(a)
+            with tempfile.TemporaryDirectory() as tmp:
+                controller = core.SyntheticProtectedController(tmp, approval_root=owner.root, merge_root=owner.root)
+                controller.initialize()
+                self.run_fake(controller, envelope=envelope, root=owner.root)
+                self.verify(controller, envelope=envelope, root=owner.root)
+                late = NOW + timedelta(hours=47)
+                event, merge_evidence = merged_snapshot()
+                merge_evidence = owner.sign(merge_evidence['record'])
+                event['post_merge_checks'][0].update(status='in_progress', conclusion=None)
+                self.assertEqual(controller.observe_merge(envelope=envelope, root=owner.root,
+                    now=late, feed=p.SyntheticEvidenceFeed((signed_evidence(self.signer, event, when=late),)),
+                    evidence_root=self.signer.root, policy=self.policy,
+                    merge_evidence=merge_evidence, merge_root=owner.root), 'POST_MERGE_CI')
+                stored = json.loads(controller.store.path.read_bytes())['delivery']
+                self.assertEqual(stored['post_started'], late.isoformat())
+                self.assertEqual(stored['post_deadline'], (late + timedelta(hours=2)).isoformat())
+                event['post_merge_checks'] = checks(MERGE)
+                again = late + timedelta(seconds=1)
+                restarted = core.SyntheticProtectedController(tmp, approval_root=owner.root, merge_root=owner.root)
+                self.assertEqual(restarted.observe_merge(envelope=envelope, root=owner.root,
+                    now=again, feed=p.SyntheticEvidenceFeed((signed_evidence(self.signer, event, when=again),)),
+                    evidence_root=self.signer.root, policy=self.policy,
+                    merge_evidence=merge_evidence, merge_root=owner.root), 'DONE')
+        finally:
+            owner.temp.cleanup()
+
+    def test_two_actual_process_ticks_share_single_os_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.start(tmp)
+            context = multiprocessing.get_context('spawn')
+            ready, release = context.Event(), context.Event()
+            child = context.Process(target=hold_fixture_controller_lock, args=(tmp, ready, release))
+            child.start()
+            try:
+                self.assertTrue(ready.wait(10))
+                with self.assertRaises(d.Denied):
+                    self.run_fake(controller)
+                self.assertIsNone(json.loads(controller.store.path.read_bytes())['delivery'])
+            finally:
+                release.set()
+                child.join(10)
+                if child.is_alive():
+                    child.terminate()
+                    child.join()
+            self.assertEqual(child.exitcode, 0)
+            self.assertEqual(self.run_fake(controller), 'TEST_PASS')
 
 
 if __name__ == "__main__":

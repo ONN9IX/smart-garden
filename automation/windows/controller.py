@@ -2,9 +2,10 @@
 import argparse
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
+import tempfile
+from pathlib import Path
 
 
 def report():
@@ -19,9 +20,16 @@ def report():
                               'HOME', 'USERPROFILE', 'LANG', 'LC_ALL'}}
     env['POWERSHELL_TELEMETRY_OPTOUT'] = '1'
     env['POWERSHELL_UPDATECHECK'] = 'Off'
-    result = subprocess.run([shell, '-NoProfile', '-NonInteractive', '-File',
-                             str(Path(__file__).with_name('acceptance.ps1'))],
-                            env=env, stdin=subprocess.DEVNULL, timeout=20)
+    # Use disposable startup caches; never publish these runtime paths.
+    with tempfile.TemporaryDirectory(prefix='garden-report-') as cache:
+        env.update(XDG_CACHE_HOME=cache, XDG_CONFIG_HOME=cache, XDG_DATA_HOME=cache)
+        try:
+            result = subprocess.run([shell, '-NoProfile', '-NonInteractive', '-File',
+                                     str(Path(__file__).with_name('acceptance.ps1'))],
+                                    env=env, stdin=subprocess.DEVNULL, timeout=20, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            print(json.dumps({'decision': 'NO_GO', 'reporter': 'NOT_TESTED'}))
+            return 1
     # A child returning 0 is not acceptance either. No path can authorize GO.
     return result.returncode if result.returncode != 0 else 1
 
