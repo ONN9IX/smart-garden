@@ -128,8 +128,35 @@ class SyntheticControllerCore:
             except OSError:
                 raise d.Denied("synthetic directory persistence unavailable") from None
 
+    def _write_state(self, job):
+        """Atomically persist only via an exclusive, unpredictable temp file.
+
+        The legacy dispatcher saves through a predictable .tmp name which
+        can follow symlinks or hardlinks. This test-only adapter must not.
+        """
+        import os
+        import tempfile
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile("wb", delete=False, dir=self.directory,
+                                             prefix="controller-state-", suffix=".tmp") as stream:
+                temporary = Path(stream.name)
+                stream.write(d.canonical(job.__dict__))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self.state_file)
+            temporary = None
+        except OSError:
+            raise d.Denied("unsafe synthetic state persistence") from None
+        finally:
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    raise d.Denied("unsafe synthetic state cleanup") from None
+
     def _save_state(self, job):
-        d.save_state(self.state_file, job)
+        self._write_state(job)
         # No DONE/BLOCKED transition may be returned before the rename is
         # durable. Native Windows persistence is NOT TESTED / NO_GO.
         self._sync_directory()
