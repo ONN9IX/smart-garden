@@ -210,6 +210,29 @@ class ControllerCoreTests(unittest.TestCase):
             self.assertIn("dir_fsync", order)
             self.assertLess(order.index("state_save"), order.index("dir_fsync"))
 
+    def test_retry_terminal_state_resyncs_directory_after_failed_fsync(self):
+        from unittest.mock import patch
+        for terminal in ("DONE", "BLOCKED"):
+            with self.subTest(terminal=terminal):
+                with tempfile.TemporaryDirectory() as temp:
+                    control = core.SyntheticControllerCore(temp)
+                    # Simulate a terminal state renamed into place while its
+                    # containing-directory fsync failed before acknowledgement.
+                    a = self.envelope["record"]
+                    job = d.Delivery(a["id"], a["issue"], a["base"], a["branch"])
+                    job.state = terminal
+                    d.save_state(control.state_file, job)
+                    with patch.object(control, "_sync_directory",
+                                      side_effect=d.Denied("synthetic fsync failure")):
+                        with self.assertRaises(d.Denied):
+                            self.tick(control, snapshot())
+                    self.assertEqual(d.restore_state(control.state_file, a).state,
+                                     terminal)
+                    with patch.object(control, "_sync_directory",
+                                      wraps=control._sync_directory) as sync:
+                        self.assertEqual(self.tick(control, snapshot()), terminal)
+                        sync.assert_called_once()
+
     def test_malformed_snapshot_is_bounded_denial_not_key_error(self):
         valid = snapshot()
         fake_pr = valid["prs"][0]

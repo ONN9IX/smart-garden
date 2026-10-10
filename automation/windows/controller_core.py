@@ -156,6 +156,11 @@ class SyntheticControllerCore:
                                            revoked=revoked, consumed=consumed)
             job = self._current(approval)
             if job.state in ("DONE", "BLOCKED"):
+                # The state file may be visible after os.replace() even when
+                # a previous directory fsync failed. Do not report a terminal
+                # state until its directory entry is durably synchronized.
+                # This also retries a failed sync on a later synthetic tick.
+                self._sync_directory()
                 return job.state
             # The durable deadline, not a mutable lifecycle state, controls
             # acceptance: a crash may leave an older PR_PENDING state while
