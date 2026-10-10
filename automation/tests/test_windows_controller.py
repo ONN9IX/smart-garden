@@ -141,7 +141,7 @@ class ControllerCoreTests(unittest.TestCase):
             event["post_merge_checks"] = checks()
             sequence = []
             original_sync = os.fsync
-            original_save = d.save_state
+            original_save = control._write_state
 
             def traced_sync(fd):
                 if stat.S_ISDIR(os.fstat(fd).st_mode):
@@ -153,7 +153,7 @@ class ControllerCoreTests(unittest.TestCase):
                 return original_save(*args)
 
             with patch("os.fsync", side_effect=traced_sync), patch.object(
-                    d, "save_state", side_effect=traced_save):
+                    control, "_write_state", side_effect=traced_save):
                 self.assertEqual(self.tick(control, event, merge_evidence=evidence,
                                            merge_root=root), "POST_MERGE_CI")
             self.assertIn("directory_synced", sequence)
@@ -190,7 +190,7 @@ class ControllerCoreTests(unittest.TestCase):
             root, signature = root_fixture("synthetic-merge-signature.json")
             evidence["signature"] = signature
             sync = os.fsync
-            save = d.save_state
+            save = control._write_state
             order = []
 
             def trace_sync(fd):
@@ -203,7 +203,7 @@ class ControllerCoreTests(unittest.TestCase):
                 return save(*args)
 
             with patch("os.fsync", side_effect=trace_sync), patch.object(
-                    d, "save_state", side_effect=trace_save):
+                    control, "_write_state", side_effect=trace_save):
                 self.assertEqual(self.tick(control, event,
                     merge_evidence=evidence, merge_root=root), "DONE")
             self.assertIn("state_save", order)
@@ -255,6 +255,40 @@ class ControllerCoreTests(unittest.TestCase):
                 with self.subTest(snapshot=repr(bad)[:70]), self.assertRaises(d.Denied):
                     control.tick(envelope=self.envelope, public_root=self.root,
                                  snapshot=bad, main=BASE, now=NOW)
+
+    def test_state_temp_symlink_does_not_touch_external_file(self):
+        import os
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as external:
+            victim = Path(external) / "synthetic-victim"
+            sentinel = b"unchanged synthetic file"
+            victim.write_bytes(sentinel)
+            trap = Path(temp) / "controller-state.tmp"
+            try:
+                os.symlink(victim, trap)
+            except (OSError, NotImplementedError):
+                self.skipTest("synthetic symlink permission unavailable")
+            control = core.SyntheticControllerCore(temp)
+            self.assertEqual(self.tick(control, snapshot()), "PR_PENDING")
+            self.assertEqual(victim.read_bytes(), sentinel)
+            self.assertTrue(trap.is_symlink())
+            self.assertTrue(control.state_file.is_file())
+
+    def test_state_temp_hardlink_does_not_touch_external_file(self):
+        import os
+        with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as external:
+            victim = Path(external) / "synthetic-victim"
+            sentinel = b"unchanged synthetic file"
+            victim.write_bytes(sentinel)
+            trap = Path(temp) / "controller-state.tmp"
+            try:
+                os.link(victim, trap)
+            except (OSError, NotImplementedError):
+                self.skipTest("synthetic hardlink permission unavailable")
+            control = core.SyntheticControllerCore(temp)
+            self.assertEqual(self.tick(control, snapshot()), "PR_PENDING")
+            self.assertEqual(victim.read_bytes(), sentinel)
+            self.assertTrue(os.path.samefile(trap, victim))
+            self.assertTrue(control.state_file.is_file())
 
     def test_controller_lock_link_cannot_write_outside_fixture(self):
         import os
