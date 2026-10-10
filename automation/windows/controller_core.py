@@ -99,16 +99,40 @@ class SyntheticControllerCore:
             raise d.Denied("missing or unsafe post-merge deadline")
         deadline = d.load_json(self.deadline_file)
         if (not isinstance(deadline, dict)
-                or set(deadline) != {"approval_id", "at"}
+                or set(deadline) != {"approval_id", "at", "deadline"}
                 or deadline["approval_id"] != job.approval_id):
             raise d.Denied("invalid post-merge deadline")
         try:
             timestamp = datetime.fromisoformat(deadline["at"])
+            absolute_end = datetime.fromisoformat(deadline["deadline"])
         except (TypeError, ValueError):
             raise d.Denied("invalid post-merge deadline") from None
-        if timestamp.tzinfo is None or timestamp > now:
+        if (timestamp.tzinfo is None or absolute_end.tzinfo is None
+                or timestamp > now
+                or not timedelta(seconds=1) <= absolute_end - timestamp <= timedelta(days=1)):
             raise d.Denied("invalid post-merge deadline")
-        return now - timestamp >= self.post_merge_timeout
+        # The persisted absolute deadline wins across restarts even if the
+        # next process receives a longer runtime timeout configuration.
+        return now >= absolute_end
+
+    def _sync_directory(self):
+        """Durability of POSIX rename entries, never native Windows acceptance."""
+        import os
+        if os.name != "nt":
+            try:
+                fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+            except OSError:
+                raise d.Denied("synthetic directory persistence unavailable") from None
+
+    def _save_state(self, job):
+        d.save_state(self.state_file, job)
+        # No DONE/BLOCKED transition may be returned before the rename is
+        # durable. Native Windows persistence is NOT TESTED / NO_GO.
+        self._sync_directory()
 
     def tick(self, *, envelope, public_root, snapshot, main, now,
              revoked=frozenset(), consumed=frozenset(), merge_evidence=None,
@@ -140,7 +164,7 @@ class SyntheticControllerCore:
             if deadline_exists:
                 if self._check_deadline(job, now):
                     job.state = "BLOCKED"
-                    d.save_state(self.state_file, job)
+                    self._save_state(job)
                     return job.state
                 # Once any merged observation was recorded, a non-merged PR
                 # snapshot must not rewind the lifecycle and reset its timer.
@@ -155,7 +179,7 @@ class SyntheticControllerCore:
                     self._check_deadline(job, now)
                 else:
                     self._write_deadline(job.approval_id, now)
-            d.save_state(self.state_file, job)
+            self._save_state(job)
             return job.state
 
     def _write_deadline(self, approval_id, when):
@@ -167,20 +191,14 @@ class SyntheticControllerCore:
             with tempfile.NamedTemporaryFile("wb", delete=False, dir=self.directory,
                                              prefix="deadline-") as stream:
                 temporary = Path(stream.name)
-                stream.write(d.canonical({"approval_id": approval_id, "at": when.isoformat()}))
+                stream.write(d.canonical({"approval_id": approval_id,
+                                          "at": when.isoformat(),
+                                          "deadline": (when + self.post_merge_timeout).isoformat()}))
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, self.deadline_file)
-            # POSIX rename is not power-failure durable until the directory
-            # entry is fsynced. This must happen BEFORE saving lifecycle state;
-            # otherwise a surviving stale PR_PENDING state can drop the gate.
-            if os.name != "nt":
-                directory_fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
-                try:
-                    os.fsync(directory_fd)
-                finally:
-                    os.close(directory_fd)
-            # Native Windows persistence/isolation remains NOT TESTED / NO_GO.
+            # Persist the deadline's new name BEFORE saving delivery state.
+            self._sync_directory()
         finally:
             if temporary is not None and temporary.exists():
                 temporary.unlink()

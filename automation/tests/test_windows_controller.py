@@ -160,6 +160,56 @@ class ControllerCoreTests(unittest.TestCase):
             self.assertLess(sequence.index("directory_synced"),
                             sequence.index("state_saved"))
 
+    def test_restart_config_cannot_extend_persisted_absolute_deadline(self):
+        with tempfile.TemporaryDirectory() as temp:
+            short = core.SyntheticControllerCore(temp, post_merge_timeout=timedelta(seconds=2))
+            self.tick(short, snapshot())
+            event, evidence = merged_snapshot()
+            root, signature = root_fixture("synthetic-merge-signature.json")
+            evidence["signature"] = signature
+            event["post_merge_checks"] = checks()
+            self.assertEqual(self.tick(short, event, merge_evidence=evidence,
+                                       merge_root=root), "POST_MERGE_CI")
+            restarted = core.SyntheticControllerCore(temp)  # default TWO HOURS
+            event["post_merge_checks"] = checks(MERGE)
+            self.assertEqual(restarted.tick(envelope=self.envelope,
+                public_root=self.root, snapshot=event, main=MERGE,
+                now=NOW + timedelta(seconds=3), merge_evidence=evidence,
+                merge_root=root), "BLOCKED")
+
+    def test_done_state_directory_sync_before_return(self):
+        import os
+        import stat
+        from unittest.mock import patch
+        if os.name == "nt":
+            self.skipTest("native Windows directory durability not witnessed")
+        with tempfile.TemporaryDirectory() as temp:
+            control = core.SyntheticControllerCore(temp)
+            self.tick(control, snapshot())
+            event, evidence = merged_snapshot()
+            root, signature = root_fixture("synthetic-merge-signature.json")
+            evidence["signature"] = signature
+            sync = os.fsync
+            save = d.save_state
+            order = []
+
+            def trace_sync(fd):
+                if stat.S_ISDIR(os.fstat(fd).st_mode):
+                    order.append("dir_fsync")
+                return sync(fd)
+
+            def trace_save(*args):
+                order.append("state_save")
+                return save(*args)
+
+            with patch("os.fsync", side_effect=trace_sync), patch.object(
+                    d, "save_state", side_effect=trace_save):
+                self.assertEqual(self.tick(control, event,
+                    merge_evidence=evidence, merge_root=root), "DONE")
+            self.assertIn("state_save", order)
+            self.assertIn("dir_fsync", order)
+            self.assertLess(order.index("state_save"), order.index("dir_fsync"))
+
     def test_malformed_snapshot_is_bounded_denial_not_key_error(self):
         valid = snapshot()
         fake_pr = valid["prs"][0]
