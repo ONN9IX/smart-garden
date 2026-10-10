@@ -1,10 +1,19 @@
 """Negative boundary tests. Synthetic fixtures are not live OS acceptance."""
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from test_windows_dispatcher import approval, BASE, NOW, snapshot, delivery, d, merged_snapshot, ROOT
+from test_windows_dispatcher import (
+    BASE,
+    NOW,
+    ROOT,
+    approval,
+    d,
+    delivery,
+    merged_snapshot,
+    snapshot,
+)
 
 
 class SecurityTests(unittest.TestCase):
@@ -238,6 +247,32 @@ class SecurityTests(unittest.TestCase):
             self.assertIn(phrase, text)
         for forbidden in ("ReadAllText", "ReadAllBytes", "WriteAll", "Set-Acl", "Get-Content", "FileMode]::Create"):
             self.assertNotIn(forbidden, text)
+
+
+
+class A3NoActivationTests(unittest.TestCase):
+    def test_every_privileged_seam_denies_even_with_fake_owner_arguments(self):
+        import approval_store
+        import controller_core
+        import publisher
+        import worker_adapter
+        for call in (approval_store.require_live_store, controller_core.require_execution,
+                     worker_adapter.require_execution, publisher.require_publication, publisher.merge,
+                     worker_adapter.FakeWorkerAdapter.launch, worker_adapter.FakeWorkerAdapter.publish,
+                     worker_adapter.FakeWorkerAdapter.merge):
+            with self.subTest(call=call), self.assertRaisesRegex(d.Denied, 'NO_GO'):
+                call()
+
+    def test_canary_report_cannot_claim_native_acceptance_or_install(self):
+        probe = (Path(d.__file__).parent / 'probe-isolation.ps1').read_text()
+        self.assertIn("decision='NO_GO'", probe)
+        self.assertIn("hardlink_and_race_provenance='NOT_TESTED'", probe)
+        self.assertNotIn('exit 0', probe)
+        for field in ('ControllerCanary', 'RootCanary', 'StateCanary', 'AuditCanary'):
+            self.assertIn(field, probe)
+        for command in ('Register-ScheduledTask', 'Set-Acl', 'New-LocalUser', 'Set-ExecutionPolicy',
+                        'ReadProcessMemory', 'CredRead', 'Invoke-WebRequest'):
+            self.assertNotIn(command, probe)
 
 
 if __name__ == "__main__":

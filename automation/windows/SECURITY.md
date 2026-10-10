@@ -268,3 +268,109 @@ root/ledger provisioning, branch-protection change, real credential transport
 or Windows isolation acceptance is delivered in A2. Further permissions,
 rulesets, host provisioning, real publication or activation require separate
 owner decision and LIVE-WITNESSED evidence where appropriate.
+
+## A3 / Issue #216 — integrated offline interfaces, live gates CLOSED
+
+Baseline `cb5072aa39fb73a4cf3bae4cae4f10ee5773c2e3`. Only #216's 16
+approved paths may change; no product, workflow, dependencies, signed fixtures,
+retired worker, ruleset or host changes. #213 SAM-1 remains INACTIVE. ChatGPT
+Tasks / Master Chat are the selected notification/confirmation channel; old
+Telegram/n8n notification proposals are superseded, not implemented.
+
+### Protected-core candidate and durable synthetic authority
+
+`SyntheticProtectedController` uses `SyntheticDeliveryStore` under the same
+single directory-global `controller.lock` as A2. Initialize explicitly in a
+new disposable directory. A committed initialization marker makes a missing,
+corrupt or partial ledger a denial instead of an empty replay state. A marker
+committed before a crash does not authorize reinitialization. The entire
+approval/fingerprint, delivery, nonce consumption/revocation, reserved attempt
+IDs, spent token ceilings, absolute deadline, PR/head/merge identity and bounded
+post-merge query count are committed as ONE atomic document. Flush before
+fake invocation and before acknowledgement; directory fsync on POSIX only.
+No two independent state writes are claimed to be a single transaction.
+
+The existing eight-field #207 signed scope and signed `max_repairs` remain
+unchanged. Fixture limits (600-second total, at most 120 seconds/1024 tokens
+per attempt and 4096 total tokens) are fixed maximum accounting constraints;
+callers can lower them before reservation, never increase them on restart.
+They are NOT an owner-signed runtime resource policy or native metering. A
+future live schema must independently bind operations, policy/version,
+expiration/nonces and resource permissions; new flags cannot confer authority.
+
+Fresh strict signature, repo/Issue/branch/base/exact paths, expiry, consumed and
+revoked checks precede start, repair and candidate verification. Reservation
+fingerprint binds the complete scope across restarts. No next delivery before
+separately signed owner merge + independent fixture PR/main + exact eight-job
+post-merge SUCCESS + durable consumption. Unknown RUNNING outcome is BLOCKED
+without duplicate work. Exceptions, exhausted budgets, cancellation, timeouts,
+ambiguous collector state and incomplete/failed post checks block. Polling is
+bounded (20 queries and two-hour persisted post-merge deadline); never reruns CI.
+No raw error, PR/Issue prose, logs or arbitrary callback is executed or persisted.
+
+### Worker and publisher boundaries
+
+`ReservedSyntheticUnit` is an immutable minimized task containing scope,
+attempt identity, scope digest and limits; no environment, credentials or
+shell command. Only the exact `FakeWorkerAdapter` type is admitted. Its finite
+allowlisted result enums simulate accounting/cancellation/timeouts. There is
+no Codex CLI/app-server launcher, sign-in flow, privileged process or network.
+All require_execution/launch/publish/merge seams always deny, regardless of
+synthetic signatures, environment flags or "accepted" workspace metadata.
+
+`SyntheticEvidenceFeed` authenticates finite OFFLINE envelopes using an
+independent disposable collector root; the controller rejects reuse of its
+owner root for the collector. Fixture policy binds repository, Issue, policy,
+PR origin/branch/base/head, review identity, exact App-like IDs, expiry and
+collection time. Eight checks must be SUCCESS on the exact current HEAD.
+Named checks alone, implementer review, stale review/policy, blocking findings,
+fake merge fields, foreign forks and HEAD/base drift are rejected. Recollect
+after tree verification. These signatures authenticate test data, NOT real
+GitHub state or a provisioned GitHub App. No signed model output may be treated
+as a trusted online collector. `SYNTHETIC` can never claim `LIVE-WITNESSED`.
+
+`LooseFixtureGitReader` independently reads/hashes complete raw loose commit,
+tree and blob objects from a disposable stopped fixture. It verifies object
+header/type/size/hash, baseline ancestry and loose HEAD/branch/main refs; denies
+packs, gitdir/commondir indirection, alternates/replacements/grafts/shallow data,
+links/reparse/hardlinks, path/case/directory aliases, unsafe modes, oversized or
+corrupt objects and detectable replacement. Config/hooks/filters, external diff,
+credential helpers and submodules are NEVER invoked: no Git subprocess exists.
+All changed added/modified/deleted/rename-source/rename-target paths are derived
+from full trees. Existing unchanged workflow/executable blobs may be inspected;
+changes to protected namespaces or executable modes cannot be authorized by
+this worker approval. The reader is conservative and cannot verify the actual
+packed repository; unsupported input denies rather than falling back to Git.
+
+Directory custody, malicious concurrent writers, atomic stopped-worker snapshot,
+native Windows locks/durability, real API provenance/revocation feeds, check
+provider protection and network credentials remain NOT TESTED. Metadata
+rechecks or a cooperative Python lock do not prove Windows TOCTOU protection.
+The publisher returns NO_GO and has no actual push/PR/merge adapter.
+
+### Acceptance and privacy review
+
+`acceptance.ps1` is a deterministic static NO_GO reporter; bad arguments are
+redacted fixed denials. `controller.py --report` starts only that reporter with
+telemetry opt-out, bounded timeout, dropped ambient credential variables and
+disposable startup caches. It never launches a model. `probe-isolation.ps1`
+accepts only explicit synthetic local paths and actual expected non-admin SID;
+opens existing canaries without reading/writing contents. Registry/controller/
+root/state/audit opens request WRITE alone, preventing read-denied/write-allowed
+false positives. Wrong identity, missing/inaccessible metadata, reparse/path
+ambiguity => NOT_TESTED. It ALWAYS returns NO_GO, even after denied opens;
+Credential Manager/process/env/IPC/network/hardlink/race provenance need
+independent owner-witnessed tests. No actual credential path may be supplied.
+
+Privacy / 152-FZ review by function family: ledger/signature helpers handle
+synthetic IDs/public signature metadata and canonical scope; fake work handles
+fixed enums and limits; evidence validation handles synthetic IDs/SHAs and
+provider enums; raw-object reader inspects disposable synthetic source objects
+without emitting contents; reporter/probe emit only fixed statuses, no host
+path/SID/usernames, token/secret contents or arbitrary logs. Tests generate only
+disposable synthetic RSA private keys outside Git, use temporary canaries,
+and clean them up. No production personal data or legal compliance is claimed.
+
+Host provisioning/ACL/account/auth/firewall/scheduler/worker/model/publisher/
+ruleset/SAM activation remain NO-GO. See HOST_PLAN for the concrete protected
+manifest, proposal, witness evidence, separate owner approvals and rollback.

@@ -1,15 +1,15 @@
 """Offline signed-ledger regression; synthetic keys only."""
 import base64
-from datetime import datetime, timezone
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "windows"))
 import approval_store as store
 import dispatcher as d
-from test_windows_dispatcher import approval, BASE, NOW
+from test_windows_dispatcher import BASE, NOW, approval
 
 
 def fixture():
@@ -92,6 +92,77 @@ class OfflineApprovalStoreTests(unittest.TestCase):
             with self.assertRaises(d.Denied):
                 storage.reserve(envelope, root, main=BASE, now=NOW)
             self.assertEqual(victim.read_bytes(), b"")
+
+
+
+import json
+import os
+from unittest.mock import patch
+
+
+class A3DeliveryStoreTests(unittest.TestCase):
+    def test_missing_corrupt_or_partial_ledger_never_resets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = store.SyntheticDeliveryStore(tmp)
+            with self.assertRaises(d.Denied):
+                with storage.transaction():
+                    pass
+            storage.initialize()
+            storage.path.unlink()
+            with self.assertRaises(d.Denied):
+                with storage.transaction():
+                    pass
+            with self.assertRaises(d.Denied):
+                storage.initialize()
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = store.SyntheticDeliveryStore(tmp)
+            original = storage._commit
+            count = 0
+            def crash(state):
+                nonlocal count
+                count += 1
+                if count == 2:
+                    raise d.Denied('synthetic persistence failure')
+                return original(state)
+            with patch.object(storage, '_commit', crash):
+                with self.assertRaises(d.Denied):
+                    storage.initialize()
+            self.assertTrue(storage.marker.exists())
+            with self.assertRaises(d.Denied):
+                storage.initialize()
+
+    def test_duplicate_json_hardlink_and_marker_spoof_denied(self):
+        for attack in ('duplicate', 'hardlink', 'marker'):
+            with self.subTest(attack=attack), tempfile.TemporaryDirectory() as tmp:
+                storage = store.SyntheticDeliveryStore(tmp)
+                storage.initialize()
+                if attack == 'duplicate':
+                    storage.path.write_text('{"schema":1,"schema":1,"revoked":[],"consumed":[],"delivery":null}')
+                elif attack == 'hardlink':
+                    os.link(storage.path, Path(tmp) / 'alias')
+                else:
+                    storage.marker.write_text('{"schema":2,"approved":true}')
+                with self.assertRaises(d.Denied):
+                    with storage.transaction():
+                        pass
+
+    def test_atomic_write_fsync_failure_is_denial_not_acknowledgement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = store.SyntheticDeliveryStore(tmp)
+            storage.initialize()
+            with storage.transaction() as state:
+                state['revoked'] = [approval()['id']]
+                with patch('os.fsync', side_effect=OSError('synthetic failure')):
+                    with self.assertRaises(d.Denied):
+                        storage.commit(state)
+            self.assertEqual(json.loads(storage.path.read_bytes())['revoked'], [])
+
+    def test_no_untrusted_or_unbounded_ids_in_journal(self):
+        for value in (['owner@example.test'], ['repeated-id-000001'] * 2,
+                      ['z' * 16, 'a' * 16], [None], [[]]):
+            with self.subTest(value=value), self.assertRaises(d.Denied):
+                store.validate_delivery_ledger({'schema': 1, 'revoked': value,
+                                                'consumed': [], 'delivery': None})
 
 
 if __name__ == "__main__":

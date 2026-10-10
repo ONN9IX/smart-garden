@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import dispatcher as d
-from approval_store import synthetic_lock
+from approval_store import read_fixture_json, synthetic_lock
 
 
 class SyntheticControllerCore:
@@ -34,6 +34,11 @@ class SyntheticControllerCore:
         if self.state_file.is_symlink() or self.deadline_file.is_symlink():
             raise d.Denied("unsafe controller state")
         if self.state_file.exists():
+            # Validate the actual opened fixture handle before legacy schema
+            # restoration; hardlinks/reparse/malformed JSON are fail-closed.
+            saved = read_fixture_json(self.state_file)
+            if not isinstance(saved, dict):
+                raise d.Denied("invalid synthetic controller state")
             return d.restore_state(self.state_file, approval)
         return d.Delivery(approval["id"], approval["issue"], approval["base"],
                           approval["branch"])
@@ -97,7 +102,7 @@ class SyntheticControllerCore:
         """Enforce a prior deadline BEFORE allowing a successful CI transition."""
         if not self.deadline_file.exists() or self.deadline_file.is_symlink():
             raise d.Denied("missing or unsafe post-merge deadline")
-        deadline = d.load_json(self.deadline_file)
+        deadline = read_fixture_json(self.deadline_file)
         if (not isinstance(deadline, dict)
                 or set(deadline) != {"approval_id", "at", "deadline"}
                 or deadline["approval_id"] != job.approval_id):
@@ -244,3 +249,199 @@ class SyntheticControllerCore:
 
 def require_execution():
     raise d.Denied("NO_GO: protected host worker has not been accepted")
+
+
+class SyntheticProtectedController:
+    """A3 integrated OFFLINE lifecycle with one durable reservation ledger.
+
+    No Issue text, commands, environment, network or arbitrary worker callbacks.
+    Fixed ceilings are fixture accounting, not a signed runtime resource grant.
+    The legacy #207 approval schema is intentionally unchanged in this delivery.
+    """
+
+    def __init__(self, directory):
+        from approval_store import SyntheticDeliveryStore
+        self.store = SyntheticDeliveryStore(directory)
+
+    def initialize(self):
+        self.store.initialize()
+
+    @staticmethod
+    def _verify(envelope, root, state, main, now, *, allow_completed=False):
+        if not isinstance(now, datetime) or now.tzinfo is None:
+            raise d.Denied("invalid clock")
+        consumed = set(state["consumed"])
+        # Only an identical DONE record may be inspected again. It cannot run.
+        prior = state["delivery"]
+        if allow_completed and prior is not None and prior["state"] == "DONE":
+            consumed.discard(prior["record"]["id"])
+        try:
+            return d.verified_approval(envelope, root, main=main, now=now,
+                revoked=set(state["revoked"]), consumed=consumed)
+        except (TypeError, KeyError):
+            raise d.Denied("invalid signed scope") from None
+
+    @staticmethod
+    def _bound(job, approval):
+        from approval_store import fingerprint
+        if job is None or job["record"] != approval or job["fingerprint"] != fingerprint(approval):
+            raise d.Denied("reservation scope changed")
+
+    def run_fake(self, *, envelope, root, main, now, worker, cancelled=False,
+                 max_tokens=4096, attempt_tokens=1024, attempt_seconds=120):
+        """Persist the full attempt budget BEFORE any fake invocation.
+
+        RUNNING on restart is terminally BLOCKED: there is no blind retry after
+        unknown outcome. Repair is permitted only after an acknowledged failure.
+        """
+        from approval_store import fingerprint, fixture_time
+        from worker_adapter import (
+            FakeWorkerAdapter,
+            ReservedSyntheticUnit,
+            SyntheticWorkUnit,
+        )
+        if type(worker) is not FakeWorkerAdapter or type(cancelled) is not bool:
+            raise d.Denied("only finite fake transport allowed")
+        for value, upper in ((max_tokens, 4096), (attempt_tokens, 1024), (attempt_seconds, 120)):
+            if type(value) is not int or not 1 <= value <= upper:
+                raise d.Denied("invalid fixture limits")
+        with self.store.transaction() as state:
+            approval = self._verify(envelope, root, state, main, now)
+            job = state["delivery"]
+            if job is None or job["state"] == "DONE":
+                job = {"record": approval, "fingerprint": fingerprint(approval),
+                    "state": "READY", "attempts": [], "started": now.isoformat(),
+                    "deadline": min(now + timedelta(seconds=600),
+                                    fixture_time(approval["expires"])).isoformat(),
+                    "max_tokens": max_tokens, "attempt_tokens": attempt_tokens,
+                    "attempt_seconds": attempt_seconds, "head": "", "pr": None,
+                    "merge_sha": "", "post_deadline": None, "polls": 0}
+                state["delivery"] = job
+            self._bound(job, approval)
+            # Persisted limits win after restart; caller cannot enlarge them.
+            if (job["max_tokens"], job["attempt_tokens"], job["attempt_seconds"]) != (
+                    max_tokens, attempt_tokens, attempt_seconds):
+                raise d.Denied("reserved limits changed")
+            if cancelled or now >= fixture_time(job["deadline"]) or job["state"] == "RUNNING":
+                job["state"] = "BLOCKED"
+                self.store.commit(state)
+                return "BLOCKED"
+            if job["state"] not in ("READY", "TEST_FAIL"):
+                raise d.Denied("duplicate or blocked fake attempt")
+            attempt = len(job["attempts"])
+            if (attempt > approval["max_repairs"]
+                    or (attempt + 1) * attempt_tokens > max_tokens):
+                job["state"] = "BLOCKED"
+                self.store.commit(state)
+                return "BLOCKED"
+            job["attempts"].append({"id": attempt, "status": "RESERVED", "tokens": attempt_tokens})
+            job["state"] = "RUNNING"
+            self.store.commit(state)
+            unit = ReservedSyntheticUnit(SyntheticWorkUnit.from_verified_record(approval, now=now),
+                attempt, job["fingerprint"], job["deadline"], attempt_seconds, attempt_tokens)
+            try:
+                event = worker.simulate_reserved(unit)
+                if type(event) is not str or event not in FakeWorkerAdapter.EVENTS:
+                    raise d.Denied("invalid fake outcome")
+            except Exception:
+                job["state"] = "BLOCKED"
+                self.store.commit(state)
+                raise d.Denied("ambiguous fake outcome") from None
+            job["attempts"][-1]["status"] = event
+            job["state"] = event if event in ("TEST_PASS", "TEST_FAIL") else "BLOCKED"
+            self.store.commit(state)
+            return job["state"]
+
+    def verify_candidate(self, *, envelope, root, main, now, feed, evidence_root,
+                         policy, old_tree=None, new_tree=None, directory=None):
+        """Offline publication candidate; no branch/PR creation or write token."""
+        import publisher as p
+        from approval_store import fixture_time
+        if root == evidence_root:
+            raise d.Denied("owner and collector roots must be independent")
+        with self.store.transaction() as state:
+            approval = self._verify(envelope, root, state, main, now)
+            job = state["delivery"]
+            self._bound(job, approval)
+            if job["state"] != "TEST_PASS" or now >= fixture_time(job["deadline"]):
+                raise d.Denied("candidate not ready or timed out")
+            if directory is not None:
+                if old_tree is not None or new_tree is not None:
+                    raise d.Denied("ambiguous snapshot source")
+                report = p.verify_loose_fixture_candidate(directory=directory,
+                    approval=approval, feed=feed, evidence_root=evidence_root,
+                    now=now, policy=policy)
+            else:
+                report = p.verify_fixture_candidate(approval=approval, feed=feed,
+                    evidence_root=evidence_root, now=now, policy=policy,
+                    old_tree=old_tree, new_tree=new_tree)
+            # Fresh signature/revocation check under the same global lock.
+            self._verify(envelope, root, state, main, now)
+            job.update(head=report["head"], pr=report["pr"], state="WAITING_FOR_OWNER")
+            self.store.commit(state)
+            return report
+
+    def observe_merge(self, *, envelope, root, now, feed, evidence_root, policy,
+                      merge_evidence, merge_root):
+        """Reconcile separately signed owner merge and signed FAKE GitHub state.
+
+        Bounded status polling never reruns CI or triggers merge. Actual online
+        authenticity and production protected custody are deliberately absent.
+        """
+        import publisher as p
+        from approval_store import fixture_time
+        if type(feed) is not p.SyntheticEvidenceFeed or root == evidence_root:
+            raise d.Denied("independent synthetic collector required")
+        with self.store.transaction() as state:
+            job = state["delivery"]
+            if job is None:
+                raise d.Denied("no delivery to reconcile")
+            approval = self._verify(envelope, root, state, job["record"]["base"], now,
+                                    allow_completed=True)
+            self._bound(job, approval)
+            if job["state"] not in ("WAITING_FOR_OWNER", "POST_MERGE_CI", "DONE"):
+                raise d.Denied("delivery not awaiting merge")
+            if job["state"] == "DONE":
+                self.store.commit(state)  # directory sync before acknowledgement
+                return "DONE"
+            if job["polls"] >= 20 or (job["post_deadline"] is not None
+                    and now >= fixture_time(job["post_deadline"])):
+                job["state"] = "BLOCKED"
+                self.store.commit(state)
+                return "BLOCKED"
+            # Spend query budget before collecting; an unavailable/uncertain
+            # response blocks reconciliation and cannot launch or publish again.
+            job["polls"] += 1
+            self.store.commit(state)
+            try:
+                event = p.verify_fixture_evidence(feed.collect(), evidence_root,
+                                                  approval=approval, now=now, policy=policy)
+                pr = event["prs"][0]
+                if pr["head"] != job["head"] or pr["number"] != job["pr"]:
+                    raise d.Denied("merge PR identity drift")
+                legacy = d.Delivery(approval["id"], approval["issue"], approval["base"],
+                    approval["branch"], state="READY_FOR_MASTER_CHAT", head=job["head"], pr=job["pr"])
+                result = legacy.observe(approval, event, merge_evidence=merge_evidence,
+                                        owner_modulus=merge_root)
+                if event.get("merged") is not True:
+                    raise d.Denied("missing actual synthetic merge")
+                if job["merge_sha"] and job["merge_sha"] != event["merge_sha"]:
+                    raise d.Denied("merge SHA changed")
+                job["merge_sha"] = event["merge_sha"]
+                if job["post_deadline"] is None:
+                    job["post_deadline"] = (now + timedelta(hours=2)).isoformat()
+                post = event["post_merge_checks"]
+                if (len(post) != 8 or {check["name"] for check in post} != d.CI
+                        or any(check["head_sha"] != event["merge_sha"]
+                               or check["status"] == "completed" and check["conclusion"] != "success"
+                               for check in post)):
+                    result = "BLOCKED"
+                job["state"] = result
+                if result == "DONE":
+                    state["consumed"] = sorted([*state["consumed"], approval["id"]])
+                self.store.commit(state)
+                return result
+            except Exception:
+                job["state"] = "BLOCKED"
+                self.store.commit(state)
+                raise d.Denied("ambiguous merge reconciliation") from None

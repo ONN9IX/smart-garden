@@ -1,12 +1,12 @@
 """Exercise the real offline entry point; supplied text cannot accept isolation."""
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'windows' / 'acceptance.ps1'
@@ -82,4 +82,74 @@ class AcceptanceTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    unittest.main()
+
+
+class A3AcceptanceTests(unittest.TestCase):
+    def setUp(self):
+        self.shell = shutil.which('pwsh')
+        if not self.shell:
+            self.skipTest('PowerShell unavailable; native acceptance NOT TESTED')
+
+    def call_script(self, script, args):
+        with tempfile.TemporaryDirectory() as cache:
+            env = dict(os.environ, XDG_CACHE_HOME=cache, XDG_CONFIG_HOME=cache,
+                XDG_DATA_HOME=cache, POWERSHELL_TELEMETRY_OPTOUT='1', POWERSHELL_UPDATECHECK='Off')
+            return subprocess.run([self.shell, '-NoProfile', '-NonInteractive', '-File',
+                str(script), *args], capture_output=True, text=True, timeout=20, env=env)
+
+    def test_report_argument_rejection_redacts_supplied_values(self):
+        sentinel = 'synthetic-private-marker-DO-NOT-PRINT'
+        for args in (['-Mode', sentinel], ['-Token', sentinel], ['-Mode', 'Report', sentinel],
+                     ['-Mode', 'Activate']):
+            with self.subTest(args=args):
+                result = self.call_script(SCRIPT, args)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(json.loads(result.stdout)['decision'], 'NO_GO')
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
+                self.assertEqual(result.stderr, '')
+
+    def test_probe_missing_identity_and_unsafe_paths_are_not_evidence(self):
+        probe = SCRIPT.with_name('probe-isolation.ps1')
+        sid = 'S-1-5-21-1-2-3-1001'
+        sentinel = 'synthetic-private-marker-DO-NOT-PRINT'
+        cases = ([], ['-ExpectedWorkerSid', sentinel], ['-ExpectedWorkerSid', sid, '-Token', sentinel],
+            ['-ExpectedWorkerSid', sid, '-OAuthCanary', r'\\server\share\canary'],
+            ['-ExpectedWorkerSid', sid, '-OAuthCanary', r'C:\synthetic\NUL.txt'],
+            ['-ExpectedWorkerSid', sid, '-GitCanary', r'C:\synthetic\canary:secret'],
+            ['-ExpectedWorkerSid', sid, '-GitCanary', r'C:\synthetic\..\canary'],
+            ['-ExpectedWorkerSid', sid, '-ExpectedWorkerSid', sid])
+        for args in cases:
+            with self.subTest(args=args):
+                result = self.call_script(probe, args)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                report = json.loads(result.stdout)
+                self.assertEqual(report['decision'], 'NO_GO')
+                self.assertEqual(report['evidence'], 'NOT_TESTED')
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
+                self.assertEqual(result.stderr, '')
+
+    def test_non_windows_probe_never_reports_live_witness(self):
+        if os.name == 'nt':
+            self.skipTest('Cloud platform guard; no host probing authorized')
+        result = self.call_script(SCRIPT.with_name('probe-isolation.ps1'),
+            ['-ExpectedWorkerSid', 'S-1-5-21-1-2-3-1001'])
+        self.assertEqual(result.returncode, 1, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report['evidence'], 'NOT_TESTED')
+        self.assertEqual(report['decision'], 'NO_GO')
+        self.assertEqual(result.stderr, '')
+
+    def test_report_explicitly_separates_synthetic_and_live(self):
+        result = self.call_script(SCRIPT, [])
+        report = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(report['raw_git_verifier'], 'SYNTHETIC_ONLY')
+        self.assertEqual(report['github_provenance'], 'SYNTHETIC_ONLY')
+        self.assertEqual(report['live_windows_boundaries'], 'NOT_TESTED')
+        self.assertEqual(report['sam_activation'], 'NO_GO')
+        self.assertEqual(report['notification_channel'], 'CHATGPT_TASKS_MASTER_CHAT')
+
+
+if __name__ == "__main__":
     unittest.main()
