@@ -216,6 +216,9 @@ def _eligible_thread(db: Session, actor: User, thread_id: UUID) -> Communication
         if thread.thread_type == "direct":
             if thread.teacher_employee_id is None:
                 raise AppError(404, "NOT_FOUND")
+            _, child = access.parent_child(db, actor, thread.child_id)
+            if child.group_id != thread.group_id:
+                raise AppError(404, "NOT_FOUND")
             _active_teacher_assignment(db, actor, thread.teacher_employee_id, thread.group_id)
         return thread
     if actor.role in {"DIRECTOR", "ADMIN"}:

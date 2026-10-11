@@ -33,6 +33,7 @@ export function CommunicationsPage() {
   const guardianIdRef = useRef(guardianId);
   const [tab, setTab] = useState<"all" | "direct" | "group" | "staff">("all");
   const contextEpoch = useRef(0);
+  const openRequestId = useRef(0);
   const drafts = useRef(new Map<string, { body: string; key: string }>());
   const [refresh, setRefresh] = useState(0);
   const loadThreads = useCallback(() => {
@@ -125,9 +126,9 @@ export function CommunicationsPage() {
   }
   async function openGroupThread() {
     if (!groupId) return;
-    const groupAtStart = groupId; const epoch = contextEpoch.current;
-    try { const thread = await teacherApi.v2GroupThread(groupAtStart, groupAudience); if (contextEpoch.current !== epoch) return; selectThread(thread.id); await loadThreads(); }
-    catch (reason) { if (contextEpoch.current === epoch) setError(userMessage(reason)); }
+    const groupAtStart = groupId; const epoch = contextEpoch.current; const request = ++openRequestId.current;
+    try { const thread = await teacherApi.v2GroupThread(groupAtStart, groupAudience); if (contextEpoch.current !== epoch || openRequestId.current !== request) return; selectThread(thread.id); await loadThreads(); }
+    catch (reason) { if (contextEpoch.current === epoch && openRequestId.current === request) setError(userMessage(reason)); }
   }
   async function openDirect() {
     if (!childId || !selectedGuardianId) return;
@@ -135,9 +136,9 @@ export function CommunicationsPage() {
       setError("У родителя ещё нет активного аккаунта. Попросите администратора создать или восстановить доступ.");
       return;
     }
-    const childAtStart = childId; const guardianAtStart = selectedGuardianId; const epoch = contextEpoch.current;
-    try { const thread = await teacherApi.v2Direct(childAtStart, guardianAtStart); if (contextEpoch.current !== epoch) return; selectThread(thread.id); await loadThreads(); }
-    catch (reason) { if (contextEpoch.current === epoch) setError(userMessage(reason, "У родителя ещё нет активного аккаунта. Попросите администратора создать или восстановить доступ.")); }
+    const childAtStart = childId; const guardianAtStart = selectedGuardianId; const epoch = contextEpoch.current; const request = ++openRequestId.current;
+    try { const thread = await teacherApi.v2Direct(childAtStart, guardianAtStart); if (contextEpoch.current !== epoch || openRequestId.current !== request) return; selectThread(thread.id); await loadThreads(); }
+    catch (reason) { if (contextEpoch.current === epoch && openRequestId.current === request) setError(userMessage(reason, "У родителя ещё нет активного аккаунта. Попросите администратора создать или восстановить доступ.")); }
   }
   function threadLabel(thread: ThreadV2) {
     if (thread.thread_type === "group") {

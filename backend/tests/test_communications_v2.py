@@ -476,8 +476,9 @@ def test_teacher_direct_projection_binds_exact_child_and_rechecks_retry(client, 
                          guardian_id=world.guardian.id, relation_type="father", status="active"))
     db.flush()
     assert _login(client, world.parent.username).status_code == 200
+    parent_key = str(uuid4())
     assert client.post(f"/api/v1/parent/communications/v2/threads/{thread['id']}/messages", json={
-        "body": "Личное сообщение", "client_message_id": str(uuid4()),
+        "body": "Личное сообщение", "client_message_id": parent_key,
     }).status_code == 201
     assert _login(client, world.teacher.username).status_code == 200
     path = f"/api/v1/teacher/communications/v2/threads/{thread['id']}/messages"
@@ -498,6 +499,23 @@ def test_teacher_direct_projection_binds_exact_child_and_rechecks_retry(client, 
     world.child.group_id = world.unassigned.id
     db.flush()
     assert client.get(path).status_code == 404
+    # The second linked child keeps A in the parent's allowed groups. The old
+    # direct thread must nevertheless deny read, write, retry and read-state.
+    assert _login(client, world.parent.username).status_code == 200
+    parent_path = f"/api/v1/parent/communications/v2/threads/{thread['id']}"
+    assert client.get(f"{parent_path}/messages").status_code == 404
+    assert client.post(f"{parent_path}/messages", json={
+        "body": "После перевода", "client_message_id": str(uuid4()),
+    }).status_code == 404
+    assert client.post(f"{parent_path}/messages", json={
+        "body": "Личное сообщение", "client_message_id": parent_key,
+    }).status_code == 404
+    assert client.post(f"{parent_path}/read", json={
+        "last_read_message_id": str(uuid4()),
+    }).status_code == 404
+    assert thread["id"] not in {item["id"] for item in client.get(
+        "/api/v1/parent/communications/v2/threads",
+    ).json()}
 
 
 def test_teacher_relationship_projection_is_batched_and_staff_has_no_hint(client, db, cabinet_world):

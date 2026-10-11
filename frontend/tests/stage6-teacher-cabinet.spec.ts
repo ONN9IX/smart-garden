@@ -415,9 +415,9 @@ test("teacher discards late relationship GET and POST across group A to B to A a
   });
   await page.goto("/teacher/communications");
   await expect.poll(() => Boolean(releaseGet)).toBe(true);
-  await page.getByLabel("Группа").selectOption(otherGroup.id);
+  await page.getByLabel(/^Группа/).selectOption(otherGroup.id);
   await expect(page.getByText("Родитель Тестовый · Мама · Ребёнок Б", { exact: true })).toBeVisible();
-  await page.getByLabel("Группа").selectOption(group.id);
+  await page.getByLabel(/^Группа/).selectOption(group.id);
   await expect(page.getByText("Родитель Тестовый · Мама · Актуальный Ребёнок А", { exact: true })).toBeVisible();
   const lateGet = page.waitForResponse((response) => response.url().includes(privacyThreadA.id) && response.request().method() === "GET");
   releaseGet(); await lateGet;
@@ -425,11 +425,11 @@ test("teacher discards late relationship GET and POST across group A to B to A a
   await page.getByLabel("Новое сообщение").fill("Черновик группы А");
   await page.getByRole("button", { name: "Отправить", exact: true }).click();
   await expect.poll(() => Boolean(releasePost)).toBe(true);
-  await page.getByLabel("Группа").selectOption(otherGroup.id);
+  await page.getByLabel(/^Группа/).selectOption(otherGroup.id);
   await expect(page.getByText("Родитель Тестовый · Мама · Ребёнок Б", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Новое сообщение")).toHaveValue("");
   await page.getByLabel("Новое сообщение").fill("Черновик группы Б");
-  await page.getByLabel("Группа").selectOption(group.id);
+  await page.getByLabel(/^Группа/).selectOption(group.id);
   await expect(page.getByLabel("Новое сообщение")).toHaveValue("Черновик группы А");
   const latePost = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/messages"));
   releasePost(); await latePost;
@@ -453,4 +453,32 @@ test("teacher send revocation clears relationship labels and picker while preser
   await expect(page.getByLabel("Родитель").locator("option")).toHaveCount(0);
   await expect(page.getByLabel("Новое сообщение")).toHaveValue("Не потерять при отзыве");
   await expect(page.getByRole("button", { name: "Отправить", exact: true })).toBeDisabled();
+});
+
+test("teacher opening overlapping chats follows the latest action even when the earlier response arrives first", async ({ page }) => {
+  await privacyChatRoutes(page);
+  const direct = { ...thread, id: "00000000-0000-4000-8000-000000000697", group_name: group.name, child_name: "Тестовый Ребёнок", unread_count: 0, preview: null };
+  await page.route("**/api/v1/teacher/communications/v2/threads", (route) => route.fulfill({ json: [privacyThreadA, direct] }));
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/messages", (route) => route.fulfill({ json: [privacyMessage(route.request().url().includes(direct.id) ? direct.id : privacyThreadA.id, "Тестовый Ребёнок")] }));
+  let releaseGroup!: () => void;
+  let releaseDirect!: () => void;
+  await page.route("**/api/v1/teacher/communications/v2/groups/*/thread?**", async (route) => {
+    await new Promise<void>((resolve) => { releaseGroup = resolve; });
+    await route.fulfill({ json: privacyThreadA });
+  });
+  await page.route("**/api/v1/teacher/communications/v2/direct", async (route) => {
+    await new Promise<void>((resolve) => { releaseDirect = resolve; });
+    await route.fulfill({ status: 201, json: direct });
+  });
+  await page.goto("/teacher/communications");
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Чат группы", exact: true }).click();
+  await expect.poll(() => Boolean(releaseGroup)).toBe(true);
+  await page.getByRole("button", { name: "Личный диалог", exact: true }).click();
+  await expect.poll(() => Boolean(releaseDirect)).toBe(true);
+  const groupResponse = page.waitForResponse((response) => response.url().includes("/groups/") && response.url().includes("/thread"));
+  releaseGroup(); await groupResponse;
+  const directResponse = page.waitForResponse((response) => response.url().endsWith("/communications/v2/direct"));
+  releaseDirect(); await directResponse;
+  await expect(page.getByRole("heading", { name: "Родитель Тестовый · Мама · Тестовый Ребёнок", exact: true })).toBeVisible();
 });
