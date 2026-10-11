@@ -415,9 +415,9 @@ test("teacher discards late relationship GET and POST across group A to B to A a
   });
   await page.goto("/teacher/communications");
   await expect.poll(() => Boolean(releaseGet)).toBe(true);
-  await page.getByLabel("Группа", { exact: true }).selectOption(otherGroup.id);
+  await page.getByLabel("Группа").selectOption(otherGroup.id);
   await expect(page.getByText("Родитель Тестовый · Мама · Ребёнок Б", { exact: true })).toBeVisible();
-  await page.getByLabel("Группа", { exact: true }).selectOption(group.id);
+  await page.getByLabel("Группа").selectOption(group.id);
   await expect(page.getByText("Родитель Тестовый · Мама · Актуальный Ребёнок А", { exact: true })).toBeVisible();
   const lateGet = page.waitForResponse((response) => response.url().includes(privacyThreadA.id) && response.request().method() === "GET");
   releaseGet(); await lateGet;
@@ -425,11 +425,11 @@ test("teacher discards late relationship GET and POST across group A to B to A a
   await page.getByLabel("Новое сообщение").fill("Черновик группы А");
   await page.getByRole("button", { name: "Отправить", exact: true }).click();
   await expect.poll(() => Boolean(releasePost)).toBe(true);
-  await page.getByLabel("Группа", { exact: true }).selectOption(otherGroup.id);
+  await page.getByLabel("Группа").selectOption(otherGroup.id);
   await expect(page.getByText("Родитель Тестовый · Мама · Ребёнок Б", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Новое сообщение")).toHaveValue("");
   await page.getByLabel("Новое сообщение").fill("Черновик группы Б");
-  await page.getByLabel("Группа", { exact: true }).selectOption(group.id);
+  await page.getByLabel("Группа").selectOption(group.id);
   await expect(page.getByLabel("Новое сообщение")).toHaveValue("Черновик группы А");
   const latePost = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/messages"));
   releasePost(); await latePost;
@@ -450,7 +450,7 @@ test("teacher send revocation clears relationship labels and picker while preser
   await page.getByRole("button", { name: "Отправить", exact: true }).click();
   await expect(page.getByText("Запись не найдена.", { exact: true })).toBeVisible();
   await expect(page.getByText(/Ребёнок До Отзыва/)).toHaveCount(0);
-  await expect(page.getByLabel("Родитель", { exact: true }).locator("option")).toHaveCount(0);
+  await expect(page.getByLabel("Родитель").locator("option")).toHaveCount(0);
   await expect(page.getByLabel("Новое сообщение")).toHaveValue("Не потерять при отзыве");
   await expect(page.getByRole("button", { name: "Отправить", exact: true })).toBeDisabled();
 });
