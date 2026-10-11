@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { userMessage } from "@/lib/api/client";
+import { ApiError, userMessage } from "@/lib/api/client";
 import { useAuth } from "@/features/auth/auth-provider";
 import { communicationAudienceLabels, relationLabels } from "@/lib/presentation";
 import { teacherApi } from "@/lib/api/teacher";
@@ -168,7 +168,18 @@ export function CommunicationsPage() {
       setMessages(items); setMessagesThreadId(threadAtStart);
       await loadThreads(); if (contextEpoch.current === epoch) setError("");
     }
-    catch (reason) { if (contextEpoch.current === epoch) { setMessages([]); setMessagesThreadId(""); setError(userMessage(reason)); } }
+    catch (reason) {
+      if (contextEpoch.current === epoch) {
+        setMessages([]); setMessagesThreadId("");
+        if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) {
+          setThreads((items) => items.filter((item) => item.id !== threadAtStart));
+          selectedThreadRef.current = ""; setThreadId("");
+          setChildren([]); setGuardians([]); setChildId(""); setGuardianId("");
+          groupContextRequest.current += 1;
+        }
+        setError(userMessage(reason));
+      }
+    }
     finally { sending.current = false; setBusy(false); }
   }
   function senderLabel(message: TeacherMessageV2) {

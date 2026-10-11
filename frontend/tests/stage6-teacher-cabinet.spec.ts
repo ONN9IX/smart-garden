@@ -438,3 +438,19 @@ test("teacher discards late relationship GET and POST across group A to B to A a
   await expect(page.getByText(/Устаревший POST|Устаревшая Связь|Ребёнок Б/)).toHaveCount(0);
   await expect(page.getByText("Родитель Тестовый · Мама · Актуальный Ребёнок А", { exact: true })).toBeVisible();
 });
+
+test("teacher send revocation clears relationship labels and picker while preserving draft", async ({ page }) => {
+  await privacyChatRoutes(page);
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/messages", (route) => route.fulfill(route.request().method() === "POST"
+    ? { status: 404, json: { error: { code: "NOT_FOUND" } } }
+    : { json: [privacyMessage(privacyThreadA.id, "Ребёнок До Отзыва")] }));
+  await page.goto("/teacher/communications");
+  await expect(page.getByText("Родитель Тестовый · Мама · Ребёнок До Отзыва", { exact: true })).toBeVisible();
+  await page.getByLabel("Новое сообщение").fill("Не потерять при отзыве");
+  await page.getByRole("button", { name: "Отправить", exact: true }).click();
+  await expect(page.getByText("Запись не найдена.", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Ребёнок До Отзыва/)).toHaveCount(0);
+  await expect(page.getByLabel("Родитель", { exact: true }).locator("option")).toHaveCount(0);
+  await expect(page.getByLabel("Новое сообщение")).toHaveValue("Не потерять при отзыве");
+  await expect(page.getByRole("button", { name: "Отправить", exact: true })).toBeDisabled();
+});
