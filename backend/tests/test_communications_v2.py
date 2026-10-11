@@ -480,6 +480,7 @@ def test_teacher_direct_projection_binds_exact_child_and_rechecks_retry(client, 
     assert client.post(f"/api/v1/parent/communications/v2/threads/{thread['id']}/messages", json={
         "body": "Личное сообщение", "client_message_id": parent_key,
     }).status_code == 201
+    assert client.get(f"/api/v1/parent/communications/threads/{thread['id']}/messages").status_code == 200
     assert _login(client, world.teacher.username).status_code == 200
     path = f"/api/v1/teacher/communications/v2/threads/{thread['id']}/messages"
     assert client.get(path).json()[0]["sender_child_context"] == {
@@ -487,6 +488,8 @@ def test_teacher_direct_projection_binds_exact_child_and_rechecks_retry(client, 
     }
     key = str(uuid4())
     assert client.post(path, json={"body": "Ответ", "client_message_id": key}).status_code == 201
+    teacher_legacy = f"/api/v1/teacher/communications/threads/{thread['id']}/messages"
+    assert client.get(teacher_legacy).status_code == 200
     world.relation.status = "archived"
     db.flush()
     assert client.get(path).status_code == 404
@@ -499,11 +502,16 @@ def test_teacher_direct_projection_binds_exact_child_and_rechecks_retry(client, 
     world.child.group_id = world.unassigned.id
     db.flush()
     assert client.get(path).status_code == 404
+    assert client.get(teacher_legacy).status_code == 404
+    assert client.post(teacher_legacy, json={"body": "После перевода"}).status_code == 404
     # The second linked child keeps A in the parent's allowed groups. The old
     # direct thread must nevertheless deny read, write, retry and read-state.
     assert _login(client, world.parent.username).status_code == 200
     parent_path = f"/api/v1/parent/communications/v2/threads/{thread['id']}"
+    parent_legacy = f"/api/v1/parent/communications/threads/{thread['id']}/messages"
     assert client.get(f"{parent_path}/messages").status_code == 404
+    assert client.get(parent_legacy).status_code == 404
+    assert client.post(parent_legacy, json={"body": "После перевода"}).status_code == 404
     assert client.post(f"{parent_path}/messages", json={
         "body": "После перевода", "client_message_id": str(uuid4()),
     }).status_code == 404
