@@ -5,7 +5,7 @@ import { userMessage } from "@/lib/api/client";
 import { useAuth } from "@/features/auth/auth-provider";
 import { communicationAudienceLabels, relationLabels } from "@/lib/presentation";
 import { teacherApi } from "@/lib/api/teacher";
-import type { ChildSummary, GuardianContext, Message, ThreadV2 } from "@/types/teacher";
+import type { ChildSummary, GuardianContext, TeacherMessageV2, ThreadV2 } from "@/types/teacher";
 import { GroupPicker, styles, TeacherPageFrame, useGroups } from "./shared";
 
 export function CommunicationsPage() {
@@ -13,7 +13,7 @@ export function CommunicationsPage() {
   const { groups, groupId, setGroupId, error: groupError } = useGroups();
   const [threads, setThreads] = useState<ThreadV2[]>([]);
   const [threadId, setThreadId] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<TeacherMessageV2[]>([]);
   const [messagesThreadId, setMessagesThreadId] = useState("");
   const [children, setChildren] = useState<ChildSummary[]>([]);
   const [guardians, setGuardians] = useState<GuardianContext[]>([]);
@@ -32,21 +32,49 @@ export function CommunicationsPage() {
   const childIdRef = useRef(childId);
   const guardianIdRef = useRef(guardianId);
   const [tab, setTab] = useState<"all" | "direct" | "group" | "staff">("all");
+  const contextEpoch = useRef(0);
+  const drafts = useRef(new Map<string, { body: string; key: string }>());
+  const [refresh, setRefresh] = useState(0);
   const loadThreads = useCallback(() => {
+    const groupAtStart = groupIdRef.current;
+    if (!groupAtStart) return Promise.resolve();
     const request = ++listRequestId.current;
     return teacherApi.v2Threads().then((items) => {
-      if (request !== listRequestId.current) return;
+      if (request !== listRequestId.current || groupAtStart !== groupIdRef.current) return;
+      items = items.filter((item) => item.group_id === groupAtStart);
       setThreads(items);
-      setThreadId((selected) => { const next = selected || items[0]?.id || ""; selectedThreadRef.current = next; return next; }); setError("");
-    }).catch((reason) => { if (request === listRequestId.current) setError(userMessage(reason)); });
+      const selected = selectedThreadRef.current;
+      const next = items.some((item) => item.id === selected) ? selected : items[0]?.id || "";
+      if (next !== selected) {
+        contextEpoch.current += 1; messageRequestId.current += 1;
+        selectedThreadRef.current = next;
+        if (next) {
+          const draft = drafts.current.get(next);
+          setBody(draft?.body || ""); clientMessageId.current = draft?.key || crypto.randomUUID();
+        }
+      }
+      setThreadId(next); setError("");
+    }).catch((reason) => {
+      if (request === listRequestId.current && groupAtStart === groupIdRef.current) {
+        setThreads([]); setMessages([]); setMessagesThreadId(""); selectedThreadRef.current = "";
+        setThreadId(""); setError(userMessage(reason));
+      }
+    });
   }, []);
-  useEffect(() => { void loadThreads(); }, [loadThreads]);
+  useEffect(() => {
+    groupIdRef.current = groupId;
+    void loadThreads();
+  }, [groupId, refresh, loadThreads]);
+  useEffect(() => {
+    const revalidate = () => { contextEpoch.current += 1; messageRequestId.current += 1; setMessages([]); setMessagesThreadId(""); setRefresh((value) => value + 1); };
+    window.addEventListener("focus", revalidate);
+    return () => window.removeEventListener("focus", revalidate);
+  }, []);
   useEffect(() => {
     const request = ++messageRequestId.current;
     if (!threadId) return () => { messageRequestId.current += 1; };
     teacherApi.v2Messages(threadId).then(async (items) => {
       if (messageRequestId.current !== request) return;
-      setMessages(items); setMessagesThreadId(threadId);
       const last = items.at(-1);
       if (last) {
         try { await teacherApi.v2MarkRead(threadId, last.id); }
@@ -56,11 +84,12 @@ export function CommunicationsPage() {
         }
         if (messageRequestId.current === request) await loadThreads();
       }
+      if (messageRequestId.current === request && selectedThreadRef.current === threadId) { setMessages(items); setMessagesThreadId(threadId); }
     }).catch((reason) => {
       if (messageRequestId.current === request) { setMessages([]); setMessagesThreadId(""); setThreads((current) => current.filter((item) => item.id !== threadId)); selectedThreadRef.current = ""; setThreadId(""); setError(userMessage(reason)); }
     });
     return () => { messageRequestId.current += 1; };
-  }, [threadId, loadThreads]);
+  }, [threadId, refresh, loadThreads]);
   const groupContextRequest = useRef(0);
   useEffect(() => {
     const request = ++groupContextRequest.current;
@@ -73,24 +102,32 @@ export function CommunicationsPage() {
       setChildren(nextChildren); setGuardians(nextGuardians); setChildId(firstChildId); setError("");
     }).catch((reason) => { if (groupContextRequest.current === request) setError(userMessage(reason)); });
     return () => { groupContextRequest.current += 1; };
-  }, [groupId]);
+  }, [groupId, refresh]);
   const selectedGuardianId = guardianId || guardians.find((item) => item.child_id === childId)?.id || "";
-  const selectedGuardian = guardians.find((item) => item.id === selectedGuardianId);
+  const selectedGuardian = guardians.find((item) => item.id === selectedGuardianId && item.child_id === childId);
   function selectGroup(id: string) {
+    selectThread("");
+    listRequestId.current += 1; groupContextRequest.current += 1;
+    childIdRef.current = ""; guardianIdRef.current = "";
+    setThreads([]);
     groupIdRef.current = id;
     setChildren([]); setGuardians([]); setChildId(""); setGuardianId(""); setGroupId(id);
   }
-  function selectChild(id: string) { childIdRef.current = id; guardianIdRef.current = ""; setChildId(id); setGuardianId(""); }
-  function selectGuardian(id: string) { guardianIdRef.current = id; setGuardianId(id); }
+  function selectChild(id: string) { contextEpoch.current += 1; childIdRef.current = id; guardianIdRef.current = ""; setChildId(id); setGuardianId(""); }
+  function selectGuardian(id: string) { contextEpoch.current += 1; guardianIdRef.current = id; setGuardianId(id); }
   function selectThread(id: string) {
+    contextEpoch.current += 1; messageRequestId.current += 1;
+    if (id && selectedThreadRef.current === id) setRefresh((value) => value + 1);
     selectedThreadRef.current = id;
-    setMessages([]); setMessagesThreadId(""); setBody(""); clientMessageId.current = crypto.randomUUID(); setError(""); setThreadId(id);
+    const draft = drafts.current.get(id);
+    setMessages([]); setMessagesThreadId(""); setBody(draft?.body || "");
+    clientMessageId.current = draft?.key || crypto.randomUUID(); setError(""); setThreadId(id);
   }
   async function openGroupThread() {
     if (!groupId) return;
-    const groupAtStart = groupId;
-    try { const thread = await teacherApi.v2GroupThread(groupAtStart, groupAudience); if (groupIdRef.current !== groupAtStart) return; await loadThreads(); selectThread(thread.id); }
-    catch (reason) { if (groupIdRef.current === groupAtStart) setError(userMessage(reason)); }
+    const groupAtStart = groupId; const epoch = contextEpoch.current;
+    try { const thread = await teacherApi.v2GroupThread(groupAtStart, groupAudience); if (contextEpoch.current !== epoch) return; selectThread(thread.id); await loadThreads(); }
+    catch (reason) { if (contextEpoch.current === epoch) setError(userMessage(reason)); }
   }
   async function openDirect() {
     if (!childId || !selectedGuardianId) return;
@@ -98,16 +135,16 @@ export function CommunicationsPage() {
       setError("У родителя ещё нет активного аккаунта. Попросите администратора создать или восстановить доступ.");
       return;
     }
-    const childAtStart = childId; const guardianAtStart = selectedGuardianId;
-    try { const thread = await teacherApi.v2Direct(childAtStart, guardianAtStart); if (childIdRef.current !== childAtStart || (guardianIdRef.current && guardianIdRef.current !== guardianAtStart)) return; await loadThreads(); selectThread(thread.id); }
-    catch (reason) { if (childIdRef.current === childAtStart && (!guardianIdRef.current || guardianIdRef.current === guardianAtStart)) setError(userMessage(reason, "У родителя ещё нет активного аккаунта. Попросите администратора создать или восстановить доступ.")); }
+    const childAtStart = childId; const guardianAtStart = selectedGuardianId; const epoch = contextEpoch.current;
+    try { const thread = await teacherApi.v2Direct(childAtStart, guardianAtStart); if (contextEpoch.current !== epoch) return; selectThread(thread.id); await loadThreads(); }
+    catch (reason) { if (contextEpoch.current === epoch) setError(userMessage(reason, "У родителя ещё нет активного аккаунта. Попросите администратора создать или восстановить доступ.")); }
   }
   function threadLabel(thread: ThreadV2) {
     if (thread.thread_type === "group") {
       return `${communicationAudienceLabels[thread.audience]} · ${thread.group_name}`;
     }
     if (thread.child_name && thread.guardian_id) {
-      const guardian = guardians.find((item) => item.id === thread.guardian_id);
+      const guardian = guardians.find((item) => item.id === thread.guardian_id && item.child_id === thread.child_id);
       const guardianName = guardian ? `${guardian.last_name} ${guardian.first_name}`.trim() : "родитель";
       const relation = guardian ? ` · ${relationLabels[guardian.relation_type]}` : "";
       return `${guardianName}${relation} · ${thread.child_name}`;
@@ -118,17 +155,30 @@ export function CommunicationsPage() {
     event.preventDefault(); if (!threadId || !body.trim() || busy || sending.current || selectedThreadRef.current !== threadId) return;
     sending.current = true;
     setBusy(true);
-    const threadAtStart = threadId;
+    const threadAtStart = threadId; const epoch = contextEpoch.current; const draftAtStart = body; const keyAtStart = clientMessageId.current;
+    messageRequestId.current += 1; setMessages([]); setMessagesThreadId("");
     try {
-      await teacherApi.v2SendMessage(threadAtStart, body, clientMessageId.current);
-      if (selectedThreadRef.current !== threadAtStart) return;
-      clientMessageId.current = crypto.randomUUID(); setBody("");
+      await teacherApi.v2SendMessage(threadAtStart, draftAtStart, keyAtStart);
+      if (contextEpoch.current !== epoch) return;
+      if (clientMessageId.current === keyAtStart) { clientMessageId.current = crypto.randomUUID(); setBody(""); drafts.current.delete(threadAtStart); }
       const items = await teacherApi.v2Messages(threadAtStart);
-      if (selectedThreadRef.current === threadAtStart) { setMessages(items); setMessagesThreadId(threadAtStart); }
-      await loadThreads(); setError("");
+      const last = items.at(-1);
+      if (last && contextEpoch.current === epoch) await teacherApi.v2MarkRead(threadAtStart, last.id);
+      if (contextEpoch.current !== epoch) return;
+      setMessages(items); setMessagesThreadId(threadAtStart);
+      await loadThreads(); if (contextEpoch.current === epoch) setError("");
     }
-    catch (reason) { if (selectedThreadRef.current === threadAtStart) setError(userMessage(reason)); }
+    catch (reason) { if (contextEpoch.current === epoch) { setMessages([]); setMessagesThreadId(""); setError(userMessage(reason)); } }
     finally { sending.current = false; setBusy(false); }
+  }
+  function senderLabel(message: TeacherMessageV2) {
+    if (message.sender_user_id === current?.user.id) return "Вы";
+    const context = message.sender_role === "PARENT" ? message.sender_child_context : null;
+    if (!context) return message.sender_name;
+    if (context.multiple_children) return `${message.sender_name} · представитель нескольких детей`;
+    return context.child_name && context.relation_type
+      ? `${message.sender_name} · ${relationLabels[context.relation_type]} · ${context.child_name}`
+      : message.sender_name;
   }
   return <TeacherPageFrame title="Сообщения" eyebrow="Родители и группы">
     {(error || groupError) && <p className={styles.error}>{error || groupError}</p>}
@@ -142,7 +192,7 @@ export function CommunicationsPage() {
     </div></section>
       <section className={styles.card}><h2>Диалоги</h2><nav className={styles.communicationTabs} aria-label="Фильтр диалогов">{[["all","Все"],["direct","Личные"],["group","Группы"],["staff","Сотрудники"]].map(([key,label]) => <button key={key} type="button" aria-pressed={tab===key} className={tab===key?styles.button:styles.buttonSecondary} onClick={() => setTab(key as typeof tab)}>{label}</button>)}</nav>
         {threads.filter((thread) => tab === "all" || (tab === "direct" && thread.thread_type === "direct") || (tab === "group" && thread.thread_type === "group" && thread.audience === "all") || (tab === "staff" && thread.thread_type === "group" && thread.audience === "teachers")).length === 0 ? <p className={styles.muted}>Диалогов пока нет.</p> : <ul className={styles.list}>{threads.filter((thread) => tab === "all" || (tab === "direct" && thread.thread_type === "direct") || (tab === "group" && thread.thread_type === "group" && thread.audience === "all") || (tab === "staff" && thread.thread_type === "group" && thread.audience === "teachers")).map((thread) => <li key={thread.id}><button className={`${thread.id === threadId ? styles.button : styles.buttonSecondary} ${styles.conversationButton}`} onClick={() => selectThread(thread.id)}>{threadLabel(thread)}{thread.unread_count > 0 && <span aria-label={`${thread.unread_count} непрочитанных`}> · {thread.unread_count}</span>}<small className={styles.threadPreview}>{thread.preview || "Нет сообщений"}</small></button></li>)}</ul>}</section>
-      <section className={styles.card}><h2>{threads.find((item) => item.id === threadId) ? threadLabel(threads.find((item) => item.id === threadId)!) : "Сообщения"}</h2>{messagesThreadId !== threadId || messages.length === 0 ? <p className={styles.muted}>Выберите диалог или начните новый.</p> : <ul className={styles.list}>{messages.map((message) => { const own = message.sender_user_id === current?.user.id; return <li className={`${styles.row} ${own ? styles.ownMessage : ""}`} key={message.id}><span className={styles.messageBubble}><strong>{own ? "Вы" : message.sender_name}</strong><span>{message.body}</span><small>{new Date(message.created_at).toLocaleString("ru-RU")}</small></span></li>; })}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Новое сообщение<textarea value={body} maxLength={4000} onChange={(event) => { clientMessageId.current = crypto.randomUUID(); setBody(event.target.value); }} /></label><button className={styles.button} disabled={!threadId || !body.trim() || busy}>{busy ? "Отправка..." : "Отправить"}</button></form></section>
+      <section className={styles.card}><h2>{threads.find((item) => item.id === threadId) ? threadLabel(threads.find((item) => item.id === threadId)!) : "Сообщения"}</h2>{messagesThreadId !== threadId || messages.length === 0 ? <p className={styles.muted}>Выберите диалог или начните новый.</p> : <ul className={styles.list}>{messages.map((message) => { const own = message.sender_user_id === current?.user.id; return <li className={`${styles.row} ${own ? styles.ownMessage : ""}`} key={message.id}><span className={styles.messageBubble}><strong>{senderLabel(message)}</strong><span>{message.body}</span><small>{new Date(message.created_at).toLocaleString("ru-RU")}</small></span></li>; })}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Новое сообщение<textarea value={body} maxLength={4000} onChange={(event) => { clientMessageId.current = crypto.randomUUID(); setBody(event.target.value); if (selectedThreadRef.current) drafts.current.set(selectedThreadRef.current, { body: event.target.value, key: clientMessageId.current }); }} /></label><button className={styles.button} disabled={!threadId || !body.trim() || busy}>{busy ? "Отправка..." : "Отправить"}</button></form></section>
     </div>
   </TeacherPageFrame>;
 }

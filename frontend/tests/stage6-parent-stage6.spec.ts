@@ -274,3 +274,18 @@ test("parent hides an open conversation after the server revokes access", async 
   await expect(page.getByText("Приватное до отзыва")).toHaveCount(0);
   await expect(page.getByLabel("Ответ")).toHaveValue("Синтетический черновик");
 });
+
+test("parent group messages show sender names without another child's relationship", async ({ page }) => {
+  await page.route("**/api/v1/parent/communications/v2/threads", (route) => route.fulfill({ json: [{ ...thread, thread_type: "group", child_id: null, child_name: null, guardian_id: null, teacher_employee_id: null, teacher_name: null }] }));
+  const message = { id: "00000000-0000-4000-8000-000000000697", thread_id: thread.id, sender_user_id: "other-parent", sender_role: "PARENT", sender_name: "Другой Родитель", body: "Синтетическое групповое сообщение", created_at: "2026-09-30T10:00:00Z" };
+  await page.route("**/api/v1/parent/communications/v2/threads/*/messages", (route) => route.fulfill({ json: [message] }));
+  await page.goto("/parent");
+  await page.getByRole("button", { name: "Сообщения", exact: true }).click();
+  await expect(page.getByText("Другой Родитель", { exact: true })).toBeVisible();
+  await expect(page.getByText("Синтетическое групповое сообщение", { exact: true })).toBeVisible();
+  await expect(page.getByText(/представитель нескольких детей|Мама ·|Папа ·/)).toHaveCount(0);
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});

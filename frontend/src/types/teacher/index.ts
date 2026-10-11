@@ -32,6 +32,7 @@ export type ThreadV2 = {
 };
 export type EligibleTeacher = { employee_id: string; display_name: string; group_id: string; group_name: string };
 export type Message = { id: string; thread_id: string; sender_user_id: string; sender_role: "DIRECTOR" | "ADMIN" | "TEACHER" | "PARENT"; sender_name: string; body: string; created_at: string };
+export type TeacherMessageV2 = Message & { sender_child_context: { child_name: string | null; relation_type: "mother" | "father" | "legal_guardian" | "other" | null; multiple_children: boolean } | null };
 export type DiaryEntry = {
   id: string; child_id: string; group_id: string; date: string; author_user_id: string;
   note: string; created_at: string; updated_at: string;

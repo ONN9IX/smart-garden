@@ -339,3 +339,196 @@ def test_parent_announcement_detail_and_read_recheck_revoked_guardian(client, db
         db.flush()
         assert parent_client.get(f"/api/v1/communications/v2/announcements/{announcement_id}").status_code == 404
         assert parent_client.post(f"/api/v1/communications/v2/announcements/{announcement_id}/read").status_code == 404
+
+
+def _privacy_group_message(client, world):
+    assert _login(client, world.teacher.username).status_code == 200
+    thread = client.get(f"/api/v1/teacher/communications/v2/groups/{world.assigned.id}/thread").json()
+    assert _login(client, world.parent.username).status_code == 200
+    path = f"/api/v1/parent/communications/v2/threads/{thread['id']}/messages"
+    sent = client.post(path, json={"body": "Историческое синтетическое сообщение", "client_message_id": str(uuid4())})
+    assert sent.status_code == 201
+    assert "sender_child_context" not in sent.json()
+    return thread, sent.json()
+
+
+def test_teacher_relationship_projection_is_absent_from_other_transports(client, db, cabinet_world, users):
+    world = cabinet_world
+    thread, message = _privacy_group_message(client, world)
+    expected_keys = {"id", "thread_id", "sender_user_id", "sender_role", "sender_name", "body", "created_at"}
+    assert set(message) == expected_keys
+    parent_path = f"/api/v1/parent/communications/v2/threads/{thread['id']}/messages"
+    assert set(client.get(parent_path).json()[0]) == expected_keys
+    assert _login(client, world.teacher.username).status_code == 200
+    teacher_path = f"/api/v1/teacher/communications/v2/threads/{thread['id']}/messages"
+    response = client.get(teacher_path)
+    assert response.status_code == 200
+    assert response.json()[0]["sender_child_context"] == {
+        "child_name": "Ребёнок Синтетический", "relation_type": "mother", "multiple_children": False,
+    }
+    teacher_send = client.post(teacher_path, json={"body": "Ответ", "client_message_id": str(uuid4())})
+    assert teacher_send.status_code == 201
+    assert teacher_send.json()["sender_child_context"] is None
+    # Even legacy Teacher messages retain the original transport shape.
+    assert set(client.get(f"/api/v1/teacher/communications/threads/{thread['id']}/messages").json()[0]) == expected_keys
+    for actor in (world.director, users[3]):
+        assert _login(client, actor.username).status_code == 200
+        path = f"/api/v1/teacher-management/communications/v2/threads/{thread['id']}/messages"
+        assert set(client.get(path).json()[0]) == expected_keys | {"group_id", "audience"}
+        sent = client.post(path, json={"body": "Служебный ответ", "client_message_id": str(uuid4())})
+        assert sent.status_code == 201
+        assert set(sent.json()) == expected_keys | {"group_id", "audience"}
+        assert client.get(teacher_path).status_code == 403
+    # Projection metadata never enters audit or notifications.
+    assert "sender_child_context" not in str(db.scalars(select(AuditEvent.details)).all())
+    assert "sender_child_context" not in str(db.scalars(select(Notification.kind)).all())
+
+
+def test_teacher_historic_relationship_is_current_and_group_scoped(client, db, cabinet_world):
+    from app.models.child_guardian import ChildGuardian
+
+    world = cabinet_world
+    thread, _ = _privacy_group_message(client, world)
+    # A second link outside the permitted group must neither appear nor count as ambiguity.
+    outside = ChildGuardian(organization_id=world.organization.id, child_id=world.other_child.id,
+                            guardian_id=world.guardian.id, relation_type="father", status="active")
+    db.add(outside)
+    db.flush()
+    assert _login(client, world.teacher.username).status_code == 200
+    path = f"/api/v1/teacher/communications/v2/threads/{thread['id']}/messages"
+    assert client.get(path).json()[0]["sender_child_context"]["multiple_children"] is False
+    world.relation.relation_type = "legal_guardian"
+    world.child.first_name = "Обновлённый"
+    db.flush()
+    assert client.get(path).json()[0]["sender_child_context"] == {
+        "child_name": "Ребёнок Обновлённый", "relation_type": "legal_guardian", "multiple_children": False,
+    }
+    second = ChildGuardian(organization_id=world.organization.id, child_id=world.no_consent_child.id,
+                           guardian_id=world.guardian.id, relation_type="other", status="active")
+    db.add(second)
+    db.flush()
+    assert client.get(path).json()[0]["sender_child_context"] == {
+        "child_name": None, "relation_type": None, "multiple_children": True,
+    }
+    second.status = "archived"
+    world.child.group_id = world.unassigned.id
+    db.flush()
+    assert client.get(path).json()[0]["sender_child_context"] is None
+    world.child.group_id = world.assigned.id
+    world.child.status = "archived"
+    db.flush()
+    assert client.get(path).json()[0]["sender_child_context"] is None
+
+
+def test_teacher_projection_revocation_and_tenant_denial(client, db, cabinet_world):
+    import pytest
+
+    from app.core.errors import AppError
+    from app.services import communications_v2
+
+    world = cabinet_world
+    thread, _ = _privacy_group_message(client, world)
+    assert _login(client, world.teacher.username).status_code == 200
+    path = f"/api/v1/teacher/communications/v2/threads/{thread['id']}/messages"
+    for record in (world.relation, world.guardian, world.parent):
+        record.status = "archived" if record is not world.parent else "blocked"
+        db.flush()
+        assert client.get(path).json()[0]["sender_child_context"] is None
+        record.status = "active"
+        db.flush()
+    # A forged cross-tenant relation cannot project a foreign child's identity.
+    from datetime import date
+
+    from app.models.child import Child
+    from app.models.child_guardian import ChildGuardian
+
+    foreign_child = Child(organization_id=world.other.id, group_id=world.foreign.id,
+                          first_name="Чужой", last_name="Синтетический", birth_date=date(2020, 1, 1), status="active")
+    db.add(foreign_child)
+    db.flush()
+    db.add(ChildGuardian(organization_id=world.organization.id, child_id=foreign_child.id,
+                         guardian_id=world.guardian.id, relation_type="other", status="active"))
+    db.flush()
+    assert client.get(path).json()[0]["sender_child_context"]["multiple_children"] is False
+    foreign_thread = CommunicationThread(organization_id=world.other.id, group_id=world.foreign.id,
+                                         thread_type="group", audience="all")
+    db.add(foreign_thread)
+    db.flush()
+    assert client.get(f"/api/v1/teacher/communications/v2/threads/{foreign_thread.id}/messages").status_code == 404
+    assert client.get(f"/api/v1/teacher/communications/v2/threads/{uuid4()}/messages").status_code == 404
+    with pytest.raises(AppError):
+        communications_v2.teacher_message_responses(db, world.parent, UUID(thread["id"]), [])
+    world.assignment.status = "archived"
+    db.flush()
+    assert client.get(path).status_code == 404
+    assert client.post(path, json={"body": "Запрещено", "client_message_id": str(uuid4())}).status_code == 404
+
+
+def test_teacher_direct_projection_binds_exact_child_and_rechecks_retry(client, db, cabinet_world):
+    from app.models.child_guardian import ChildGuardian
+
+    world = cabinet_world
+    assert _login(client, world.teacher.username).status_code == 200
+    thread = client.post("/api/v1/teacher/communications/v2/direct", json={
+        "child_id": str(world.child.id), "guardian_id": str(world.guardian.id),
+    }).json()
+    db.add(ChildGuardian(organization_id=world.organization.id, child_id=world.no_consent_child.id,
+                         guardian_id=world.guardian.id, relation_type="father", status="active"))
+    db.flush()
+    assert _login(client, world.parent.username).status_code == 200
+    assert client.post(f"/api/v1/parent/communications/v2/threads/{thread['id']}/messages", json={
+        "body": "Личное сообщение", "client_message_id": str(uuid4()),
+    }).status_code == 201
+    assert _login(client, world.teacher.username).status_code == 200
+    path = f"/api/v1/teacher/communications/v2/threads/{thread['id']}/messages"
+    assert client.get(path).json()[0]["sender_child_context"] == {
+        "child_name": "Ребёнок Синтетический", "relation_type": "mother", "multiple_children": False,
+    }
+    key = str(uuid4())
+    assert client.post(path, json={"body": "Ответ", "client_message_id": key}).status_code == 201
+    world.relation.status = "archived"
+    db.flush()
+    assert client.get(path).status_code == 404
+    assert client.post(path, json={"body": "Ответ", "client_message_id": key}).status_code == 404
+    world.relation.status = "active"
+    from app.models.teacher_group_assignment import TeacherGroupAssignment
+
+    db.add(TeacherGroupAssignment(organization_id=world.organization.id, employee_id=world.employee.id,
+                                 group_id=world.unassigned.id, status="active", assigned_by=world.director.id))
+    world.child.group_id = world.unassigned.id
+    db.flush()
+    assert client.get(path).status_code == 404
+
+
+def test_teacher_relationship_projection_is_batched_and_staff_has_no_hint(client, db, cabinet_world):
+    from sqlalchemy import event
+
+    world = cabinet_world
+    thread, _ = _privacy_group_message(client, world)
+    for _ in range(12):
+        assert client.post(f"/api/v1/parent/communications/v2/threads/{thread['id']}/messages", json={
+            "body": "История", "client_message_id": str(uuid4()),
+        }).status_code == 201
+    assert _login(client, world.teacher.username).status_code == 200
+    statements = []
+
+    def collect(_connection, _cursor, statement, _parameters, _context, _many):
+        if "child_guardians" in statement.lower():
+            statements.append(statement)
+
+    connection = db.connection()
+    event.listen(connection, "before_cursor_execute", collect)
+    try:
+        result = client.get(f"/api/v1/teacher/communications/v2/threads/{thread['id']}/messages")
+    finally:
+        event.remove(connection, "before_cursor_execute", collect)
+    assert result.status_code == 200
+    assert len(result.json()) == 13
+    assert len(statements) == 1
+    assert all(item["sender_child_context"]["relation_type"] == "mother" for item in result.json())
+    staff = client.get(f"/api/v1/teacher/communications/v2/groups/{world.assigned.id}/thread", params={"audience": "teachers"}).json()
+    # A historic anomalous Parent-authored row in staff must not create a relationship disclosure.
+    db.add(CommunicationMessage(organization_id=world.organization.id, thread_id=UUID(staff["id"]),
+                                sender_user_id=world.parent.id, body="Синтетическая историческая строка"))
+    db.flush()
+    assert client.get(f"/api/v1/teacher/communications/v2/threads/{staff['id']}/messages").json()[0]["sender_child_context"] is None
