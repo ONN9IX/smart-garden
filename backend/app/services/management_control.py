@@ -9,11 +9,15 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.organization_time import organization_now
 from app.models.account_access_token import AccountAccessToken
+from app.models.employee import Employee
+from app.models.group_schedule_item import GroupScheduleItem
 from app.models.guardian import Guardian
 from app.models.operational_alert_state import OperationalAlertState
+from app.models.organization import Organization
 from app.models.organization_notification_settings import (
     OrganizationNotificationSettings,
 )
+from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.teacher_task import TeacherTask
 from app.models.user import User
 from app.schemas.management_cabinet import ManagementAttentionItem, ManagementTodayGroup
@@ -44,6 +48,8 @@ def update_notification_settings(
 ) -> OrganizationNotificationSettingsResponse:
     if actor.role != "DIRECTOR":
         raise AppError(403, "FORBIDDEN")
+    # The tenant root always exists, including before its first policy row.
+    db.scalar(select(Organization.id).where(Organization.id == actor.organization_id).with_for_update())
     row = db.get(OrganizationNotificationSettings, actor.organization_id)
     effective = notification_settings(db, actor)
     values = payload.model_dump(exclude_unset=True)
@@ -112,9 +118,38 @@ def condition_items(
     return items
 
 
-def _alert(item: ManagementAttentionItem, day: date, group_names: dict[UUID, str]) -> OperationalAlert:
+def _occurrence(db: Session, actor: User, item: ManagementAttentionItem) -> str:
+    """Version a live condition by its source rows, so a resolved condition can recur as new."""
+    if item.kind == "group_without_teacher":
+        rows = db.execute(select(TeacherGroupAssignment.created_at, TeacherGroupAssignment.archived_at,
+                                 Employee.updated_at).join(Employee, Employee.id == TeacherGroupAssignment.employee_id)
+                          .where(TeacherGroupAssignment.organization_id == actor.organization_id,
+                                 TeacherGroupAssignment.group_id == item.entity_id,
+                                 Employee.organization_id == actor.organization_id)).all()
+        moments = [value for row in rows for value in row if value is not None]
+    elif item.kind == "group_without_schedule":
+        moments = db.scalars(select(GroupScheduleItem.updated_at).where(
+            GroupScheduleItem.organization_id == actor.organization_id,
+            GroupScheduleItem.group_id == item.entity_id)).all()
+    elif item.kind == "tasks_overdue":
+        moments = db.scalars(select(TeacherTask.updated_at).where(
+            TeacherTask.organization_id == actor.organization_id,
+            TeacherTask.status.in_(("open", "in_progress")),
+            TeacherTask.due_at.is_not(None), TeacherTask.due_at < organization_now(actor.organization).astimezone(UTC),
+        )).all()
+    else:
+        moments = db.scalars(select(AccountAccessToken.created_at).where(
+            AccountAccessToken.organization_id == actor.organization_id,
+            AccountAccessToken.user_id == item.entity_id,
+            AccountAccessToken.purpose == "activation",
+        )).all()
+    return str(int(max(moments).timestamp() * 1_000_000)) if moments else "initial"
+
+
+def _alert(db: Session, actor: User, item: ManagementAttentionItem, day: date,
+           group_names: dict[UUID, str]) -> OperationalAlert:
     kind, entity = item.kind, item.entity_id
-    key = f"{kind}:{entity}:{day.isoformat()}" if kind == "attendance_missing" else f"{kind}:{entity}"
+    key = f"{kind}:{entity}:{day.isoformat()}" if kind == "attendance_missing" else f"{kind}:{entity}:{_occurrence(db, actor, item)}"
     name = group_names.get(entity, "Группа") if entity else "Группа"
     if kind == "attendance_missing":
         return OperationalAlert(alert_key=key, kind=kind, priority="important", title="Посещаемость не завершена",
@@ -139,7 +174,7 @@ def active_alerts(db: Session, actor: User) -> list[OperationalAlert]:
 
     today = management_today(db, actor)
     names = {group.group_id: group.group_name for group in today.groups}
-    return [_alert(item, today.date, names) for item in today.attention_items if item.kind != "notifications_unread"]
+    return [_alert(db, actor, item, today.date, names) for item in today.attention_items if item.kind != "notifications_unread"]
 
 
 def _eligible(db: Session, actor: User, key: str) -> OperationalAlert:

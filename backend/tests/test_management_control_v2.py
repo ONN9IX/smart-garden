@@ -64,8 +64,9 @@ def test_control_conditions_resolve_and_state_is_per_user(client, db, users):
                    role="TEACHER", status="active", must_change_password=False)
     db.add(teacher); db.flush()
     employee.user_id = teacher.id
-    db.add(TeacherGroupAssignment(organization_id=organization.id, employee_id=employee.id,
-                                  group_id=group.id, status="active", assigned_by=director.id))
+    assignment = TeacherGroupAssignment(organization_id=organization.id, employee_id=employee.id,
+                                        group_id=group.id, status="active", assigned_by=director.id)
+    db.add(assignment)
     db.add(GroupScheduleItem(organization_id=organization.id, group_id=group.id, weekday=0,
                              start_time=time(9), end_time=time(10), title="Занятие", status="active",
                              created_by=director.id, updated_by=director.id))
@@ -73,6 +74,12 @@ def test_control_conditions_resolve_and_state_is_per_user(client, db, users):
     db.flush()
     kinds = {item["kind"] for item in _alerts(client)}
     assert "group_without_teacher" not in kinds and "group_without_schedule" not in kinds and "tasks_overdue" not in kinds
+    assignment.status = "archived"
+    assignment.archived_at = datetime.now(UTC) + timedelta(seconds=1)
+    db.flush()
+    recurrence = next(item for item in _alerts(client) if item["kind"] == "group_without_teacher")
+    assert recurrence["alert_key"] != key
+    assert recurrence["viewed_at"] is None
     _logout(client); _login(client, teacher.username)
     assert client.get("/api/v1/management/control").status_code == 403
 
