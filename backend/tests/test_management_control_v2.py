@@ -26,7 +26,7 @@ from app.models.organization import Organization
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.teacher_task import TeacherTask
 from app.models.user import User
-from app.services import management_control
+from app.services import audit, management_control
 from tests.test_stage6_management_cabinet import _director, _login, _logout
 
 
@@ -390,3 +390,33 @@ def test_concurrent_first_alert_writes_are_idempotent_and_tenant_scoped(migratio
             cleanup.execute(delete(User).where(User.organization_id.in_(organization_ids)))
             cleanup.execute(delete(Organization).where(Organization.id.in_(organization_ids)))
             cleanup.commit()
+
+
+def test_overdue_condition_never_loads_foreign_task_into_session(db, users):
+    _organization, other, director, _admin = users
+    employee = Employee(organization_id=other.id, first_name="Другой", last_name="Тестовый",
+                        position="Воспитатель", category="teacher", status="active")
+    foreign_actor = User(organization_id=other.id, username="foreign-overdue-director",
+                         password_hash=director.password_hash, role="DIRECTOR", status="active",
+                         must_change_password=False)
+    db.add_all([employee, foreign_actor]); db.flush()
+    task = TeacherTask(organization_id=other.id, assignee_employee_id=employee.id,
+                       title="Чужая синтетическая задача", status="open",
+                       due_at=datetime.now(UTC) - timedelta(days=1), created_by=foreign_actor.id)
+    db.add(task); db.flush()
+    task_id = task.id
+    db.expunge(task)
+    loaded_tasks = []
+
+    def record_load(_session, instance):
+        if isinstance(instance, TeacherTask):
+            loaded_tasks.append(instance.id)
+
+    event.listen(db, "loaded_as_persistent", record_load)
+    try:
+        assert audit._overdue_condition(db, director, "teacher_task.update", task_id) == {}
+        assert audit._overdue_condition(db, director, "teacher_task.update", uuid4()) == {}
+        assert loaded_tasks == []
+        assert not any(isinstance(item, TeacherTask) for item in db.identity_map.values())
+    finally:
+        event.remove(db, "loaded_as_persistent", record_load)

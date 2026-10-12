@@ -193,8 +193,10 @@ def _overdue_condition(db: Session, actor: User, action: str, entity_id: UUID) -
 
     now = datetime.now(UTC)
     with db.no_autoflush:
-        item = db.get(TeacherTask, entity_id)
-        if item is None or item.organization_id != actor.organization_id:
+        item = db.scalar(select(TeacherTask).where(
+            TeacherTask.id == entity_id, TeacherTask.organization_id == actor.organization_id,
+        ))
+        if item is None:
             # Audit also accepts historical/synthetic references without a live
             # target. Preserve that writer contract and derive no foreign state.
             return {}
