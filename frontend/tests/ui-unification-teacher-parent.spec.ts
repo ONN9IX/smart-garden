@@ -134,9 +134,28 @@ test("role cabinets reflow at 200 percent with reduced motion and keyboard navig
     // Chromium CSS zoom exercises 200% reflow, including native form controls.
     await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
     await noOverflow(page);
+    if (role === "PARENT") {
+      const logout = page.getByRole("button", { name: "Выйти", exact: true });
+      const textRects = await logout.evaluate((button) => {
+        const range = document.createRange();
+        range.selectNodeContents(button);
+        const bounds = button.getBoundingClientRect();
+        return [...range.getClientRects()].map((rect) => ({
+          fits: rect.left >= bounds.left && rect.right <= bounds.right,
+        }));
+      });
+      expect(textRects).toHaveLength(1);
+      expect(textRects[0].fits).toBe(true);
+      await page.screenshot({ path: test.info().outputPath("parent-logout-zoom200.png"), fullPage: true });
+    }
     await page.keyboard.press("Tab");
     expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
     await page.evaluate(() => { document.documentElement.style.zoom = ""; });
+    if (role === "PARENT") {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await noOverflow(page);
+      await expect(page.getByRole("button", { name: "Выйти", exact: true })).toBeVisible();
+    }
   }
 });
 

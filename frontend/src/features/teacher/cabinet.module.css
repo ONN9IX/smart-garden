@@ -55,6 +55,7 @@
 .statusDeparted { color: #30366f; background: #eef0fa; }
 .parentShell { width: 100%; min-height: 100vh; margin: 0 auto; padding: 1.5rem max(1rem, calc((100% - 1180px) / 2)) 3rem; align-content: start; }
 .parentHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--cabinet-navy); border-color: var(--cabinet-navy); color: white; }
+.parentHeader > .buttonSecondary { flex-shrink: 0; white-space: nowrap; }
 .parentHeaderMain { min-width: 0; }
 .parentHeaderMain h1 { margin: .8rem 0 .3rem; color: white; font-size: clamp(1.5rem, 3vw, 2rem); }
 .parentHeaderMain p { margin: 0; color: #d7dcf6; }
