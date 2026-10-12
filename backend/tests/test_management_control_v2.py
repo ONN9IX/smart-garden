@@ -80,6 +80,15 @@ def test_control_conditions_resolve_and_state_is_per_user(client, db, users):
 def test_control_settings_invites_notifications_timezone_and_role(client, db, users, monkeypatch):
     organization, _other, director, admin = users
     _director(client, db, users)
+    assert client.patch("/api/v1/management/notification-settings", json={
+        "show_informational_notifications": True,
+        "attendance_checkpoint_time": None,
+        "schedule_missing_alert_enabled": True,
+    }).status_code == 200
+    assert db.scalars(select(AuditEvent).where(
+        AuditEvent.organization_id == organization.id,
+        AuditEvent.action == "organization.settings_update",
+    )).all() == []
     parent = User(organization_id=organization.id, username="control-parent", password_hash=director.password_hash,
                   role="PARENT", status="active", must_change_password=False)
     db.add(parent); db.flush()

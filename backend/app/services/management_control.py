@@ -45,18 +45,18 @@ def update_notification_settings(
     if actor.role != "DIRECTOR":
         raise AppError(403, "FORBIDDEN")
     row = db.get(OrganizationNotificationSettings, actor.organization_id)
-    if row is None:
-        row = OrganizationNotificationSettings(organization_id=actor.organization_id)
-        db.add(row)
-    changed = []
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        if getattr(row, field) != value:
-            setattr(row, field, value)
-            changed.append(field)
+    effective = notification_settings(db, actor)
+    values = payload.model_dump(exclude_unset=True)
+    changed = sorted(field for field, value in values.items() if getattr(effective, field) != value)
     if changed:
+        if row is None:
+            row = OrganizationNotificationSettings(organization_id=actor.organization_id)
+            db.add(row)
+        for field in changed:
+            setattr(row, field, values[field])
         audit.write(db, actor, "organization.settings_update", "organization", actor.organization_id,
-                    {"changed_fields": sorted(changed)})
-    db.commit()
+                    {"changed_fields": changed})
+        db.commit()
     return notification_settings(db, actor)
 
 
