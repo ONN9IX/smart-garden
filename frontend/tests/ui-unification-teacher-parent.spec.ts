@@ -245,3 +245,47 @@ test("parent dialog refresh can retry a temporary server error without losing th
   await expect(page.getByText("Синтетическое сообщение", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Ответ")).toHaveValue("Синтетический черновик");
 });
+
+test("unrelated cabinet reload failure preserves selected Child B and its message draft", async ({ page }) => {
+  await fixtures(page, "PARENT");
+  const threadB = { ...thread, id: "33333333-3333-4333-8333-333333333335", child_id: childB.id, child_name: "Ребёнок Второй", group_id: groupB.id, group_name: groupB.name };
+  await page.route("**/api/v1/parent/communications/v2/threads", (route) => route.fulfill({ json: [thread, threadB] }));
+  await page.route("**/api/v1/parent/communications/v2/threads/*/messages", (route) => route.fulfill({ json: [{ id: "message", thread_id: route.request().url().split("/").at(-2), sender_user_id: "teacher", sender_role: "TEACHER", sender_name: "Воспитатель Тестовый", body: "Синтетическое сообщение", created_at: "2026-10-12T10:00:00Z" }] }));
+  await page.goto("/parent");
+  await expect(page.getByRole("article", { name: "Статус ребёнка" })).toBeVisible();
+  await page.getByRole("button", { name: "Сообщения", exact: true }).click();
+  await page.getByLabel("Ребёнок").selectOption(childB.id);
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toBeVisible();
+  await page.getByLabel("Ответ").fill("Черновик ребёнка Б");
+  await page.route("**/api/v1/communications/v2/announcements", (route) => route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR" } } }));
+  await page.getByRole("button", { name: "Обновить диалог" }).click();
+  await expect(page.getByRole("button", { name: "Повторить загрузку кабинета" })).toBeVisible();
+  await expect(page.getByLabel("Ребёнок")).toHaveValue(childB.id);
+  await expect(page.getByLabel("Ответ")).toHaveValue("Черновик ребёнка Б");
+  await page.unroute("**/api/v1/communications/v2/announcements");
+  await page.getByRole("button", { name: "Повторить загрузку кабинета" }).click();
+  await expect(page.getByRole("button", { name: "Повторить загрузку кабинета" })).toHaveCount(0);
+  await expect(page.getByLabel("Ребёнок")).toHaveValue(childB.id);
+  await expect(page.getByLabel("Ответ")).toHaveValue("Черновик ребёнка Б");
+});
+
+test("confirmed Child access denial clears context before unrelated cabinet requests finish", async ({ page }) => {
+  await fixtures(page, "PARENT");
+  await page.goto("/parent");
+  await expect(page.getByRole("article", { name: "Статус ребёнка" })).toBeVisible();
+  const initialReload = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith("/parent/children"));
+  await page.getByRole("button", { name: "Сообщения", exact: true }).click();
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toBeVisible();
+  await initialReload;
+  await page.getByLabel("Ответ").fill("Черновик отозванного ребёнка");
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/v1/communications/v2/announcements", async (route) => { await gate; await route.fulfill({ json: [] }); });
+  await page.route("**/api/v1/parent/children", (route) => route.fulfill({ status: 403, json: { error: { code: "FORBIDDEN" } } }));
+  await page.getByRole("button", { name: "Обновить диалог" }).click();
+  await expect(page.getByLabel("Ребёнок").locator("option")).toHaveCount(0);
+  await expect(page.getByLabel("Ответ")).toHaveValue("");
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Отправить", exact: true })).toBeDisabled();
+  release();
+});

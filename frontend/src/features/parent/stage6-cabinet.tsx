@@ -36,21 +36,29 @@ function ParentContent() {
 
   const load = useCallback(() => {
     const request = ++loadVersion.current;
-    return Promise.all([
-    parentStage6Api.children(),
-    parentStage6Api.announcements(),
-    parentStage6Api.v2Threads(),
-    featureEnabled("polls") ? parentStage6Api.polls() : Promise.resolve([] as Poll[]),
-  ]).then(([nextChildren, nextAnnouncements, nextThreads, nextPolls]) => {
-    if (request !== loadVersion.current) return;
-    setError("");
-    setChildren(nextChildren);
-    // The list is navigation metadata only. Keep announcement text out of the
-    // long-lived Parent list state; retrieve it from the authorized detail route on open.
-    setAnnouncements(nextAnnouncements.map((item) => ({ ...item, body: "" })));
-    setThreads(nextThreads);
-    setPolls(nextPolls);
-  }).catch((reason) => { if (request === loadVersion.current) { setChildren([]); setAnnouncements([]); setThreads([]); setPolls([]); setError(userMessage(reason)); } }).finally(() => { if (request === loadVersion.current) setLoading(false); });
+    async function resource<T>(fetching: Promise<T>, apply: (value: T) => void, onFailure: (reason: unknown) => void) {
+      try {
+        const value = await fetching;
+        if (request === loadVersion.current) apply(value);
+      } catch (reason) {
+        if (request === loadVersion.current) { onFailure(reason); setError(userMessage(reason)); }
+        throw reason;
+      }
+    }
+    return Promise.allSettled([
+      resource(parentStage6Api.children(), setChildren, (reason) => {
+        if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) setChildren([]);
+      }),
+      // Each resource settles independently: unrelated failures preserve the
+      // Child selection/draft, and access denial clears it without waiting for others.
+      resource(parentStage6Api.announcements(), (items) => setAnnouncements(items.map((item) => ({ ...item, body: "" }))), () => setAnnouncements([])),
+      resource(parentStage6Api.v2Threads(), setThreads, () => setThreads([])),
+      resource(featureEnabled("polls") ? parentStage6Api.polls() : Promise.resolve([] as Poll[]), setPolls, () => setPolls([])),
+    ]).then((results) => {
+      if (request !== loadVersion.current) return;
+      const failure = results.find((result) => result.status === "rejected");
+      setError(failure ? userMessage(failure.reason) : "");
+    }).finally(() => { if (request === loadVersion.current) setLoading(false); });
   }, []);
 
   useEffect(() => { void load(); return () => { loadVersion.current += 1; }; }, [load]);
