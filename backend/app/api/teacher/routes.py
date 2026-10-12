@@ -22,6 +22,7 @@ from app.schemas.communications_v2 import (
     MessageCreateV2,
     ReadCursorCreate,
     ReadStateResponse,
+    TeacherMessageResponseV2,
     TeacherOption,
     ThreadSummaryV2,
 )
@@ -170,15 +171,17 @@ def get_v2_group_thread(
     return next(item for item in communications_v2.list_threads(db, user) if item.id == thread.id)
 
 
-@router.get("/communications/v2/threads/{thread_id}/messages", response_model=list[MessageResponse])
-def list_v2_messages(thread_id: UUID, user: Teacher, db: Database) -> list[MessageResponse]:
-    return [communications._message_response(db, user, item) for item in communications_v2.messages(db, user, thread_id)]
+@router.get("/communications/v2/threads/{thread_id}/messages", response_model=list[TeacherMessageResponseV2])
+def list_v2_messages(thread_id: UUID, user: Teacher, db: Database) -> list[TeacherMessageResponseV2]:
+    return communications_v2.teacher_message_responses(
+        db, user, thread_id, communications_v2.messages(db, user, thread_id),
+    )
 
 
-@router.post("/communications/v2/threads/{thread_id}/messages", response_model=MessageResponse, status_code=201)
-def send_v2_message(thread_id: UUID, payload: MessageCreateV2, user: Teacher, db: Database) -> MessageResponse:
+@router.post("/communications/v2/threads/{thread_id}/messages", response_model=TeacherMessageResponseV2, status_code=201)
+def send_v2_message(thread_id: UUID, payload: MessageCreateV2, user: Teacher, db: Database) -> TeacherMessageResponseV2:
     item = communications_v2.send(db, user, thread_id, payload.body, payload.client_message_id)
-    return communications._message_response(db, user, item)
+    return communications_v2.teacher_message_responses(db, user, thread_id, [item])[0]
 
 
 @router.post("/communications/v2/threads/{thread_id}/read", response_model=ReadStateResponse)

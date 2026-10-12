@@ -2,7 +2,7 @@ import { api, ApiError, NetworkError } from "@/lib/api/client";
 import type {
   Announcement, AnnouncementV2, AttendanceRow, ChildSummary, DiaryEntry, DocumentNotice, GroupSummary,
   GuardianContext, Incident, Message, Notification, ParentToday, PhotoAsset, PhotoConsent, Poll,
-  ScheduleItem, TeacherTask, Thread, ThreadV2, EligibleTeacher, Today,
+  ScheduleItem, TeacherMessageV2, TeacherTask, Thread, ThreadV2, EligibleTeacher, Today,
 } from "@/types/teacher";
 
 const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1").replace(/\/$/, "");
@@ -25,8 +25,8 @@ export const teacherApi = {
   direct: (childId: string, guardianId: string) => api.post<Thread>("/teacher/communications/direct", { child_id: childId, guardian_id: guardianId }),
   v2Threads: () => api.get<ThreadV2[]>("/teacher/communications/v2/threads"),
   v2GroupThread: (groupId: string, audience: "all" | "teachers" = "all") => api.get<ThreadV2>(`/teacher/communications/v2/groups/${groupId}/thread?audience=${audience}`),
-  v2Messages: (threadId: string) => api.get<Message[]>(`/teacher/communications/v2/threads/${threadId}/messages`),
-  v2SendMessage: (threadId: string, body: string, clientMessageId: string) => api.post<Message>(`/teacher/communications/v2/threads/${threadId}/messages`, { body, client_message_id: clientMessageId }),
+  v2Messages: (threadId: string) => api.get<TeacherMessageV2[]>(`/teacher/communications/v2/threads/${threadId}/messages`),
+  v2SendMessage: (threadId: string, body: string, clientMessageId: string) => api.post<TeacherMessageV2>(`/teacher/communications/v2/threads/${threadId}/messages`, { body, client_message_id: clientMessageId }),
   v2MarkRead: (threadId: string, messageId: string) => api.post<{ thread_id: string; last_read_message_id: string; last_read_at: string }>(`/teacher/communications/v2/threads/${threadId}/read`, { last_read_message_id: messageId }),
   v2Direct: (childId: string, guardianId: string) => api.post<ThreadV2>("/teacher/communications/v2/direct", { child_id: childId, guardian_id: guardianId }),
   v2EligibleTeachers: (childId: string) => api.get<EligibleTeacher[]>(`/teacher/communications/v2/children/${childId}/teachers`),

@@ -29,11 +29,13 @@ from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.user import User
 from app.schemas.communications_v2 import (
     ReadStateResponse,
+    TeacherMessageResponseV2,
     TeacherOption,
+    TeacherSenderChildContext,
     ThreadSummaryV2,
 )
 from app.services import audit
-from app.services.teacher import access
+from app.services.teacher import access, communications
 
 
 def _now() -> datetime:
@@ -201,6 +203,9 @@ def _eligible_thread(db: Session, actor: User, thread_id: UUID) -> Communication
             employee = access.teacher_employee(db, actor)
             if thread.teacher_employee_id is None or thread.teacher_employee_id != employee.id:
                 raise AppError(404, "NOT_FOUND")
+            child = access.teacher_child(db, actor, thread.child_id)
+            if child.group_id != thread.group_id:
+                raise AppError(404, "NOT_FOUND")
         return thread
     if actor.role == "PARENT":
         thread = access.parent_thread(db, actor, thread_id)
@@ -210,6 +215,9 @@ def _eligible_thread(db: Session, actor: User, thread_id: UUID) -> Communication
             raise AppError(404, "NOT_FOUND")
         if thread.thread_type == "direct":
             if thread.teacher_employee_id is None:
+                raise AppError(404, "NOT_FOUND")
+            _, child = access.parent_child(db, actor, thread.child_id)
+            if child.group_id != thread.group_id:
                 raise AppError(404, "NOT_FOUND")
             _active_teacher_assignment(db, actor, thread.teacher_employee_id, thread.group_id)
         return thread
@@ -326,6 +334,50 @@ def messages(db: Session, actor: User, thread_id: UUID) -> list[CommunicationMes
         CommunicationMessage.organization_id == actor.organization_id,
         CommunicationMessage.thread_id == thread.id,
     ).order_by(CommunicationMessage.created_at, CommunicationMessage.id)))
+
+
+def teacher_message_responses(
+    db: Session, actor: User, thread_id: UUID, items: list[CommunicationMessage],
+) -> list[TeacherMessageResponseV2]:
+    """Resolve current relationships in one tenant/group-scoped query, never persist them."""
+    if actor.role != "TEACHER" or actor.status != "active":
+        raise AppError(403, "FORBIDDEN")
+    thread = _eligible_thread(db, actor, thread_id)
+    employee = access.teacher_employee(db, actor)
+    _active_teacher_assignment(db, actor, employee.id, thread.group_id)
+    if any(item.organization_id != actor.organization_id or item.thread_id != thread.id for item in items):
+        raise AppError(404, "NOT_FOUND")
+    contexts: dict[UUID, TeacherSenderChildContext] = {}
+    if items and (thread.thread_type == "direct" or thread.audience == "all"):
+        query = (
+            select(User.id, Child.first_name, Child.last_name, ChildGuardian.relation_type)
+            .join(Guardian, Guardian.user_id == User.id)
+            .join(ChildGuardian, ChildGuardian.guardian_id == Guardian.id)
+            .join(Child, Child.id == ChildGuardian.child_id)
+            .where(
+                User.id.in_({item.sender_user_id for item in items}),
+                User.organization_id == actor.organization_id, User.role == "PARENT", User.status == "active",
+                Guardian.organization_id == actor.organization_id, Guardian.status == "active",
+                ChildGuardian.organization_id == actor.organization_id, ChildGuardian.status == "active",
+                Child.organization_id == actor.organization_id, Child.status == "active",
+                Child.group_id == thread.group_id,
+            )
+            .order_by(User.id, Child.id)
+        )
+        if thread.thread_type == "direct":
+            query = query.where(Child.id == thread.child_id, Guardian.id == thread.guardian_id)
+        for sender_id, first_name, last_name, relation_type in db.execute(query):
+            # Multiple current links reveal only ambiguity, not a list of children.
+            if sender_id in contexts:
+                contexts[sender_id] = TeacherSenderChildContext(multiple_children=True)
+            else:
+                contexts[sender_id] = TeacherSenderChildContext(
+                    child_name=f"{last_name} {first_name}".strip(), relation_type=relation_type,
+                )
+    return [TeacherMessageResponseV2(
+        **communications._message_response(db, actor, item).model_dump(),
+        sender_child_context=contexts.get(item.sender_user_id),
+    ) for item in items]
 
 
 def send(db: Session, actor: User, thread_id: UUID, body: str, client_message_id: UUID) -> CommunicationMessage:

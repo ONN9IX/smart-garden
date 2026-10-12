@@ -6,6 +6,20 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.teacher.contracts import MessageResponse
+
+
+class TeacherSenderChildContext(BaseModel):
+    child_name: str | None = None
+    relation_type: Literal["mother", "father", "legal_guardian", "other"] | None = None
+    multiple_children: bool = False
+
+
+class TeacherMessageResponseV2(MessageResponse):
+    """Never used by Parent, management or legacy message endpoints."""
+
+    sender_child_context: TeacherSenderChildContext | None = None
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")

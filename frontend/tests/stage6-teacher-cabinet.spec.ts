@@ -356,3 +356,129 @@ test("teacher empty assignment state remains usable", async ({ page }) => {
   await expect(page.getByText("0", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Мои группы", exact: true })).toBeVisible();
 });
+
+const privacyThreadA = { ...thread, thread_type: "group", group_name: group.name, child_id: null, child_name: null, guardian_id: null, teacher_employee_id: null, teacher_name: null, preview: null, unread_count: 1 };
+const privacyThreadB = { ...privacyThreadA, id: "00000000-0000-4000-8000-000000000699", group_id: otherGroup.id, group_name: otherGroup.name };
+function privacyMessage(threadId: string, name: string, multiple = false) {
+  return { id: "00000000-0000-4000-8000-000000000698", thread_id: threadId, sender_user_id: "parent", sender_role: "PARENT", sender_name: "Родитель Тестовый", body: "Синтетическое сообщение", created_at: "2026-09-30T10:00:00Z", sender_child_context: { child_name: multiple ? null : name, relation_type: multiple ? null : "mother", multiple_children: multiple } };
+}
+async function privacyChatRoutes(page: import("@playwright/test").Page) {
+  await page.route("**/api/v1/teacher/groups", (route) => route.fulfill({ json: [group, otherGroup] }));
+  await page.route(`**/api/v1/teacher/groups/${otherGroup.id}/children`, (route) => route.fulfill({ json: [childB] }));
+  await page.route(`**/api/v1/teacher/groups/${otherGroup.id}/guardians`, (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/v1/teacher/communications/v2/threads", (route) => route.fulfill({ json: [privacyThreadA, privacyThreadB] }));
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/read", (route) => route.fulfill({ json: {} }));
+}
+
+test("teacher relationship hints revalidate and clear on revoked access without losing draft", async ({ page }) => {
+  await privacyChatRoutes(page);
+  let context = privacyMessage(privacyThreadA.id, "Ребёнок Только Этой Группы");
+  let revoked = false;
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/messages", (route) => route.fulfill(revoked
+    ? { status: 404, json: { error: { code: "NOT_FOUND" } } } : { json: [context] }));
+  await page.goto("/teacher/communications");
+  await expect(page.getByText("Родитель Тестовый · Мама · Ребёнок Только Этой Группы", { exact: true })).toBeVisible();
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  context = privacyMessage(privacyThreadA.id, "", true);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText("Родитель Тестовый · представитель нескольких детей", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Ребёнок Только Этой Группы/)).toHaveCount(0);
+  await page.getByLabel("Новое сообщение").fill("Черновик после отзыва");
+  revoked = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText(/представитель нескольких детей/)).toHaveCount(0);
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Новое сообщение")).toHaveValue("Черновик после отзыва");
+});
+
+test("teacher discards late relationship GET and POST across group A to B to A and retains scoped drafts", async ({ page }) => {
+  await privacyChatRoutes(page);
+  let callsA = 0;
+  let releaseGet!: () => void;
+  let releasePost!: () => void;
+  let postBody: { body: string; client_message_id: string } | undefined;
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/messages", async (route) => {
+    const isA = route.request().url().includes(privacyThreadA.id);
+    if (route.request().method() === "POST") {
+      postBody = route.request().postDataJSON();
+      await new Promise<void>((resolve) => { releasePost = resolve; });
+      return route.fulfill({ status: 201, json: { ...privacyMessage(privacyThreadA.id, "Устаревший POST"), sender_child_context: null } });
+    }
+    if (isA && ++callsA === 1) {
+      await new Promise<void>((resolve) => { releaseGet = resolve; });
+      return route.fulfill({ json: [privacyMessage(privacyThreadA.id, "Устаревшая Связь")] });
+    }
+    return route.fulfill({ json: [privacyMessage(isA ? privacyThreadA.id : privacyThreadB.id, isA ? "Актуальный Ребёнок А" : "Ребёнок Б")] });
+  });
+  await page.goto("/teacher/communications");
+  await expect.poll(() => Boolean(releaseGet)).toBe(true);
+  await page.getByLabel(/^Группа/).selectOption(otherGroup.id);
+  await expect(page.getByText("Родитель Тестовый · Мама · Ребёнок Б", { exact: true })).toBeVisible();
+  await page.getByLabel(/^Группа/).selectOption(group.id);
+  await expect(page.getByText("Родитель Тестовый · Мама · Актуальный Ребёнок А", { exact: true })).toBeVisible();
+  const lateGet = page.waitForResponse((response) => response.url().includes(privacyThreadA.id) && response.request().method() === "GET");
+  releaseGet(); await lateGet;
+  await expect(page.getByText(/Устаревшая Связь/)).toHaveCount(0);
+  await page.getByLabel("Новое сообщение").fill("Черновик группы А");
+  await page.getByRole("button", { name: "Отправить", exact: true }).click();
+  await expect.poll(() => Boolean(releasePost)).toBe(true);
+  await page.getByLabel(/^Группа/).selectOption(otherGroup.id);
+  await expect(page.getByText("Родитель Тестовый · Мама · Ребёнок Б", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Новое сообщение")).toHaveValue("");
+  await page.getByLabel("Новое сообщение").fill("Черновик группы Б");
+  await page.getByLabel(/^Группа/).selectOption(group.id);
+  await expect(page.getByLabel("Новое сообщение")).toHaveValue("Черновик группы А");
+  const latePost = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/messages"));
+  releasePost(); await latePost;
+  await expect(page.getByLabel("Новое сообщение")).toHaveValue("Черновик группы А");
+  expect(postBody?.body).toBe("Черновик группы А");
+  await expect(page.getByText(/Устаревший POST|Устаревшая Связь|Ребёнок Б/)).toHaveCount(0);
+  await expect(page.getByText("Родитель Тестовый · Мама · Актуальный Ребёнок А", { exact: true })).toBeVisible();
+});
+
+test("teacher send revocation clears relationship labels and picker while preserving draft", async ({ page }) => {
+  await privacyChatRoutes(page);
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/messages", (route) => route.fulfill(route.request().method() === "POST"
+    ? { status: 404, json: { error: { code: "NOT_FOUND" } } }
+    : { json: [privacyMessage(privacyThreadA.id, "Ребёнок До Отзыва")] }));
+  await page.goto("/teacher/communications");
+  await expect(page.getByText("Родитель Тестовый · Мама · Ребёнок До Отзыва", { exact: true })).toBeVisible();
+  await page.getByLabel("Новое сообщение").fill("Не потерять при отзыве");
+  await page.getByRole("button", { name: "Отправить", exact: true }).click();
+  await expect(page.getByText("Запись не найдена.", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Ребёнок До Отзыва/)).toHaveCount(0);
+  await expect(page.getByLabel("Родитель").locator("option")).toHaveCount(0);
+  await expect(page.getByLabel("Новое сообщение")).toHaveValue("Не потерять при отзыве");
+  await expect(page.getByRole("button", { name: "Отправить", exact: true })).toBeDisabled();
+});
+
+test("teacher opening overlapping chats follows the latest action even when the earlier response arrives first", async ({ page }) => {
+  await privacyChatRoutes(page);
+  const direct = { ...thread, id: "00000000-0000-4000-8000-000000000697", group_name: group.name, child_name: "Тестовый Ребёнок", unread_count: 0, preview: null };
+  await page.route("**/api/v1/teacher/communications/v2/threads", (route) => route.fulfill({ json: [privacyThreadA, direct] }));
+  await page.route("**/api/v1/teacher/communications/v2/threads/*/messages", (route) => route.fulfill({ json: [privacyMessage(route.request().url().includes(direct.id) ? direct.id : privacyThreadA.id, "Тестовый Ребёнок")] }));
+  let releaseGroup!: () => void;
+  let releaseDirect!: () => void;
+  await page.route("**/api/v1/teacher/communications/v2/groups/*/thread?**", async (route) => {
+    await new Promise<void>((resolve) => { releaseGroup = resolve; });
+    await route.fulfill({ json: privacyThreadA });
+  });
+  await page.route("**/api/v1/teacher/communications/v2/direct", async (route) => {
+    await new Promise<void>((resolve) => { releaseDirect = resolve; });
+    await route.fulfill({ status: 201, json: direct });
+  });
+  await page.goto("/teacher/communications");
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Чат группы", exact: true }).click();
+  await expect.poll(() => Boolean(releaseGroup)).toBe(true);
+  await page.getByRole("button", { name: "Личный диалог", exact: true }).click();
+  await expect.poll(() => Boolean(releaseDirect)).toBe(true);
+  const groupResponse = page.waitForResponse((response) => response.url().includes("/groups/") && response.url().includes("/thread"));
+  releaseGroup(); await groupResponse;
+  const directResponse = page.waitForResponse((response) => response.url().endsWith("/communications/v2/direct"));
+  releaseDirect(); await directResponse;
+  await expect(page.getByRole("heading", { name: "Родитель Тестовый · Мама · Тестовый Ребёнок", exact: true })).toBeVisible();
+});

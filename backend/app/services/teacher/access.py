@@ -133,6 +133,8 @@ def teacher_thread(db: Session, actor: User, thread_id: UUID) -> CommunicationTh
         if thread.child_id is None or thread.guardian_id is None:
             raise AppError(404, "NOT_FOUND")
         child = teacher_child(db, actor, thread.child_id)
+        if child.group_id != thread.group_id:
+            raise AppError(404, "NOT_FOUND")
         relation = db.scalar(
             select(ChildGuardian.id)
             .join(Guardian, Guardian.id == ChildGuardian.guardian_id)
@@ -167,5 +169,7 @@ def parent_thread(db: Session, actor: User, thread_id: UUID) -> CommunicationThr
     if thread.thread_type == "direct":
         if thread.guardian_id != guardian.id or thread.child_id is None:
             raise AppError(404, "NOT_FOUND")
-        parent_child(db, actor, thread.child_id)
+        _, child = parent_child(db, actor, thread.child_id)
+        if child.group_id != thread.group_id:
+            raise AppError(404, "NOT_FOUND")
     return thread
