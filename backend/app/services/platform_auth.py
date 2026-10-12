@@ -55,6 +55,9 @@ def password_login(db, username: str, password: str, client_address: str) -> str
     now = security.utc_now()
     ip_hash = security.digest_context("platform-login-ip:" + client_address)
     cleanup_expired_sessions(db)
+    # Release session-row cleanup locks before acquiring IP/operator locks.
+    # This preserves the operator -> session order used by authentication.
+    db.commit()
     security.advisory_lock(db, "platform-login-rate:" + ip_hash)
     recent = db.scalar(
         select(func.count(PlatformSession.id)).where(

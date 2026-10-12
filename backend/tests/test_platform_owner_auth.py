@@ -353,3 +353,87 @@ def test_session_removed_between_identity_reads_returns_unauthorized(
     with pytest.raises(AppError) as error:
         session_identity(db, "a" * 64)
     assert error.value.status == 401
+
+
+def test_cleanup_and_expired_authenticate_do_not_deadlock(platform_owner):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    from sqlalchemy import delete, event
+    from sqlalchemy.orm import Session
+
+    from app.core.errors import AppError
+    from app.core.security import generate_session_token, hash_session_token
+    from app.models.platform_audit_event import PlatformAuditEvent
+    from app.models.platform_operator import PlatformOperator
+    from app.services import platform_auth
+
+    raw = generate_session_token()
+    now = platform_owner[2][0]
+    with Session(engine) as seed:
+        operator, _ = configure_operator(seed, "retention-race-owner", PASSWORD)
+        operator_id = operator.id
+        seed.add(
+            PlatformSession(
+                operator_id=operator_id,
+                token_hash=hash_session_token(raw),
+                ip_hash="synthetic-race",
+                expires_at=now - timedelta(seconds=1),
+            )
+        )
+        seed.commit()
+    removed, operator_locked = Event(), Event()
+
+    def interleave(
+        _connection, _cursor, statement, _parameters, _context, _executemany
+    ):
+        if statement.startswith("DELETE FROM platform_sessions"):
+            removed.set()
+            assert operator_locked.wait(10)
+        elif "FROM platform_operators" in statement and "FOR UPDATE" in statement:
+            operator_locked.set()
+
+    event.listen(engine, "after_cursor_execute", interleave)
+    try:
+
+        def expired_identity():
+            assert removed.wait(10)
+            with Session(engine) as db:
+                with pytest.raises(AppError) as error:
+                    platform_auth.session_identity(db, raw)
+                assert error.value.status == 401
+
+        def password_login():
+            with Session(engine) as db:
+                return platform_auth.password_login(
+                    db, "retention-race-owner", PASSWORD, "synthetic-race-address"
+                )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            identity = pool.submit(expired_identity)
+            login = pool.submit(password_login)
+            identity.result(timeout=15)
+            assert login.result(timeout=15)
+    finally:
+        event.remove(engine, "after_cursor_execute", interleave)
+        with Session(engine) as cleanup:
+            cleanup.execute(
+                delete(PlatformSession).where(
+                    (PlatformSession.operator_id == operator_id)
+                    | (
+                        PlatformSession.ip_hash
+                        == security.digest_context(
+                            "platform-login-ip:synthetic-race-address"
+                        )
+                    )
+                )
+            )
+            cleanup.execute(
+                delete(PlatformAuditEvent).where(
+                    PlatformAuditEvent.operator_id == operator_id
+                )
+            )
+            cleanup.execute(
+                delete(PlatformOperator).where(PlatformOperator.id == operator_id)
+            )
+            cleanup.commit()
