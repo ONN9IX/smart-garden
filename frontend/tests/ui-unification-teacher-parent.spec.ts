@@ -191,8 +191,8 @@ test("parent list revalidation removing Child A hides its Group and teachers imm
   const groupThread = { ...thread, thread_type: "group", child_id: null, child_name: null, guardian_id: null, teacher_employee_id: null, teacher_name: null };
   await page.route("**/api/v1/parent/communications/v2/threads", (route) => route.fulfill({ json: [groupThread] }));
   await page.route(`**/api/v1/parent/children/${child.id}/teachers`, (route) => route.fulfill({ json: [{ employee_id: "teacher-a", display_name: "Воспитатель Старой Группы", group_id: group.id, group_name: group.name }] }));
-  let releaseToday!: () => void;
-  let releaseTeachers!: () => void;
+  let releaseToday: (() => void) | undefined;
+  let releaseTeachers: (() => void) | undefined;
   await page.route(`**/api/v1/parent/children/${childB.id}/today`, async (route) => { await new Promise<void>((resolve) => { releaseToday = resolve; }); await route.fulfill({ json: { ...today, child: childB, group: groupB } }); });
   await page.route(`**/api/v1/parent/children/${childB.id}/teachers`, async (route) => { await new Promise<void>((resolve) => { releaseTeachers = resolve; }); await route.fulfill({ json: [] }); });
   await page.goto("/parent");
@@ -211,7 +211,7 @@ test("parent list revalidation removing Child A hides its Group and teachers imm
   await expect(page.getByText("Синтетическое сообщение", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Группа · Ромашка", exact: true })).toHaveCount(0);
   await expect.poll(() => Boolean(releaseToday && releaseTeachers)).toBe(true);
-  releaseToday(); releaseTeachers();
+  releaseToday!(); releaseTeachers!();
 });
 
 test("parent dialog refresh can retry a temporary server error without losing the draft", async ({ page }) => {
