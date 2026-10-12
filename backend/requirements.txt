@@ -19,9 +19,13 @@ certifi==2026.7.22
     #   httpcore
     #   httpx
 cffi==2.1.1
-    # via argon2-cffi-bindings
+    # via
+    #   argon2-cffi-bindings
+    #   cryptography
 click==8.5.0
     # via uvicorn
+cryptography==48.0.1
+    # via -r backend/requirements.in
 fastapi==0.141.1
     # via -r backend/requirements.in
 h11==0.16.0
@@ -62,6 +66,8 @@ pydantic-settings==2.15.0
     # via -r backend/requirements.in
 pygments==2.21.0
     # via pytest
+pyotp==2.10.0
+    # via -r backend/requirements.in
 pytest==9.1.1
     # via -r backend/requirements.in
 python-dotenv==1.2.3

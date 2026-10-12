@@ -27,9 +27,14 @@ from app.models.organization_notification_settings import (
     OrganizationNotificationSettings,
 )
 from app.models.photo import PhotoAsset, PhotoAssetChild, PhotoConsent
+from app.models.platform_audit_event import PlatformAuditEvent
+from app.models.platform_operator import PlatformOperator
+from app.models.platform_provisioning_request import PlatformProvisioningRequest
+from app.models.platform_session import PlatformSession
 from app.models.poll import Poll, PollOption, PollVote
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.teacher_task import TeacherTask
+from app.models.tenant_subscription import TenantSubscription
 from app.models.user import User
 
 __all__ = [
@@ -58,10 +63,15 @@ __all__ = [
     "PhotoAsset",
     "PhotoAssetChild",
     "PhotoConsent",
+    "PlatformAuditEvent",
+    "PlatformOperator",
+    "PlatformProvisioningRequest",
+    "PlatformSession",
     "Poll",
     "PollOption",
     "PollVote",
     "TeacherGroupAssignment",
     "TeacherTask",
+    "TenantSubscription",
     "User",
 ]
