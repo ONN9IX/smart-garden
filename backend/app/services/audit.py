@@ -195,7 +195,9 @@ def _overdue_condition(db: Session, actor: User, action: str, entity_id: UUID) -
     with db.no_autoflush:
         item = db.get(TeacherTask, entity_id)
         if item is None or item.organization_id != actor.organization_id:
-            raise ValueError("Audit task belongs to another organization")
+            # Audit also accepts historical/synthetic references without a live
+            # target. Preserve that writer contract and derive no foreign state.
+            return {}
         attrs = inspect(item).attrs
         status_history, due_history = attrs.status.history, attrs.due_at.history
         old_status = status_history.deleted[0] if status_history.deleted else item.status
