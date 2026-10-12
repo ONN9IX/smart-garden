@@ -98,6 +98,14 @@ function Today({ linkedChildren, loadingChildren }: { linkedChildren: ChildSumma
   const requestId = useRef(0);
   const [revision, setRevision] = useState(0);
   const selectedChildId = linkedChildren.some((child) => child.id === childId) ? childId : linkedChildren[0]?.id || "";
+  useEffect(() => {
+    let active = true;
+    if (childId !== selectedChildId) void Promise.resolve().then(() => {
+      if (active) { setChildId(selectedChildId); setData(null); setError(""); }
+    });
+    return () => { active = false; };
+  }, [childId, selectedChildId]);
+
 
   useEffect(() => {
     let active = true;
@@ -195,6 +203,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
 }) {
   const [threadId, setThreadId] = useState(threads[0]?.id || "");
   const [childId, setChildId] = useState(linkedChildren[0]?.id || "");
+  const [childContextVersion, setChildContextVersion] = useState(0);
   const [teachers, setTeachers] = useState<EligibleTeacher[]>([]);
   const [teachersChildId, setTeachersChildId] = useState("");
   const [teacherId, setTeacherId] = useState("");
@@ -226,7 +235,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
       if (active && groupRequestId.current === context && selectedChildRef.current === selectedChildId && data.child.id === selectedChildId) { setGroupId(data.group.id); setGroupChildId(selectedChildId); }
     }).catch(() => { if (active && groupRequestId.current === context) setGroupId(""); });
     return () => { active = false; };
-  }, [selectedChildId]);
+  }, [selectedChildId, childContextVersion]);
 
   useEffect(() => {
     let active = true;
@@ -238,7 +247,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
       setTeacherId(firstTeacherId);
     }).catch(() => { if (active && selectedChildRef.current === selectedChildId) setTeachers([]); });
     return () => { active = false; };
-  }, [selectedChildId]);
+  }, [selectedChildId, childContextVersion]);
 
   const eligibleTeachers = teachersChildId === selectedChildId ? teachers : [];
   const eligibleTeacherId = eligibleTeachers.some((item) => item.employee_id === teacherId) ? teacherId : "";
@@ -271,10 +280,10 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
       if (requestId.current === request) { setMessages([]); setMessagesThreadId(""); setUnavailableIds((current) => [...new Set([...current, selectedThreadId])]); setThreadId(""); setError(userMessage(reason)); }
     });
     return () => { requestId.current += 1; };
-  }, [selectedThreadId, reload]);
+  }, [selectedThreadId, reload, childContextVersion]);
   const visibleMessages = selectedThreadId && messagesThreadId === selectedThreadId && visibleThreads.some((thread) => thread.id === selectedThreadId) ? messages : [];
 
-  function changeChild(nextChildId: string) {
+  const changeChild = useCallback((nextChildId: string) => {
     selectedChildRef.current = nextChildId;
     groupRequestId.current += 1;
     requestId.current += 1;
@@ -290,10 +299,17 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
     teacherIdRef.current = "";
     setTeacherId("");
     clientMessageId.current = crypto.randomUUID();
-  }
+    setChildContextVersion((version) => version + 1);
+  }, [activeThreadId]);
+
+  useEffect(() => {
+    let active = true;
+    if (childId !== selectedChildId) void Promise.resolve().then(() => { if (active) changeChild(selectedChildId); });
+    return () => { active = false; };
+  }, [childId, selectedChildId, changeChild]);
 
   async function openDirect() {
-    if (!selectedChildId || !eligibleTeacherId) return;
+    if (childId !== selectedChildId || !selectedChildId || !eligibleTeacherId) return;
     const childAtStart = selectedChildId;
     const teacherAtStart = eligibleTeacherId;
     const next = await parentStage6Api.v2Direct(childAtStart, teacherAtStart);
@@ -304,7 +320,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
   }
 
   async function openGroup() {
-    if (!selectedChildId) return;
+    if (childId !== selectedChildId || !selectedChildId) return;
     const childAtStart = selectedChildId;
     const childContext = await parentStage6Api.today(childAtStart);
     if (selectedChildRef.current !== childAtStart) return;
@@ -317,7 +333,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (sendingRef.current || !selectedThreadId || !body.trim() || !visibleThreads.some((thread) => thread.id === selectedThreadId) || (activeThreadId.current && activeThreadId.current !== selectedThreadId)) return;
+    if (childId !== selectedChildId || sendingRef.current || !selectedThreadId || !body.trim() || !visibleThreads.some((thread) => thread.id === selectedThreadId) || (activeThreadId.current && activeThreadId.current !== selectedThreadId)) return;
     activeThreadId.current = selectedThreadId;
     sendingRef.current = true; setSending(true); setError("");
     const threadAtStart = selectedThreadId; const childAtStart = selectedChildId; const messageId = clientMessageId.current; const draft = body;
@@ -378,12 +394,12 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
       <div className={styles.toolbar}>
         <label>Ребёнок<select value={selectedChildId} onChange={(event) => changeChild(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
         <label>Воспитатель<select value={eligibleTeacherId} onChange={(event) => selectTeacher(event.target.value)}>{eligibleTeachers.map((teacher) => <option key={teacher.employee_id} value={teacher.employee_id}>{teacher.display_name}</option>)}</select></label>
-        <button className={styles.buttonSecondary} disabled={!selectedChildId || !eligibleTeacherId} onClick={() => void openDirect()}>Личный диалог</button>
-        <button className={styles.buttonSecondary} disabled={!selectedChildId} onClick={() => void openGroup()}>Группа</button>
+        <button className={styles.buttonSecondary} disabled={childId !== selectedChildId || !selectedChildId || !eligibleTeacherId} onClick={() => void openDirect()}>Личный диалог</button>
+        <button className={styles.buttonSecondary} disabled={childId !== selectedChildId || !selectedChildId} onClick={() => void openGroup()}>Группа</button>
       </div>
     </section>
     <section className={styles.card}><h2>Диалоги</h2><nav className={styles.communicationTabs} aria-label="Фильтр диалогов">{[["all","Все"],["direct","Личные"],["group","Группа"]].map(([key,label]) => <button key={key} type="button" aria-pressed={tab===key} className={tab===key?styles.button:styles.buttonSecondary} onClick={() => selectTab(key as typeof tab)}>{label}</button>)}</nav>{visibleThreads.length === 0 ? <p className={styles.muted}>Диалогов пока нет.</p> : visibleThreads.map((thread) => <button key={thread.id} className={`${thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} ${styles.conversationButton}`} onClick={() => selectThread(thread.id)}>{thread.thread_type === "group" ? `Группа · ${thread.group_name}` : `${thread.teacher_name || "Воспитатель"} · ${thread.child_name || "Ребёнок"}`}<small className={styles.threadPreview}>{thread.preview || "Нет сообщений"}{thread.unread_count ? ` · ${thread.unread_count} новых` : ""}</small></button>)}</section>
-    <section className={styles.card}><h2>{selectedThread?.thread_type === "direct" ? `${selectedThread.teacher_name || "Воспитатель"} · ${selectedThread.child_name || "Ребёнок"}` : selectedThread?.thread_type === "group" ? `Группа · ${selectedThread.group_name}` : "Сообщения"}</h2><button className={styles.buttonSecondary} disabled={!selectedThreadId || refreshing || sending} onClick={() => void refreshDialog()}>{refreshing ? "Загрузка…" : "Обновить диалог"}</button>{error && <p className={styles.error}>{error}</p>}{visibleMessages.length === 0 ? <p className={styles.muted}>Выберите диалог или откройте новый.</p> : <ul ref={messageListRef} className={`${styles.list} ${styles.messageList}`}>{visibleMessages.map((message) => { const own = message.sender_user_id === currentUserId; return <li className={`${styles.row} ${own ? styles.ownMessage : ""}`} key={message.id}><span className={styles.messageBubble}><strong>{own ? "Вы" : message.sender_name}</strong><span>{message.body}</span></span></li>; })}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => { clientMessageId.current = crypto.randomUUID(); setBody(event.target.value); }} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim() || sending}>{sending ? "Отправка..." : "Отправить"}</button></form></section>
+    <section className={styles.card}><h2>{selectedThread?.thread_type === "direct" ? `${selectedThread.teacher_name || "Воспитатель"} · ${selectedThread.child_name || "Ребёнок"}` : selectedThread?.thread_type === "group" ? `Группа · ${selectedThread.group_name}` : "Сообщения"}</h2><button className={styles.buttonSecondary} disabled={!selectedThreadId || refreshing || sending} onClick={() => void refreshDialog()}>{refreshing ? "Загрузка…" : "Обновить диалог"}</button>{error && <p className={styles.error}>{error}</p>}{visibleMessages.length === 0 ? <p className={styles.muted}>Выберите диалог или откройте новый.</p> : <ul ref={messageListRef} className={`${styles.list} ${styles.messageList}`}>{visibleMessages.map((message) => { const own = message.sender_user_id === currentUserId; return <li className={`${styles.row} ${own ? styles.ownMessage : ""}`} key={message.id}><span className={styles.messageBubble}><strong>{own ? "Вы" : message.sender_name}</strong><span>{message.body}</span></span></li>; })}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={childId === selectedChildId ? body : ""} onChange={(event) => { clientMessageId.current = crypto.randomUUID(); setBody(event.target.value); }} /></label><button className={styles.button} disabled={childId !== selectedChildId || !selectedThreadId || !body.trim() || sending}>{sending ? "Отправка..." : "Отправить"}</button></form></section>
   </div>;
 }
 
