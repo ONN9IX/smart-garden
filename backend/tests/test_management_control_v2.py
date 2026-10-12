@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, time, timedelta
 from threading import Barrier
 from time import sleep
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -34,6 +34,112 @@ def _alerts(client):
     response = client.get("/api/v1/management/control")
     assert response.status_code == 200, response.text
     return response.json()["alerts"]
+
+
+def test_overdue_occurrence_survives_edits_and_rotates_only_after_resolution(client, db, users):
+    organization, other, director, _admin = users
+    _director(client, db, users)
+    employees = [Employee(organization_id=organization.id, first_name="Тест", last_name=f"Сотрудник {index}",
+                          position="Воспитатель", category="teacher", status="active") for index in range(2)]
+    for index, employee in enumerate(employees):
+        teacher = User(organization_id=organization.id, username=f"control-overdue-teacher-{index}",
+                       password_hash=director.password_hash, role="TEACHER", status="active", must_change_password=False)
+        db.add(teacher); db.flush()
+        employee.user_id = teacher.id
+    db.add_all(employees); db.flush()
+    url = "/api/v1/teacher-management/tasks"
+    past = datetime.now(UTC) - timedelta(days=1)
+
+    def create():
+        response = client.post(url, json={"assignee_employee_id": str(employees[0].id),
+                                         "title": "Синтетическая задача", "due_at": past.isoformat()})
+        assert response.status_code == 201, response.text
+        return response.json()["id"]
+
+    def alert():
+        return next(item for item in _alerts(client) if item["kind"] == "tasks_overdue")
+
+    task_id = create()
+    key = alert()["alert_key"]
+    assert client.post("/api/v1/management/control/alerts/snooze", json={
+        "alert_key": key, "duration": "one_hour",
+    }).status_code == 200
+    for index, patch in enumerate(({"description": "Синтетическое описание"},
+                                  {"assignee_employee_id": str(employees[1].id)}, {"status": "in_progress"},
+                                  {"due_at": (past - timedelta(hours=1)).isoformat()})):
+        response = client.patch(f"{url}/{task_id}", json=patch)
+        assert response.status_code == 200, response.text
+        # The rollback fixture keeps one PostgreSQL transaction timestamp; emulate
+        # updated_at advancing as it does across separate real HTTP transactions.
+        db.get(TeacherTask, UUID(task_id)).updated_at = datetime.now(UTC) + timedelta(seconds=index + 1)
+        db.flush()
+        current = alert()
+        assert current["alert_key"] == key and current["snoozed_until"] is not None
+    second_id = create()
+    assert alert()["alert_key"] == key
+    assert client.patch(f"{url}/{task_id}", json={"status": "done"}).status_code == 200
+    assert alert()["alert_key"] == key
+    assert client.patch(f"{url}/{second_id}", json={"status": "done"}).status_code == 200
+    assert not any(item["kind"] == "tasks_overdue" for item in _alerts(client))
+    assert client.patch(f"{url}/{task_id}", json={"status": "open"}).status_code == 200
+    fresh = alert()
+    assert fresh["alert_key"] != key and fresh["viewed_at"] is None and fresh["snoozed_until"] is None
+    assert client.post("/api/v1/management/control/alerts/view", json={"alert_key": key}).status_code == 404
+    fresh_key = fresh["alert_key"]
+    assert client.post("/api/v1/management/control/alerts/view", json={"alert_key": fresh_key}).status_code == 200
+    _logout(client); _login(client, "control-overdue-teacher-1")
+    # Resolve and recur without a manager polling during the inactive interval.
+    assert client.patch(f"/api/v1/teacher/tasks/{task_id}", json={"status": "done"}).status_code == 200
+    assert client.patch(f"/api/v1/teacher/tasks/{task_id}", json={"status": "open"}).status_code == 200
+    _logout(client); _login(client, director.username)
+    assert alert()["alert_key"] != fresh_key and alert()["viewed_at"] is None
+    events = db.scalars(select(AuditEvent).where(AuditEvent.organization_id == organization.id,
+                                               AuditEvent.entity_type == "teacher_task")).all()
+    assert all("Синтетическое описание" not in str(event.details) for event in events)
+    assert not db.scalars(select(AuditEvent).where(AuditEvent.organization_id == other.id)).all()
+
+
+@pytest.mark.parametrize("source", ["account", "guardian"])
+@pytest.mark.parametrize("delivery", ["failed", "expired"])
+def test_parent_invite_recurrence_versions_account_and_guardian(client, db, users, source, delivery):
+    organization, other, director, _admin = users
+    _director(client, db, users)
+    parent = User(organization_id=organization.id, username="control-recurring-parent",
+                  password_hash=director.password_hash, role="PARENT", status="active", must_change_password=False)
+    db.add(parent); db.flush()
+    guardian = Guardian(organization_id=organization.id, user_id=parent.id, first_name="Тест",
+                        last_name="Синтетический", status="active")
+    db.add(guardian); db.flush()
+    token = AccountAccessToken(organization_id=organization.id, user_id=parent.id, guardian_id=guardian.id,
+                              purpose="activation", token_digest="b" * 64,
+                              delivery_status="failed" if delivery == "failed" else "sent",
+                              expires_at=datetime.now(UTC) + timedelta(days=1 if delivery == "failed" else -1))
+    db.add(token); db.flush()
+
+    def alert():
+        return next(item for item in _alerts(client) if item["kind"] == "parent_invite_failed_or_expired")
+
+    key = alert()["alert_key"]
+    assert client.post("/api/v1/management/control/alerts/snooze", json={
+        "alert_key": key, "duration": "one_hour",
+    }).status_code == 200
+    row = parent if source == "account" else guardian
+    row.status = "blocked" if source == "account" else "archived"
+    row.updated_at = datetime.now(UTC) + timedelta(seconds=1)
+    db.flush()
+    assert not any(item["kind"] == "parent_invite_failed_or_expired" for item in _alerts(client))
+    row.status = "active"
+    row.updated_at += timedelta(seconds=1)
+    db.flush()
+    fresh = alert()
+    assert fresh["alert_key"] != key and fresh["viewed_at"] is None and fresh["snoozed_until"] is None
+    assert client.post("/api/v1/management/control/alerts/view", json={"alert_key": key}).status_code == 404
+    assert token.used_at is None and token.revoked_at is None
+    _logout(client)
+    director.organization_id = other.id
+    db.flush()
+    _login(client, director.username)
+    assert not any(item["kind"] == "parent_invite_failed_or_expired" for item in _alerts(client))
 
 
 def test_control_conditions_resolve_and_state_is_per_user(client, db, users):

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.organization_time import organization_now
 from app.models.account_access_token import AccountAccessToken
+from app.models.audit_event import AuditEvent
 from app.models.employee import Employee
 from app.models.group_schedule_item import GroupScheduleItem
 from app.models.guardian import Guardian
@@ -135,17 +136,26 @@ def _occurrence(db: Session, actor: User, item: ManagementAttentionItem) -> str:
             GroupScheduleItem.organization_id == actor.organization_id,
             GroupScheduleItem.group_id == item.entity_id)).all()
     elif item.kind == "tasks_overdue":
-        moments = db.scalars(select(TeacherTask.updated_at).where(
-            TeacherTask.organization_id == actor.organization_id,
-            TeacherTask.status.in_(("open", "in_progress")),
-            TeacherTask.due_at.is_not(None), TeacherTask.due_at < organization_now(actor.organization).astimezone(UTC),
-        )).all()
+        # A true-to-true edit (including another task becoming overdue) keeps the
+        # aggregate occurrence. A recorded inactive boundary starts a new cycle.
+        boundary = db.scalar(select(AuditEvent.id).where(
+            AuditEvent.organization_id == actor.organization_id,
+            AuditEvent.entity_type == "teacher_task",
+            ((AuditEvent.details["overdue_condition_before"].as_boolean().is_(False))
+             | (AuditEvent.details["overdue_condition_after"].as_boolean().is_(False))),
+        ).order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()).limit(1))
+        return str(boundary) if boundary else "initial"
     else:
-        moments = db.scalars(select(AccountAccessToken.created_at).where(
+        rows = db.execute(select(AccountAccessToken.created_at, User.updated_at, Guardian.updated_at)
+                          .join(User, User.id == AccountAccessToken.user_id)
+                          .join(Guardian, Guardian.id == AccountAccessToken.guardian_id).where(
             AccountAccessToken.organization_id == actor.organization_id,
             AccountAccessToken.user_id == item.entity_id,
             AccountAccessToken.purpose == "activation",
+            User.organization_id == actor.organization_id,
+            Guardian.organization_id == actor.organization_id,
         )).all()
+        moments = [value for row in rows for value in row if value is not None]
     return str(int(max(moments).timestamp() * 1_000_000)) if moments else "initial"
 
 

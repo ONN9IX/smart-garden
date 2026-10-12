@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -16,6 +16,8 @@ _ALLOWED_DETAIL_KEYS = {
     "changed_fields",
     "status_before",
     "status_after",
+    "overdue_condition_before",
+    "overdue_condition_after",
     "account_role",
     "relation_type",
     "child_id",
@@ -109,6 +111,13 @@ _UUID_DETAIL_KEYS = {
 def _validate_details(details: dict[str, Any], action: str) -> None:
     if set(details) - _ALLOWED_DETAIL_KEYS:
         raise ValueError("Audit details contain non-whitelisted keys")
+    condition_fields = {"overdue_condition_before", "overdue_condition_after"}
+    if condition_fields & details.keys() and (
+        not action.startswith("teacher_task.")
+        or not condition_fields <= details.keys()
+        or any(type(details[field]) is not bool for field in condition_fields)
+    ):
+        raise ValueError("Audit overdue condition flags are invalid")
     fields = details.get("changed_fields")
     allowed_changed_fields = _ALLOWED_CHANGED_FIELDS | ({"timezone"} if action == "organization.settings_update" else set())
     if fields is not None and (
@@ -172,6 +181,37 @@ def _validate_details(details: dict[str, Any], action: str) -> None:
                 raise ValueError("Audit attendance time is invalid")
 
 
+def _overdue_condition(db: Session, actor: User, action: str, entity_id: UUID) -> dict[str, bool]:
+    """Record only aggregate predicate flags, never task text or snapshots.
+
+    All task writers already use Audit, including TEACHER status changes. The
+    tenant root serializes the aggregate boundary before pending task changes
+    flush; unrelated edits do not create a new alert occurrence.
+    """
+    from app.models.organization import Organization
+    from app.models.teacher_task import TeacherTask
+
+    now = datetime.now(UTC)
+    with db.no_autoflush:
+        item = db.get(TeacherTask, entity_id)
+        if item is None or item.organization_id != actor.organization_id:
+            raise ValueError("Audit task belongs to another organization")
+        attrs = inspect(item).attrs
+        status_history, due_history = attrs.status.history, attrs.due_at.history
+        old_status = status_history.deleted[0] if status_history.deleted else item.status
+        old_due = due_history.deleted[0] if due_history.deleted else item.due_at
+        before = action != "teacher_task.create" and old_status in {"open", "in_progress"} and old_due is not None and old_due < now
+        after = item.status in {"open", "in_progress"} and item.due_at is not None and item.due_at < now
+        db.scalar(select(Organization.id).where(Organization.id == actor.organization_id).with_for_update())
+        other_overdue = bool(db.scalar(select(func.count(TeacherTask.id)).where(
+            TeacherTask.organization_id == actor.organization_id, TeacherTask.id != entity_id,
+            TeacherTask.status.in_(("open", "in_progress")),
+            TeacherTask.due_at.is_not(None), TeacherTask.due_at < now,
+        )))
+    return {"overdue_condition_before": other_overdue or before,
+            "overdue_condition_after": other_overdue or after}
+
+
 def write(
     db: Session,
     actor: User,
@@ -181,10 +221,12 @@ def write(
     details: dict[str, Any] | None = None,
 ) -> AuditEvent:
     """Add an event to the caller's transaction; this function never commits."""
-    safe_details = details or {}
+    safe_details = dict(details or {})
     if action not in _ALLOWED_ACTIONS.get(entity_type, set()):
         raise ValueError("Audit action/entity combination is invalid")
     _validate_details(safe_details, action)
+    if entity_type == "teacher_task" and entity_id is not None:
+        safe_details.update(_overdue_condition(db, actor, action, entity_id))
     event = AuditEvent(
         organization_id=actor.organization_id,
         actor_user_id=actor.id,
