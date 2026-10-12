@@ -31,22 +31,29 @@ function ParentContent() {
   const [threads, setThreads] = useState<ThreadV2[]>([]);
   const [polls, setPolls] = useState<Poll[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const loadVersion = useRef(0);
 
-  const load = useCallback(() => Promise.all([
+  const load = useCallback(() => {
+    const request = ++loadVersion.current;
+    return Promise.all([
     parentStage6Api.children(),
     parentStage6Api.announcements(),
     parentStage6Api.v2Threads(),
     featureEnabled("polls") ? parentStage6Api.polls() : Promise.resolve([] as Poll[]),
   ]).then(([nextChildren, nextAnnouncements, nextThreads, nextPolls]) => {
+    if (request !== loadVersion.current) return;
+    setError("");
     setChildren(nextChildren);
     // The list is navigation metadata only. Keep announcement text out of the
     // long-lived Parent list state; retrieve it from the authorized detail route on open.
     setAnnouncements(nextAnnouncements.map((item) => ({ ...item, body: "" })));
     setThreads(nextThreads);
     setPolls(nextPolls);
-  }).catch((reason) => setError(userMessage(reason))), []);
+  }).catch((reason) => { if (request === loadVersion.current) { setChildren([]); setAnnouncements([]); setThreads([]); setPolls([]); setError(userMessage(reason)); } }).finally(() => { if (request === loadVersion.current) setLoading(false); });
+  }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadVersion.current += 1; }; }, [load]);
   if (!current || current.user.role !== "PARENT") return null;
 
   async function logout() {
@@ -73,9 +80,9 @@ function ParentContent() {
       <div className={styles.parentHeaderMain}><div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> ПРОМАКС</div><h1>Кабинет родителя</h1><p className={styles.muted}>{current.organization.name} · {current.user.username}</p></div>
       <button className={styles.buttonSecondary} onClick={() => void logout()}>Выйти</button>
     </header>
-    {error && <p className={styles.error}>{error}</p>}
-    <nav className={styles.tabs} aria-label="Разделы кабинета">{tabs.filter(([, , feature]) => !feature || featureEnabled(feature)).map(([item, label]) => <button aria-pressed={tab === item} className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{label}</button>)}</nav>
-    {tab === "today" && <Today linkedChildren={children} />}
+    {error && <div><p className={styles.error} role="alert">{error}</p><button className={styles.buttonSecondary} disabled={loading} onClick={() => { setLoading(true); void load(); }}>Повторить загрузку кабинета</button></div>}
+    <nav className={styles.parentTabs} aria-label="Разделы кабинета">{tabs.filter(([, , feature]) => !feature || featureEnabled(feature)).map(([item, label]) => <button aria-pressed={tab === item} className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{label}</button>)}</nav>
+    {tab === "today" && <Today linkedChildren={children} loadingChildren={loading} />}
     {tab === "announcements" && <Announcements items={announcements} />}
     {tab === "messages" && <Messages threads={threads} linkedChildren={children} reload={load} currentUserId={current.user.id} />}
     {featureEnabled("diary") && tab === "diary" && <Diary linkedChildren={children} />}
@@ -84,24 +91,31 @@ function ParentContent() {
   </main>;
 }
 
-function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
+function Today({ linkedChildren, loadingChildren }: { linkedChildren: ChildSummary[]; loadingChildren: boolean }) {
   const [childId, setChildId] = useState("");
   const [data, setData] = useState<ParentToday | null>(null);
   const [error, setError] = useState("");
   const requestId = useRef(0);
-  const selectedChildId = childId || linkedChildren[0]?.id || "";
+  const [revision, setRevision] = useState(0);
+  const selectedChildId = linkedChildren.some((child) => child.id === childId) ? childId : linkedChildren[0]?.id || "";
 
   useEffect(() => {
-    const request = ++requestId.current;
-    if (!selectedChildId) return;
-    parentStage6Api.today(selectedChildId)
-      .then((value) => { if (request === requestId.current && value.child.id === selectedChildId) setData(value); })
-      .catch((reason) => { if (request === requestId.current) { setData(null); setError(userMessage(reason)); } });
-    return () => { requestId.current += 1; };
-  }, [selectedChildId]);
+    let active = true;
+    const load = () => {
+      const request = ++requestId.current;
+      setData(null); setError("");
+      if (!selectedChildId) return;
+      parentStage6Api.today(selectedChildId)
+        .then((value) => { if (active && request === requestId.current && value.child.id === selectedChildId) setData(value); })
+        .catch((reason) => { if (active && request === requestId.current) { setData(null); setError(userMessage(reason)); } });
+    };
+    void Promise.resolve().then(() => { if (active) load(); });
+    window.addEventListener("focus", load);
+    return () => { active = false; requestId.current += 1; window.removeEventListener("focus", load); };
+  }, [selectedChildId, revision]);
 
   if (linkedChildren.length === 0) {
-    return <section className={styles.card}><h2>Сегодня</h2><p className={styles.muted}>Нет доступных карточек детей.</p></section>;
+    return <section className={styles.card}><h2>Сегодня</h2><p className={styles.muted} role="status">{loadingChildren ? "Загружаем карточки детей…" : "Нет доступных карточек детей."}</p></section>;
   }
 
   const visibleData = data?.child.id === selectedChildId ? data : null;
@@ -112,23 +126,23 @@ function Today({ linkedChildren }: { linkedChildren: ChildSummary[] }) {
       : "Не отмечен";
 
   const attendanceClass = visibleData?.attendance.status === "present"
-    ? `${styles.statusPill} ${styles.statusPresent}`
+    ? `${styles.statusPill} ${visibleData.attendance.departure_time ? styles.statusDeparted : visibleData.attendance.arrival_time ? styles.statusPresent : styles.statusUnknown}`
     : visibleData?.attendance.status === "absent"
       ? `${styles.statusPill} ${styles.statusAbsent}`
       : `${styles.statusPill} ${styles.statusUnknown}`;
 
-  return <section className={styles.card}>
+  return <section className={`${styles.card} ${styles.stack}`}>
     <h2>{visibleData ? `Группа ${visibleData.group.name}` : "Сегодня"}</h2>
     <div className={styles.toolbar}>
       <label>Ребёнок<select value={selectedChildId} onChange={(event) => { requestId.current += 1; setData(null); setError(""); setChildId(event.target.value); }}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
     </div>
-    {error && <p className={styles.error}>{error}</p>}
-    {!data && !error && <p className={styles.muted}>Загружаем данные дня…</p>}
+    {error && <div><p className={styles.error} role="alert">{error}</p><button className={styles.buttonSecondary} onClick={() => { setData(null); setError(""); setRevision((value) => value + 1); }}>Повторить загрузку</button></div>}
+    {!visibleData && !error && <p className={styles.muted} role="status">Загружаем данные дня…</p>}
     {visibleData && <div className={styles.stack}>
-      <div className={styles.todaySummary}>
-        <article className={`${styles.card} ${styles.todayIdentity}`}><small>Ежедневная информация</small><br/><strong>{visibleData.child.last_name} {visibleData.child.first_name}</strong></article>
-        <article className={styles.card}><span className={attendanceClass}>{attendanceLabel}</span><br/><small>{visibleData.attendance.arrival_time ? `Приход: ${visibleData.attendance.arrival_time.slice(0, 5)}` : "Приход не отмечен"}{visibleData.attendance.departure_time ? ` · Уход: ${visibleData.attendance.departure_time.slice(0, 5)}` : ""}</small></article>
-      </div>
+      <article className={`${styles.card} ${styles.todayIdentity}`} aria-label="Статус ребёнка">
+        <small>Ежедневная информация · {visibleData.date}</small>
+        <strong>{visibleData.child.last_name} {visibleData.child.first_name}</strong>
+        <span className={attendanceClass}>{attendanceLabel}</span><small>{visibleData.attendance.arrival_time ? `Приход: ${visibleData.attendance.arrival_time.slice(0, 5)}` : "Приход не отмечен"}{visibleData.attendance.departure_time ? ` · Уход: ${visibleData.attendance.departure_time.slice(0, 5)}` : ""}</small></article>
       <div><strong className={styles.scheduleTitle}>Расписание на сегодня</strong>{visibleData.schedule.length === 0
         ? <p className={styles.muted}>На сегодня занятий в расписании нет.</p>
         : <ul className={styles.list}>{visibleData.schedule.map((item) => <li className={styles.row} key={item.id}><span><strong>{item.title}</strong></span><small>{item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}</small></li>)}</ul>}</div>
@@ -196,7 +210,9 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
   const requestId = useRef(0);
   const groupRequestId = useRef(0);
   const sendingRef = useRef(false);
-  const selectedChildId = childId || linkedChildren[0]?.id || "";
+  const [refreshing, setRefreshing] = useState(false);
+  const messageListRef = useRef<HTMLUListElement>(null);
+  const selectedChildId = linkedChildren.some((child) => child.id === childId) ? childId : linkedChildren[0]?.id || "";
   const selectedChildRef = useRef(selectedChildId);
 
   useEffect(() => { selectedChildRef.current = selectedChildId; }, [selectedChildId]);
@@ -222,7 +238,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
     return () => { active = false; };
   }, [selectedChildId]);
 
-  const childThreads = threads.filter((thread) => !unavailableIds.includes(thread.id) && (
+  const childThreads = threads.filter((thread) => Boolean(selectedChildId) && !unavailableIds.includes(thread.id) && (
     thread.thread_type === "direct" ? thread.child_id === selectedChildId :
       thread.thread_type === "group" && thread.audience === "all" && Boolean(groupId) && thread.group_id === groupId
   ));
@@ -302,7 +318,11 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
     try {
       await parentStage6Api.v2SendMessage(threadAtStart, draft, messageId);
       if (selectedChildRef.current !== childAtStart || activeThreadId.current !== threadAtStart) return;
-      clientMessageId.current = crypto.randomUUID(); setBody(""); setMessages(await parentStage6Api.v2Messages(threadAtStart)); await reload();
+      clientMessageId.current = crypto.randomUUID(); setBody("");
+      const request = ++requestId.current;
+      const nextMessages = await parentStage6Api.v2Messages(threadAtStart);
+      if (requestId.current !== request || selectedChildRef.current !== childAtStart || activeThreadId.current !== threadAtStart) return;
+      setMessages(nextMessages); setMessagesThreadId(threadAtStart); await reload();
     } catch (reason) {
       if (selectedChildRef.current === childAtStart) {
         setError(userMessage(reason));
@@ -310,6 +330,31 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
         if (/404|не найден|доступ/i.test(message)) { setMessages([]); setMessagesThreadId(""); setUnavailableIds((current) => [...new Set([...current, threadAtStart])]); setThreadId(""); activeThreadId.current = ""; }
       }
     } finally { sendingRef.current = false; setSending(false); }
+  }
+
+  async function refreshDialog() {
+    if (!selectedThreadId || refreshing) return;
+    const request = ++requestId.current;
+    const childAtStart = selectedChildId;
+    const threadAtStart = selectedThreadId;
+    const scrollTop = messageListRef.current?.scrollTop || 0;
+    setRefreshing(true); setError("");
+    try {
+      const items = await parentStage6Api.v2Messages(threadAtStart);
+      if (requestId.current !== request || selectedChildRef.current !== childAtStart) return;
+      const last = items.at(-1);
+      if (last) await parentStage6Api.v2MarkRead(threadAtStart, last.id);
+      if (requestId.current !== request || selectedChildRef.current !== childAtStart) return;
+      setMessages(items); setMessagesThreadId(threadAtStart);
+      requestAnimationFrame(() => { if (requestId.current === request && messageListRef.current) messageListRef.current.scrollTop = scrollTop; });
+      await reload();
+    } catch (reason) {
+      if (requestId.current === request && selectedChildRef.current === childAtStart) {
+        setMessages([]); setMessagesThreadId(""); setError(userMessage(reason));
+        setUnavailableIds((current) => [...new Set([...current, threadAtStart])]);
+        setThreadId(""); activeThreadId.current = "";
+      }
+    } finally { setRefreshing(false); }
   }
 
   function selectThread(id: string) { if (!visibleThreads.some((thread) => thread.id === id)) return; requestId.current += 1; setMessages([]); setMessagesThreadId(""); setBody(""); setError(""); clientMessageId.current = crypto.randomUUID(); activeThreadId.current = id; setThreadId(id); }
@@ -330,7 +375,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
       </div>
     </section>
     <section className={styles.card}><h2>Диалоги</h2><nav className={styles.communicationTabs} aria-label="Фильтр диалогов">{[["all","Все"],["direct","Личные"],["group","Группа"]].map(([key,label]) => <button key={key} type="button" aria-pressed={tab===key} className={tab===key?styles.button:styles.buttonSecondary} onClick={() => selectTab(key as typeof tab)}>{label}</button>)}</nav>{visibleThreads.length === 0 ? <p className={styles.muted}>Диалогов пока нет.</p> : visibleThreads.map((thread) => <button key={thread.id} className={`${thread.id === selectedThreadId ? styles.button : styles.buttonSecondary} ${styles.conversationButton}`} onClick={() => selectThread(thread.id)}>{thread.thread_type === "group" ? `Группа · ${thread.group_name}` : `${thread.teacher_name || "Воспитатель"} · ${thread.child_name || "Ребёнок"}`}<small className={styles.threadPreview}>{thread.preview || "Нет сообщений"}{thread.unread_count ? ` · ${thread.unread_count} новых` : ""}</small></button>)}</section>
-    <section className={styles.card}><h2>{selectedThread?.thread_type === "direct" ? `${selectedThread.teacher_name || "Воспитатель"} · ${selectedThread.child_name || "Ребёнок"}` : selectedThread?.thread_type === "group" ? `Группа · ${selectedThread.group_name}` : "Сообщения"}</h2>{error && <p className={styles.error}>{error}</p>}{visibleMessages.length === 0 ? <p className={styles.muted}>Выберите диалог или откройте новый.</p> : <ul className={styles.list}>{visibleMessages.map((message) => { const own = message.sender_user_id === currentUserId; return <li className={`${styles.row} ${own ? styles.ownMessage : ""}`} key={message.id}><span className={styles.messageBubble}><strong>{own ? "Вы" : message.sender_name}</strong><span>{message.body}</span></span></li>; })}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => { clientMessageId.current = crypto.randomUUID(); setBody(event.target.value); }} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim() || sending}>{sending ? "Отправка..." : "Отправить"}</button></form></section>
+    <section className={styles.card}><h2>{selectedThread?.thread_type === "direct" ? `${selectedThread.teacher_name || "Воспитатель"} · ${selectedThread.child_name || "Ребёнок"}` : selectedThread?.thread_type === "group" ? `Группа · ${selectedThread.group_name}` : "Сообщения"}</h2><button className={styles.buttonSecondary} disabled={!selectedThreadId || refreshing || sending} onClick={() => void refreshDialog()}>{refreshing ? "Загрузка…" : "Обновить диалог"}</button>{error && <p className={styles.error}>{error}</p>}{visibleMessages.length === 0 ? <p className={styles.muted}>Выберите диалог или откройте новый.</p> : <ul ref={messageListRef} className={`${styles.list} ${styles.messageList}`}>{visibleMessages.map((message) => { const own = message.sender_user_id === currentUserId; return <li className={`${styles.row} ${own ? styles.ownMessage : ""}`} key={message.id}><span className={styles.messageBubble}><strong>{own ? "Вы" : message.sender_name}</strong><span>{message.body}</span></span></li>; })}</ul>}<form className={styles.toolbar} onSubmit={(event) => void send(event)}><label>Ответ<textarea value={body} onChange={(event) => { clientMessageId.current = crypto.randomUUID(); setBody(event.target.value); }} /></label><button className={styles.button} disabled={!selectedThreadId || !body.trim() || sending}>{sending ? "Отправка..." : "Отправить"}</button></form></section>
   </div>;
 }
 
