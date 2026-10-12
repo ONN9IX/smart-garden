@@ -27,6 +27,11 @@ def _thread_response(item: CommunicationThread) -> ThreadResponse:
     )
 
 
+def _reject_v2_direct_from_legacy(thread: CommunicationThread) -> None:
+    if thread.thread_type == "direct" and thread.teacher_employee_id is not None:
+        raise AppError(404, "NOT_FOUND")
+
+
 def _sender_presentation(db: Session, actor: User, sender_user_id: UUID) -> tuple[str, str]:
     sender = db.scalar(select(User).where(
         User.id == sender_user_id, User.organization_id == actor.organization_id,
@@ -67,6 +72,8 @@ def teacher_threads(db: Session, actor: User) -> list[ThreadResponse]:
     ).order_by(CommunicationThread.created_at.desc(), CommunicationThread.id.desc()))
     result = []
     for item in candidates:
+        if item.thread_type == "direct" and item.teacher_employee_id is not None:
+            continue
         try:
             access.teacher_thread(db, actor, item.id)
         except AppError:
@@ -85,6 +92,8 @@ def parent_threads(db: Session, actor: User) -> list[ThreadResponse]:
     ).order_by(CommunicationThread.created_at.desc(), CommunicationThread.id.desc()))
     result = []
     for item in candidates:
+        if item.thread_type == "direct" and item.teacher_employee_id is not None:
+            continue
         try:
             access.parent_thread(db, actor, item.id)
         except AppError:
@@ -166,12 +175,14 @@ def _direct(db: Session, actor: User, child: Child, guardian: Guardian) -> Threa
 
 
 def teacher_messages(db: Session, actor: User, thread_id: UUID) -> list[MessageResponse]:
-    access.teacher_thread(db, actor, thread_id)
+    thread = access.teacher_thread(db, actor, thread_id)
+    _reject_v2_direct_from_legacy(thread)
     return _messages(db, actor, thread_id)
 
 
 def parent_messages(db: Session, actor: User, thread_id: UUID) -> list[MessageResponse]:
-    access.parent_thread(db, actor, thread_id)
+    thread = access.parent_thread(db, actor, thread_id)
+    _reject_v2_direct_from_legacy(thread)
     return _messages(db, actor, thread_id)
 
 
@@ -185,11 +196,13 @@ def _messages(db: Session, actor: User, thread_id: UUID) -> list[MessageResponse
 
 def teacher_send(db: Session, actor: User, thread_id: UUID, body: str) -> MessageResponse:
     thread = access.teacher_thread(db, actor, thread_id)
+    _reject_v2_direct_from_legacy(thread)
     return _send(db, actor, thread, body)
 
 
 def parent_send(db: Session, actor: User, thread_id: UUID, body: str) -> MessageResponse:
     thread = access.parent_thread(db, actor, thread_id)
+    _reject_v2_direct_from_legacy(thread)
     return _send(db, actor, thread, body)
 
 
