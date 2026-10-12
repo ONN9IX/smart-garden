@@ -103,6 +103,6 @@ test("Settings confirms timezone impact and saves notification policy at 390px",
   await expect(page.getByText("Настройки сохранены.")).toBeVisible();
   await page.getByLabel("Показывать информационные уведомления").uncheck();
   await page.getByRole("button", { name: "Сохранить уведомления" }).click();
-  expect(state.preferences().show_informational_notifications).toBe(false);
+  await expect.poll(() => state.preferences().show_informational_notifications).toBe(false);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
