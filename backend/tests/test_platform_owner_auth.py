@@ -4,17 +4,30 @@ from datetime import UTC, datetime, timedelta
 
 import pyotp
 import pytest
+from alembic.config import Config
 from cryptography.fernet import Fernet
-from sqlalchemy import select
+from sqlalchemy import select, text
 
+from alembic import command
 from app.core import platform_security as security
 from app.core.config import get_settings
+from app.db.session import engine
 from app.models.platform_session import PlatformSession
 from app.services.platform_bootstrap import configure_operator
 from tests.conftest import TEST_PASSWORD
 
 PASSWORD = "synthetic-owner-password-221"
 ROOT = "/api/v1/platform"
+
+
+@pytest.fixture(autouse=True)
+def platform_schema(migrations):
+    # Historical #177 round-trip intentionally ends at 0018. Our tests own
+    # restoring their required schema without changing frozen tests/conftest.
+    with engine.connect() as connection:
+        revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
+    if revision != "0019":
+        command.upgrade(Config("alembic.ini"), "head")
 
 
 @pytest.fixture
@@ -241,3 +254,9 @@ def test_challenge_expiry_blocked_operator_and_secure_cookie(
         headers=headers(),
     )
     assert "secure" in response.headers["set-cookie"].lower()
+
+
+def test_one_time_handoff_absent_from_public_tenant_docs(client, platform_owner):
+    specification = client.get("/openapi.json").json()
+    assert "temporary_password" not in str(specification)
+    assert "post" not in specification["paths"][ROOT + "/organizations"]

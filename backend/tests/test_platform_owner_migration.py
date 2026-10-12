@@ -11,6 +11,7 @@ from app.db.session import engine
 def test_platform_migration_round_trip(migrations):
     config = Config("alembic.ini")
     assert ScriptDirectory.from_config(config).get_heads() == ["0019"]
+    command.upgrade(config, "0019")
     tables = {
         "platform_operators",
         "platform_sessions",

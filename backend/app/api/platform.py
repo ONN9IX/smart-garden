@@ -140,7 +140,10 @@ def organization(organization_id: UUID, db: Database, _identity: Owner):
 
 
 @router.post(
-    "/organizations", response_model=ProvisioningView, response_model_exclude_none=True
+    "/organizations",
+    response_model=ProvisioningView,
+    response_model_exclude_none=True,
+    include_in_schema=False,  # One-time handoff is outside shared public tenant docs.
 )
 def provision(
     payload: CreateOrganizationInput,

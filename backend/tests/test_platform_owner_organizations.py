@@ -26,6 +26,7 @@ from tests.test_platform_owner_auth import (
     ROOT,
     authenticate,
     headers,
+    platform_schema,  # noqa: F401
 )
 from tests.test_platform_owner_auth import (
     platform_owner as owner_fixture,
