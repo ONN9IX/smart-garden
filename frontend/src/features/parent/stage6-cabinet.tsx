@@ -8,7 +8,7 @@ import { featureEnabled, type ProductFeature } from "@/config/product-features";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { useAuth } from "@/features/auth/auth-provider";
 import { authApi } from "@/lib/api/auth";
-import { userMessage } from "@/lib/api/client";
+import { ApiError, userMessage } from "@/lib/api/client";
 import { parentStage6Api } from "@/lib/api/teacher";
 import type {
   AnnouncementV2, ChildSummary, DiaryEntry, EligibleTeacher, Message, ParentToday, PhotoAsset, Poll, ThreadV2,
@@ -196,6 +196,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
   const [threadId, setThreadId] = useState(threads[0]?.id || "");
   const [childId, setChildId] = useState(linkedChildren[0]?.id || "");
   const [teachers, setTeachers] = useState<EligibleTeacher[]>([]);
+  const [teachersChildId, setTeachersChildId] = useState("");
   const [teacherId, setTeacherId] = useState("");
   const teacherIdRef = useRef(teacherId);
   const [tab, setTab] = useState<"all" | "direct" | "group">("all");
@@ -203,6 +204,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
   const [messagesThreadId, setMessagesThreadId] = useState("");
   const [body, setBody] = useState("");
   const [groupId, setGroupId] = useState("");
+  const [groupChildId, setGroupChildId] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [unavailableIds, setUnavailableIds] = useState<string[]>([]);
@@ -221,7 +223,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
     const context = ++groupRequestId.current;
     if (!selectedChildId) return () => { active = false; };
     parentStage6Api.today(selectedChildId).then((data) => {
-      if (active && groupRequestId.current === context && selectedChildRef.current === selectedChildId) setGroupId(data.group.id);
+      if (active && groupRequestId.current === context && selectedChildRef.current === selectedChildId && data.child.id === selectedChildId) { setGroupId(data.group.id); setGroupChildId(selectedChildId); }
     }).catch(() => { if (active && groupRequestId.current === context) setGroupId(""); });
     return () => { active = false; };
   }, [selectedChildId]);
@@ -230,7 +232,7 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
     let active = true;
     if (selectedChildId) parentStage6Api.v2EligibleTeachers(selectedChildId).then((items) => {
       if (!active || selectedChildRef.current !== selectedChildId) return;
-      setTeachers(items);
+      setTeachers(items); setTeachersChildId(selectedChildId);
       const firstTeacherId = items[0]?.employee_id || "";
       teacherIdRef.current = firstTeacherId;
       setTeacherId(firstTeacherId);
@@ -238,9 +240,13 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
     return () => { active = false; };
   }, [selectedChildId]);
 
+  const eligibleTeachers = teachersChildId === selectedChildId ? teachers : [];
+  const eligibleTeacherId = eligibleTeachers.some((item) => item.employee_id === teacherId) ? teacherId : "";
+  const currentGroupId = groupChildId === selectedChildId ? groupId : "";
+
   const childThreads = threads.filter((thread) => Boolean(selectedChildId) && !unavailableIds.includes(thread.id) && (
     thread.thread_type === "direct" ? thread.child_id === selectedChildId :
-      thread.thread_type === "group" && thread.audience === "all" && Boolean(groupId) && thread.group_id === groupId
+      thread.thread_type === "group" && thread.audience === "all" && Boolean(currentGroupId) && thread.group_id === currentGroupId
   ));
   const visibleThreads = childThreads.filter((thread) => tab === "all" || (tab === "direct" && thread.thread_type === "direct") || (tab === "group" && thread.thread_type === "group"));
   const selectedThreadId = threadId ? (visibleThreads.some((thread) => thread.id === threadId) ? threadId : "") : visibleThreads[0]?.id || "";
@@ -287,9 +293,9 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
   }
 
   async function openDirect() {
-    if (!selectedChildId || !teacherId) return;
+    if (!selectedChildId || !eligibleTeacherId) return;
     const childAtStart = selectedChildId;
-    const teacherAtStart = teacherId;
+    const teacherAtStart = eligibleTeacherId;
     const next = await parentStage6Api.v2Direct(childAtStart, teacherAtStart);
     if (selectedChildRef.current !== childAtStart || teacherIdRef.current !== teacherAtStart || next.child_id !== childAtStart || next.teacher_employee_id !== teacherAtStart) return;
     activeThreadId.current = next.id;
@@ -351,8 +357,10 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
     } catch (reason) {
       if (requestId.current === request && selectedChildRef.current === childAtStart) {
         setMessages([]); setMessagesThreadId(""); setError(userMessage(reason));
-        setUnavailableIds((current) => [...new Set([...current, threadAtStart])]);
-        setThreadId(""); activeThreadId.current = "";
+        if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) {
+          setUnavailableIds((current) => [...new Set([...current, threadAtStart])]);
+          setThreadId(""); activeThreadId.current = "";
+        }
       }
     } finally { setRefreshing(false); }
   }
@@ -369,8 +377,8 @@ function Messages({ threads, linkedChildren, reload, currentUserId }: {
     <section className={styles.card}><h2>Новый диалог</h2>
       <div className={styles.toolbar}>
         <label>Ребёнок<select value={selectedChildId} onChange={(event) => changeChild(event.target.value)}>{linkedChildren.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
-        <label>Воспитатель<select value={teacherId} onChange={(event) => selectTeacher(event.target.value)}>{teachers.map((teacher) => <option key={teacher.employee_id} value={teacher.employee_id}>{teacher.display_name}</option>)}</select></label>
-        <button className={styles.buttonSecondary} disabled={!selectedChildId || !teacherId} onClick={() => void openDirect()}>Личный диалог</button>
+        <label>Воспитатель<select value={eligibleTeacherId} onChange={(event) => selectTeacher(event.target.value)}>{eligibleTeachers.map((teacher) => <option key={teacher.employee_id} value={teacher.employee_id}>{teacher.display_name}</option>)}</select></label>
+        <button className={styles.buttonSecondary} disabled={!selectedChildId || !eligibleTeacherId} onClick={() => void openDirect()}>Личный диалог</button>
         <button className={styles.buttonSecondary} disabled={!selectedChildId} onClick={() => void openGroup()}>Группа</button>
       </div>
     </section>

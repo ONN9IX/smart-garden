@@ -173,7 +173,9 @@ for (const section of ["groups", "schedule"] as const) {
     await expect.poll(() => Boolean(release)).toBe(true);
     await page.getByLabel("Группа").selectOption(groupB.id);
     await expect(page.getByText(/Актуальный контекст/)).toBeVisible();
+    const lateResponse = page.waitForResponse((response) => response.url().includes(section === "groups" ? `/groups/${group.id}/children` : `schedule?group_id=${group.id}`));
     release();
+    await lateResponse;
     await expect(page.getByText(/Старый контекст/)).toHaveCount(0);
     revoked = true;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -181,3 +183,50 @@ for (const section of ["groups", "schedule"] as const) {
     await expect(page.getByText(/Актуальный контекст/)).toHaveCount(0);
   });
 }
+
+test("parent list revalidation removing Child A hides its Group and teachers immediately in Child B context", async ({ page }) => {
+  await fixtures(page, "PARENT");
+  let removed = false;
+  await page.route("**/api/v1/parent/children", (route) => route.fulfill({ json: removed ? [childB] : [child, childB] }));
+  const groupThread = { ...thread, thread_type: "group", child_id: null, child_name: null, guardian_id: null, teacher_employee_id: null, teacher_name: null };
+  await page.route("**/api/v1/parent/communications/v2/threads", (route) => route.fulfill({ json: [groupThread] }));
+  await page.route(`**/api/v1/parent/children/${child.id}/teachers`, (route) => route.fulfill({ json: [{ employee_id: "teacher-a", display_name: "Воспитатель Старой Группы", group_id: group.id, group_name: group.name }] }));
+  let releaseToday!: () => void;
+  let releaseTeachers!: () => void;
+  await page.route(`**/api/v1/parent/children/${childB.id}/today`, async (route) => { await new Promise<void>((resolve) => { releaseToday = resolve; }); await route.fulfill({ json: { ...today, child: childB, group: groupB } }); });
+  await page.route(`**/api/v1/parent/children/${childB.id}/teachers`, async (route) => { await new Promise<void>((resolve) => { releaseTeachers = resolve; }); await route.fulfill({ json: [] }); });
+  await page.goto("/parent");
+  await expect(page.getByRole("article", { name: "Статус ребёнка" })).toBeVisible();
+  const initialReload = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith("/parent/children"));
+  await page.getByRole("button", { name: "Сообщения", exact: true }).click();
+  await expect(page.getByLabel("Воспитатель")).toContainText("Воспитатель Старой Группы");
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toBeVisible();
+  await initialReload;
+  await expect(page.getByLabel("Ребёнок").locator("option")).toHaveCount(2);
+  removed = true;
+  await page.getByRole("button", { name: "Обновить диалог" }).click();
+  await expect(page.getByLabel("Ребёнок")).toHaveValue(childB.id);
+  await expect(page.getByLabel("Воспитатель").locator("option")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Личный диалог", exact: true })).toBeDisabled();
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Группа · Ромашка", exact: true })).toHaveCount(0);
+  await expect.poll(() => Boolean(releaseToday && releaseTeachers)).toBe(true);
+  releaseToday(); releaseTeachers();
+});
+
+test("parent dialog refresh can retry a temporary server error without losing the draft", async ({ page }) => {
+  await fixtures(page, "PARENT");
+  await page.goto("/parent");
+  await page.getByRole("button", { name: "Сообщения", exact: true }).click();
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toBeVisible();
+  await page.getByLabel("Ответ").fill("Синтетический черновик");
+  await page.route("**/api/v1/parent/communications/v2/threads/*/messages", (route) => route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR" } } }));
+  await page.getByRole("button", { name: "Обновить диалог" }).click();
+  await expect(page.getByText("Не удалось выполнить запрос. Попробуйте ещё раз.")).toBeVisible();
+  await expect(page.getByLabel("Ответ")).toHaveValue("Синтетический черновик");
+  await expect(page.getByRole("button", { name: "Обновить диалог" })).toBeEnabled();
+  await page.unroute("**/api/v1/parent/communications/v2/threads/*/messages");
+  await page.getByRole("button", { name: "Обновить диалог" }).click();
+  await expect(page.getByText("Синтетическое сообщение", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Ответ")).toHaveValue("Синтетический черновик");
+});
