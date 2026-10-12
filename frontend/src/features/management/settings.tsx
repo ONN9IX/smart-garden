@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loading } from "@/components/ui/loading";
 import { AuthGate } from "@/features/auth/auth-gate";
-import { useAuth } from "@/features/auth/auth-provider";
 import { managementApi } from "@/lib/api/management";
 import { userMessage } from "@/lib/api/client";
 import type { OrganizationNotificationSettings, SecurityStatus } from "@/types/management";
@@ -18,7 +17,6 @@ export function SettingsPage() {
 }
 
 function SettingsContent() {
-  const { refresh } = useAuth();
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState("");
   const [savedTimezone, setSavedTimezone] = useState("");
@@ -53,7 +51,6 @@ function SettingsContent() {
     try {
       const value = await managementApi.updateSettings({ name: name.trim(), timezone: timezone.trim() });
       setName(value.name); setTimezone(value.timezone); setSavedTimezone(value.timezone);
-      await refresh();
       setMessage("Настройки сохранены.");
     } catch (reason) { setError(userMessage(reason)); }
     finally { setBusy(false); }

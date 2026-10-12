@@ -77,7 +77,7 @@ test("Journal shows human teacher events without raw details and denies ADMIN", 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/audit");
   await expect(page.getByRole("heading", { name: "Журнал действий" })).toBeVisible();
-  await expect(page.getByText("Синтетическая Анна · Воспитатель")).toBeVisible();
+  await expect(page.getByRole("paragraph").filter({ hasText: "Синтетическая Анна · Воспитатель" })).toBeVisible();
   await expect(page.getByText(groupId)).toHaveCount(0);
   await page.getByLabel("Категория").selectOption("groups");
   await expect(page.getByText("Изменено Ромашка")).toBeVisible();

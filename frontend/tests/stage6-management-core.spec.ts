@@ -69,8 +69,8 @@ async function mockManagement(page: Page, role: "DIRECTOR" | "ADMIN" = "DIRECTOR
       title: "Синтетическое объявление", body: "Тестовый текст", status: "active", archived_at: null,
       published_at: "2026-09-30T08:00:00Z", unread: false, recipient_count: 3, can_manage: true,
     }]);
-    if (path.endsWith("/audit")) return role === "DIRECTOR"
-      ? reply(route, { items: [], limit: 50, offset: 0 })
+    if (path.endsWith("/audit/journal")) return role === "DIRECTOR"
+      ? reply(route, { items: [], actors: [], limit: 25, offset: 0 })
       : reply(route, { error: { code: "FORBIDDEN", message: "Forbidden", field: null } }, 403);
     return reply(route, { error: { code: "NOT_FOUND", message: "Not found", field: null } }, 404);
   });
@@ -119,8 +119,8 @@ test("DIRECTOR management core exposes improved existing-domain UX without persi
   await expect(page.getByText("Синтетическое объявление")).toBeVisible();
 
   await page.goto("/audit");
-  await expect(page.getByRole("heading", { name: "Журнал аудита" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Сбросить фильтры" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Журнал действий" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Сбросить" })).toBeVisible();
 
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   for (const viewport of [{ width: 1280, height: 900 }, { width: 768, height: 900 }, { width: 390, height: 844 }]) {
