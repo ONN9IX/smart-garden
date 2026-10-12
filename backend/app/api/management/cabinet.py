@@ -52,7 +52,16 @@ from app.schemas.management_cabinet import (
     TeacherTaskPatch,
     TeacherTaskResponse,
 )
-from app.services import communications_v2, management_cabinet
+from app.schemas.management_control import (
+    AlertSnoozeRequest,
+    AlertViewRequest,
+    ManagementControl,
+    OperationalAlert,
+    OrganizationNotificationSettingsPatch,
+    OrganizationNotificationSettingsResponse,
+    SecurityStatus,
+)
+from app.services import communications_v2, management_cabinet, management_control
 from app.services.teacher import communications as teacher_communications
 
 router = APIRouter(tags=["Stage 6 — управление"], responses=MANAGEMENT_ERRORS)
@@ -64,6 +73,21 @@ Database = Annotated[Session, Depends(get_db)]
 @router.get("/management/today", response_model=ManagementToday)
 def today(user: Manager, db: Database) -> ManagementToday:
     return management_cabinet.management_today(db, user)
+
+
+@router.get("/management/control", response_model=ManagementControl)
+def control(user: Manager, db: Database) -> ManagementControl:
+    return management_control.control(db, user)
+
+
+@router.post("/management/control/alerts/view", response_model=OperationalAlert)
+def view_alert(payload: AlertViewRequest, user: Manager, db: Database) -> OperationalAlert:
+    return management_control.view_alert(db, user, payload.alert_key)
+
+
+@router.post("/management/control/alerts/snooze", response_model=OperationalAlert)
+def snooze_alert(payload: AlertSnoozeRequest, user: Manager, db: Database) -> OperationalAlert:
+    return management_control.snooze_alert(db, user, payload.alert_key, payload.duration)
 
 
 @router.get("/management/notifications", response_model=NotificationList)
@@ -92,6 +116,23 @@ def patch_settings(
     db: Database,
 ) -> ManagementSettingsResponse:
     return management_cabinet.update_settings(db, user, payload)
+
+
+@router.get("/management/notification-settings", response_model=OrganizationNotificationSettingsResponse)
+def notification_settings(user: Director, db: Database) -> OrganizationNotificationSettingsResponse:
+    return management_control.notification_settings(db, user)
+
+
+@router.patch("/management/notification-settings", response_model=OrganizationNotificationSettingsResponse)
+def patch_notification_settings(
+    payload: OrganizationNotificationSettingsPatch, user: Director, db: Database,
+) -> OrganizationNotificationSettingsResponse:
+    return management_control.update_notification_settings(db, user, payload)
+
+
+@router.get("/management/security-status", response_model=SecurityStatus)
+def security_status(user: Director, db: Database) -> SecurityStatus:
+    return management_control.security_status(db, user)
 
 
 @router.get("/teacher-management/teachers", response_model=TeacherProjectionList)

@@ -21,7 +21,11 @@ from app.models.group_schedule_item import GroupScheduleItem
 from app.models.guardian import Guardian
 from app.models.incident import Incident
 from app.models.notification import Notification
+from app.models.operational_alert_state import OperationalAlertState
 from app.models.organization import Organization
+from app.models.organization_notification_settings import (
+    OrganizationNotificationSettings,
+)
 from app.models.photo import PhotoAsset, PhotoAssetChild, PhotoConsent
 from app.models.poll import Poll, PollOption, PollVote
 from app.models.teacher_group_assignment import TeacherGroupAssignment
@@ -30,8 +34,34 @@ from app.models.user import User
 
 __all__ = [
     "AccountAccessToken",
-    "Announcement", "AnnouncementReadState", "Attendance", "AuditEvent", "AuthSession", "Child", "ChildDiaryEntry", "ChildGuardian",
-    "CommunicationMessage", "CommunicationReadState", "CommunicationThread", "DocumentNotice", "Employee", "Group", "GroupScheduleItem",
-    "Guardian", "Incident", "Notification", "Organization", "PhotoAsset", "PhotoAssetChild", "PhotoConsent",
-    "Poll", "PollOption", "PollVote", "TeacherGroupAssignment", "TeacherTask", "User",
+    "Announcement",
+    "AnnouncementReadState",
+    "Attendance",
+    "AuditEvent",
+    "AuthSession",
+    "Child",
+    "ChildDiaryEntry",
+    "ChildGuardian",
+    "CommunicationMessage",
+    "CommunicationReadState",
+    "CommunicationThread",
+    "DocumentNotice",
+    "Employee",
+    "Group",
+    "GroupScheduleItem",
+    "Guardian",
+    "Incident",
+    "Notification",
+    "OperationalAlertState",
+    "Organization",
+    "OrganizationNotificationSettings",
+    "PhotoAsset",
+    "PhotoAssetChild",
+    "PhotoConsent",
+    "Poll",
+    "PollOption",
+    "PollVote",
+    "TeacherGroupAssignment",
+    "TeacherTask",
+    "User",
 ]

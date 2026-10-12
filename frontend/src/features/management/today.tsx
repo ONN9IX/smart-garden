@@ -27,6 +27,8 @@ function attentionText(item: ManagementAttentionItem, today: ManagementToday) {
       return `${group?.group_name ?? "Группа"}: нет недельного расписания`;
     case "notifications_unread":
       return `Непрочитанных уведомлений: ${item.count ?? today.unread_notifications}`;
+    case "parent_invite_failed_or_expired":
+      return "Приглашение родителю требует проверки";
     default:
       return null;
   }
@@ -38,6 +40,7 @@ function attentionHref(item: ManagementAttentionItem) {
   }
   if (item.kind === "tasks_overdue") return "/tasks";
   if (item.kind === "notifications_unread") return "/notifications";
+  if (item.kind === "parent_invite_failed_or_expired") return "/access-accounts";
   return "/attendance";
 }
 

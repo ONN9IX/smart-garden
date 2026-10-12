@@ -178,7 +178,6 @@ def management_today(db: Session, actor: User) -> ManagementToday:
         for group in base.groups
     ]
     without_teacher = [group for group in groups if not group.has_active_teacher]
-    without_schedule = [group for group in groups if not group.has_active_weekly_schedule]
     open_tasks = db.scalar(select(func.count(TeacherTask.id)).where(
         TeacherTask.organization_id == actor.organization_id,
         TeacherTask.status.in_(("open", "in_progress")),
@@ -198,21 +197,9 @@ def management_today(db: Session, actor: User) -> ManagementToday:
         Notification.read_at.is_(None),
     )) or 0
 
-    attention: list[ManagementAttentionItem] = []
-    attention.extend(
-        ManagementAttentionItem(kind="attendance_missing", entity_type="attendance", entity_id=group.group_id, count=group.unknown + group.needs_arrival)
-        for group in groups if group.unknown or group.needs_arrival
-    )
-    attention.extend(
-        ManagementAttentionItem(kind="group_without_teacher", entity_type="group", entity_id=group.group_id)
-        for group in without_teacher
-    )
-    attention.extend(
-        ManagementAttentionItem(kind="group_without_schedule", entity_type="group", entity_id=group.group_id)
-        for group in without_schedule
-    )
-    if overdue_tasks:
-        attention.append(ManagementAttentionItem(kind="tasks_overdue", entity_type="teacher_task", count=overdue_tasks))
+    from app.services.management_control import condition_items
+
+    attention = condition_items(db, actor, groups, base.date)
     if unread:
         attention.append(ManagementAttentionItem(kind="notifications_unread", entity_type="notification", count=unread))
     return ManagementToday(

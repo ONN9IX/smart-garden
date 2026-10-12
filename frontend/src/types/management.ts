@@ -176,6 +176,31 @@ export type ManagementNotification = {
   created_at: string;
 };
 
+export type OperationalAlert = {
+  alert_key: string;
+  kind: string;
+  priority: "important" | "info";
+  title: string;
+  context: string;
+  action_href: string;
+  viewed_at: string | null;
+  snoozed_until: string | null;
+};
+
+export type ManagementControl = {
+  alerts: OperationalAlert[];
+  event_notifications: { id: string; title: string; priority: "important" | "info"; read_at: string | null; created_at: string }[];
+  summary: { new: number; important: number; snoozed: number };
+};
+
+export type OrganizationNotificationSettings = {
+  show_informational_notifications: boolean;
+  attendance_checkpoint_time: string | null;
+  schedule_missing_alert_enabled: boolean;
+};
+
+export type SecurityStatus = { blocked_accounts: number; failed_or_expired_parent_invites: number };
+
 export type DocumentNotice = {
   id: string;
   recipient_user_id: string;

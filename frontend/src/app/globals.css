@@ -269,3 +269,23 @@ h2 { font-size: 21px; }
   .today-task-summary { grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 14px; }
   .task-summary-link { grid-column: 2 / -1; }
 }
+.control-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.control-summary .card { display: flex; flex-direction: column; gap: .4rem; padding: 1rem; }
+.control-summary strong { font-size: 1.7rem; color: #11365d; }
+.control-list, .journal-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .75rem; }
+.control-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: .85rem 0; border-bottom: 1px solid #dce6ed; min-width: 0; }
+.control-item h3 { margin: .3rem 0; } .control-item p { margin: .2rem 0; }
+.control-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.journal-filters { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin-bottom: 1rem; }
+.journal-filters label { display: grid; gap: .3rem; min-width: 0; }
+.journal-card { padding: 1rem; min-width: 0; overflow-wrap: anywhere; }
+.journal-card h2 { font-size: 1.1rem; margin: .45rem 0; }
+.journal-meta { display: flex; flex-wrap: wrap; gap: .75rem; color: #536b7f; }
+.settings-sections { display: grid; gap: 1rem; }
+.settings-check { display: flex; align-items: center; gap: .55rem; margin: .75rem 0; }
+@media (max-width: 600px) {
+  .control-summary { gap: .4rem; } .control-summary .card { padding: .65rem; }
+  .control-summary strong { font-size: 1.2rem; }
+  .control-item { flex-direction: column; } .journal-filters { display: grid; grid-template-columns: 1fr 1fr; }
+  .journal-filters label, .journal-filters .input { width: 100%; }
+}
