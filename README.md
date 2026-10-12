@@ -1,137 +1,80 @@
-# Умный сад — MVP 0.1
+# ПРОМАКС (Smart Garden)
 
-Репозиторий первого MVP SaaS-системы для частных детских садов.
+**ПРОМАКС** — разрабатываемая SaaS-платформа для управления частным детским садом: сотрудники, группы, дети, посещаемость, расписание, задачи и коммуникации с родителями. `Smart Garden` — название репозитория.
 
-## С чего начинать разработчику
+**Статус: интегрированный технический MVP, не production-ready для реальных персональных данных.** Stages 1–6 технически приняты и FROZEN. Более поздние изменения развивают продукт поверх зафиксированного baseline. Фактическую реализацию проверяйте по текущему `main`, Issues/PR и feature gates, а не по старому заголовку «MVP 0.1».
 
-Перед любой задачей читайте источники в таком порядке:
+## Кабинеты и доступы
 
-1. [`AGENTS.md`](AGENTS.md) — обязательные правила репозитория и Fast Flow.
-2. [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) — фактический frozen baseline и текущий gate.
-3. Контракт текущего Stage.
-4. Текущую GitHub Issue.
+| Кабинет | Что реализовано | Ограничения |
+| --- | --- | --- |
+| **DIRECTOR — директор** | Главная «Сегодня», группы, дети, родители, сотрудники, воспитатели/назначения, посещаемость, расписание, задачи, объявления, сообщения, операционный контроль и уведомления, журнал действий, настройки сада и управление доступами | Только собственная организация; журнал действий доступен директору |
+| **ADMIN — администратор сада** | Разрешённые управленческие функции общего кабинета | Только своё учреждение и разрешённые RBAC-действия; без директорского журнала |
+| **TEACHER — воспитатель** | «Сегодня», назначенные группы и состав детей, посещаемость, расписание, задачи, объявления, групповые и личные сообщения | Назначения, связанные группы и разрешённые контакты |
+| **PARENT — родитель** | Связанные дети, сегодняшний статус посещаемости, время прихода/ухода, расписание, объявления, личные и групповые сообщения | Только свои связи ChildGuardian и разрешённые диалоги |
+| **PLATFORM_OWNER — владелец ПРОМАКС** | Отдельный `/platform`: вход с MFA, реестр и регистрация садов с первым директором, управление статусом доступа, независимый аудит, ручные метаданные подписок | **Не tenant-роль**; отдельные учётная запись и сессии, без доступа к сведениям о детях/родителях по умолчанию |
 
-**Проверка Stage 4 в браузере:** [PREVIEW.md](PREVIEW.md) — запуск Frontend, Backend и PostgreSQL одной командой с синтетическими аккаунтами.
+После Stage 6 отдельно приняты: улучшения управления/контроля директора V2 ([#177](https://github.com/ONN9IX/smart-garden/issues/177)), защищённый кабинет владельца платформы ([#221](https://github.com/ONN9IX/smart-garden/issues/221)) и унификация дизайна воспитателя/родителя ([#224](https://github.com/ONN9IX/smart-garden/issues/224)). Эти поставки не переводят продукт автоматически в юридически готовый production.
 
-[`docs/00-development-guide.md`](docs/00-development-guide.md) сохраняет общую архитектуру, Git-процесс и исторические bootstrap-инструкции Stage 1. Frontend и Backend не являются отдельными продуктами: Frontend работает только через Backend API, а единственная БД MVP — PostgreSQL на Backend.
+## Что включено и что отложено
 
-Локальная среда и доступы должны быть воспроизводимыми без передачи личных паролей.
+**Активные модули:** Dashboard/Today, Children, Groups, Guardians, Employees, Teachers/Assignments, Attendance, Schedule, Announcements, Tasks, Communications, Notifications/Control, Audit, Organization Settings, Auth/Account Management — с ограничениями по ролям.
 
-## Текущий фокус
+**OFF, но сохранены в коде:** Polls, Incidents, Diary, Photos, Photo consents и Document notices. Они скрыты в активном интерфейсе и заблокированы на API boundary. Их повторное включение требует отдельной Issue, решения владельца и регрессионных тестов.
 
-Stages 1–6 технически приняты и FROZEN. Текущий активный MVP включает четыре роли: DIRECTOR, ADMIN, TEACHER и PARENT.
+**Полный runtime остаётся отложенным:** Stage 7 (родительские договоры, оплаты, чеки, задолженность), Stage 9 (входной киоск/планшет), Stage 10 (production protected storage для отложенных модулей), Stage 11 (психологическое сопровождение/развитие), полный Stage 12 (автоматический SaaS-биллинг, интеграции и платежи).
 
-Активный продукт: группы, дети, родители, сотрудники, воспитатели и назначения, посещаемость, расписание, объявления, задачи, сообщения, уведомления, Audit и настройки организации.
+**Узкое исключение Stage 12:** Issue [#221](https://github.com/ONN9IX/smart-garden/issues/221) реализовала только безопасный onboarding организаций и **ручные метаданные подписки**. Здесь нет эквайринга, списаний, автоматической блокировки сада за неуплату или права использовать реальные данные. Production-передача первичного пароля директора по умолчанию отключена до утверждения защищённого канала и операционных процедур.
 
-Через центральные feature flags временно выключены, но не удалены: Polls, Incidents, Diary, Photos, Photo consents и Document notices.
-
-Contracts/Billing, входной планшет, psychology/development-support и SaaS subscription также остаются на паузе до отдельного решения Master Chat.
-
-Для browser-проверки текущего продукта используйте [PREVIEW.md](PREVIEW.md). Dev/test/preview используют только синтетические данные. Реальный pilot требует отдельного legal/privacy/retention/infrastructure review; технический freeze не является заявлением о полной 152-ФЗ готовности.
-
-### Этап 1 — фундамент (FROZEN)
-- Backend: организация, пользователи, роли, авторизация по логину/паролю, временный пароль, смена пароля, изоляция данных организаций.
-- Frontend: каркас приложения, login, обязательная смена временного пароля, защищённые маршруты, базовый layout, role-aware UI.
-- Общий результат: DIRECTOR и ADMIN могут безопасно войти в систему и попасть в интерфейс своего сада.
-
-### Этап 2 (FROZEN)
-- Группы
-- Дети
-- Родители / законные представители
-- Создание PARENT-аккаунта
-- Связь одного родителя с несколькими детьми
-
-### Этап 3 (FROZEN)
-- Сотрудники
-- Посещаемость
-
-### Этап 4 (FROZEN)
-- Audit Log с privacy-safe структурированными details
-- Объявления с публикацией для всего сада или группы и archive-only lifecycle
-- Операционный Dashboard с garden-local датой и агрегацией по активным группам
-- Стабилизация и финальная приёмка Stage 4
-
-## Документы
-
-- `AGENTS.md` и `docs/CURRENT_STATE.md` — первые источники для любой новой задачи.
-- `docs/00-development-guide.md` — общая инструкция команды; Stage 1 bootstrap sections являются historical reference.
-- `docs/01-stage-1-backend.md` — подробное ТЗ первого этапа для Backend-разработчика.
-- `docs/02-stage-1-frontend.md` — подробное ТЗ первого этапа для Frontend-разработчика.
-- `docs/03-api-contract-v0.1.md` — общий контракт первого этапа.
-- `docs/04-mvp-roadmap.md` — примерное ТЗ последующих этапов.
-- `docs/05-personal-data-baseline.md` — обязательные правила по персональным данным.
-- `docs/06-product-scope.md` — зафиксированные границы продукта и ролей.
-- `docs/07-project-master-draft.md` — полная черновая память проекта: история идеи, решения и технический контекст.
-- `docs/08-team-access-and-environments.md` — смена ролей разработчиков, доступы, локальные окружения и правила хранения секретов.
-- `docs/09-code-and-error-standards.md` — обязательные комментарии, обработка ошибок, logging и проверки перед PR.
-- `docs/10-pre-development-audit.md` — контрольная проверка синхронизации перед Stage 1.
-- `docs/12-stage-2-data-model-and-decisions.md` — решения по данным и границам Stage 2.
-- `docs/13-stage-2-backend.md` и `docs/14-stage-2-frontend.md` — задания Stage 2.
-- `docs/15-api-contract-stage-2.md` — API Stage 2.
-- `docs/16-stage-2-acceptance.md` — проверенный сквозной сценарий и границы приёмки.
-- `docs/17-stage-3-data-model-and-decisions.md` — решения по сотрудникам, посещаемости и ПДн.
-- `docs/18-stage-3-backend.md` и `docs/19-stage-3-frontend.md` — задания Stage 3.
-- `docs/20-api-contract-stage-3.md` — общий API Contract Stage 3.
-- `docs/21-stage-3-delivery-plan.md` — порядок вертикальных срезов и проверок.
-- `docs/22-stage-4-data-model-and-decisions.md` — frozen решения по данным и границам Stage 4.
-- `docs/23-stage-4-backend.md` и `docs/24-stage-4-frontend.md` — frozen задания Stage 4.
-- `docs/25-api-contract-stage-4.md` — frozen API Contract Stage 4.
-- `docs/26-stage-4-acceptance.md` — финальная приёмка и freeze Stage 4.
-- `docs/27-stage-5-design-and-decisions.md` — границы и frozen-архитектура Stage 5.
-- `docs/28-stage-5-security-and-production.md` — production/security design Stage 5.
-- `docs/29-stage-5-operations-and-pilot.md` — backup, operations, retention и pilot checklist.
-- `docs/30-stage-5-delivery-plan.md` — двухразработчиковый delivery plan и правила координации.
-- `docs/31-stage-5-production-security-implementation.md` — production configuration и security hardening.
-- `docs/32-stage-5-backup-and-recovery.md` — PostgreSQL backup, guarded restore и recovery verification.
-- `docs/33-stage-5-ci-toolchain-supply-chain.md` — required CI, toolchain и dependency security.
-- `docs/34-stage-5-operations-session-cleanup.md` — session cleanup и pilot operations runbooks.
-- `docs/35-stage-5-acceptance.md` — финальная техническая приёмка и freeze Stage 5.
-- `docs/36-stage-6-teacher-design-and-decisions.md` — frozen scope, identity, assignment и privacy boundaries кабинета TEACHER.
-- `docs/37-stage-6-permissions-and-api.md` — frozen permission matrix, server-side access и Stage 6 API.
-- `docs/38-stage-6-data-model-privacy-and-tests.md` — complete Foundation schema, audit/privacy и mandatory negative tests.
-- `docs/39-stage-6-parallel-delivery-plan.md` — единый Foundation gate, reserved shared files и одна автономная full-cabinet доставка Track B параллельно только с disjoint Track A Issues.
-- `CONTRIBUTING.md` — короткие правила ежедневной разработки и PR.
-
-## Единая архитектура
+## Архитектура и безопасность
 
 ```text
 Browser
-   ↓
-Frontend — Next.js / React / TypeScript
-   ↓ HTTP JSON /api/v1
-Backend — FastAPI / Python
-   ↓ SQLAlchemy
-PostgreSQL
+  └─ Next.js / React / TypeScript (frontend/)
+       └─ HTTP JSON /api/v1
+            └─ FastAPI / Python (backend/)
+                 └─ SQLAlchemy + Alembic → PostgreSQL
 ```
 
-Frontend не создаёт и не использует собственную БД. SQLite, Firebase, Supabase и другие альтернативные хранилища не используются вместо PostgreSQL в MVP без отдельного согласования.
+Один backend и PostgreSQL; отдельной БД у frontend нет. Tenant определяется **только из аутентифицированного User**, не из переданного клиентом ID. Основные учётные записи используют серверные сессии, HttpOnly cookie и Argon2id. TEACHER ограничен назначениями, PARENT — связями с ребёнком и контекстом общения. PLATFORM_OWNER работает через отдельную модель идентичности, сессии, обязательную MFA, CSRF/Origin-защиту и отдельный аудит; tenant impersonation не предусмотрен.
 
-## Правило разработки
+Текущая Alembic-цепочка после последних поставок доходит до **`0019_platform_owner_mvp.py`**, после `0018_control_v2.py`. Перед новой миграцией сверяйте фактический `alembic heads`, а не исторический номер в Stage 6 документах.
 
-Новый этап не начинается массово, пока не выполнены критерии готовности предыдущего этапа. Каждая Issue выполняется в отдельной ветке и попадает в `main` через Pull Request.
+## Запуск локального демо
 
-Реальные персональные данные детей, родителей и сотрудников запрещено использовать в dev/test средах.
+Инструкция: [PREVIEW.md](PREVIEW.md). Требуются Docker Desktop, Docker Compose и Git Bash. **Только синтетические данные.**
 
-
-## Статус готовности
-
-Stages 1–6 объединены в `main` и прошли integrated technical acceptance.
-
-Текущий MVP позволяет продемонстрировать полный рабочий контур:
-
-```text
-DIRECTOR / ADMIN
-→ создают структуру сада и управляют операционными процессами
-
-TEACHER
-→ работает только со своими назначенными группами
-→ ведёт посещаемость, расписание, объявления, задачи и сообщения
-
-PARENT
-→ видит только связанных детей
-→ получает ежедневную сводку, объявления и сообщения
+```bash
+git fetch origin
+git switch main
+git pull --ff-only
+bash scripts/start-preview.sh
 ```
 
-OFF-модули сохраняются в репозитории и могут быть возвращены отдельным решением без восстановления удалённого кода.
+- Интерфейс: http://localhost:3000/login
+- Проверка backend: http://localhost:8000/api/v1/health
+- OpenAPI: http://localhost:8000/docs
 
-Реальные персональные данные по-прежнему запрещены в dev/test/preview. Техническая готовность не заменяет юридическую, инфраструктурную и организационную готовность к реальному пилоту.
+Это preview tenant-кабинетов, **не** инструкция для production-активации PLATFORM_OWNER. Для кабинета владельца нужны отдельный доверенный bootstrap, внешнее хранение MFA-ключа и безопасная передача временных учётных данных; реальные детские/родительские ПДн в dev/test/preview запрещены.
+
+## Контроль качества и процесс
+
+В PR обязательны восемь GitHub Actions jobs: Backend quality, Frontend quality, Dependency security, PostgreSQL backup and recovery, Local browser preview, Browser auth flow, Backend checks, Frontend checks. Пример подтверждённой post-merge проверки `main`: [PR #225 — 8/8 SUCCESS](https://github.com/ONN9IX/smart-garden/actions/runs/38318691730). Проверяйте **конкретный финальный HEAD** каждой новой работы.
+
+Процесс разработки: **одна крупная Issue → свежая ветка → целевые тесты → один PR → CI → независимое ревью → разрешение владельца на Merge**. Сохраняйте tenant isolation, RBAC, OFF/STOP-gates и 152-ФЗ ограничения; используйте только синтетические тестовые данные.
+
+## Production / 152-ФЗ: NO-GO
+
+**Реальный пилот с персональными данными детей, родителей и сотрудников пока не разрешён.** Нужны юридические основания и роли оператор/обработчик, согласованные уведомления и локализация данных, регламенты доступа, хранения/удаления и обработки запросов, защищённое резервное копирование, контроль подрядчиков, управление ключами, инцидентами и передачей учётных данных, а также выполнение применимых требований Роскомнадзора. [Issue #223](https://github.com/ONN9IX/smart-garden/issues/223) содержит **черновой подготовительный пакет**, но не утверждённую юридическую/эксплуатационную готовность.
+
+## Источники истины и ближайшая работа
+
+- [AGENTS.md](AGENTS.md) — правила репозитория, privacy/security, Fast Flow.
+- [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) — **исторический Stage 6 snapshot**; его старые ссылки на миграцию `0016` и SHA не являются live baseline.
+- [PREVIEW.md](PREVIEW.md) — проверка продукта в браузере.
+- [docs/68-stage-6-integrated-acceptance.md](docs/68-stage-6-integrated-acceptance.md) — техническая приёмка Stages 1–6.
+- [docs/76-platform-quality-release-gate.md](docs/76-platform-quality-release-gate.md) — технические критерии выпуска.
+- [Issue #226 — Director Redesign V3](https://github.com/ONN9IX/smart-garden/issues/226) — следующий UI-only срез директора, **не начат**.
+- [Issue #223 — Privacy/152-ФЗ](https://github.com/ONN9IX/smart-garden/issues/223) — отдельный юридический и операционный gate.
+
+**Документационный долг:** исторические утверждения о live migration `0016` в `AGENTS.md` и `docs/CURRENT_STATE.md` нужно отдельно синхронизировать с `0019`, не переписывая frozen Stage 6 историю. Настоящее обновление меняет только корневой README.
