@@ -26,6 +26,13 @@ def test_platform_migration_round_trip(migrations):
     finally:
         command.upgrade(config, "0019")
     assert tables.issubset(inspect(engine).get_table_names())
+    indexes = {
+        item["name"] for item in inspect(engine).get_indexes("platform_sessions")
+    }
+    assert {
+        "ix_platform_sessions_expires_at",
+        "ix_platform_sessions_revoked_at",
+    } <= indexes
     with engine.connect() as connection:
         assert (
             connection.scalar(text("SELECT version_num FROM alembic_version")) == "0019"

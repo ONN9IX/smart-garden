@@ -1,11 +1,12 @@
 """Independent password + replay-resistant TOTP sessions. No tenant auth fallback."""
 
+import argparse
 import hmac
 import re
 from datetime import timedelta
 
 import pyotp
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
 
 from app.core import platform_security as security
 from app.core.config import get_settings
@@ -25,9 +26,35 @@ from app.services import platform_audit
 DUMMY_HASH = hash_password("platform-dummy-password-only")
 
 
+def cleanup_expired_sessions(db, *, batch_size: int = 200) -> int:
+    """Delete at most one batch; preserve current rate windows and live sessions.
+
+    SKIP LOCKED avoids interfering with in-flight authentication. Callers own
+    commit/rollback, so a failed write cannot accidentally purge unrelated data.
+    """
+    if not 1 <= batch_size <= 1000:
+        raise ValueError("Cleanup batch must be between 1 and 1000")
+    candidates = (
+        select(PlatformSession.id)
+        .where(
+            or_(
+                PlatformSession.expires_at <= security.utc_now(),
+                PlatformSession.revoked_at.is_not(None),
+            )
+        )
+        .order_by(PlatformSession.expires_at, PlatformSession.id)
+        .limit(batch_size)
+        .with_for_update(skip_locked=True)
+    )
+    return db.execute(
+        delete(PlatformSession).where(PlatformSession.id.in_(candidates))
+    ).rowcount
+
+
 def password_login(db, username: str, password: str, client_address: str) -> str:
     now = security.utc_now()
     ip_hash = security.digest_context("platform-login-ip:" + client_address)
+    cleanup_expired_sessions(db)
     security.advisory_lock(db, "platform-login-rate:" + ip_hash)
     recent = db.scalar(
         select(func.count(PlatformSession.id)).where(
@@ -120,7 +147,8 @@ def session_identity(db, token: str | None, *, allow_challenge: bool = False):
         .execution_options(populate_existing=True)
     )
     if (
-        operator is None
+        session is None
+        or operator is None
         or operator.status != "active"
         or session.revoked_at is not None
         or session.expires_at <= security.utc_now()
@@ -191,3 +219,28 @@ def logout(db, token: str) -> None:
     session.revoked_at = security.utc_now()
     platform_audit.write(db, operator.id, "auth.logout")
     db.commit()
+
+
+def main() -> None:
+    """Trusted scheduled maintenance; no HTTP route or credential output."""
+    from app.db.session import SessionLocal
+
+    parser = argparse.ArgumentParser(description="Bounded platform-session cleanup")
+    parser.add_argument("--batch-size", type=int, default=1000)
+    parser.add_argument("--max-batches", type=int, default=10)
+    args = parser.parse_args()
+    if not 1 <= args.batch_size <= 1000 or not 1 <= args.max_batches <= 20:
+        parser.error("Use batch-size 1..1000 and max-batches 1..20")
+    removed = 0
+    with SessionLocal() as db:
+        for _ in range(args.max_batches):
+            count = cleanup_expired_sessions(db, batch_size=args.batch_size)
+            db.commit()
+            removed += count
+            if count < args.batch_size:
+                break
+    print(f"Deleted platform session rows: {removed}")
+
+
+if __name__ == "__main__":
+    main()

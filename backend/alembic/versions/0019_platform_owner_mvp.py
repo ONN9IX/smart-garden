@@ -64,6 +64,12 @@ def upgrade() -> None:
         "ix_platform_sessions_operator_id", "platform_sessions", ["operator_id"]
     )
     op.create_index("ix_platform_sessions_ip_hash", "platform_sessions", ["ip_hash"])
+    op.create_index(
+        "ix_platform_sessions_expires_at", "platform_sessions", ["expires_at"]
+    )
+    op.create_index(
+        "ix_platform_sessions_revoked_at", "platform_sessions", ["revoked_at"]
+    )
     op.create_table(
         "platform_audit_events",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -171,6 +177,8 @@ def downgrade() -> None:
     op.drop_table("tenant_subscriptions")
     op.drop_table("platform_provisioning_requests")
     op.drop_table("platform_audit_events")
+    op.drop_index("ix_platform_sessions_revoked_at", table_name="platform_sessions")
+    op.drop_index("ix_platform_sessions_expires_at", table_name="platform_sessions")
     op.drop_index("ix_platform_sessions_ip_hash", table_name="platform_sessions")
     op.drop_index("ix_platform_sessions_operator_id", table_name="platform_sessions")
     op.drop_table("platform_sessions")
