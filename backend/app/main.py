@@ -23,6 +23,8 @@ from app.api.groups import router as groups_router
 from app.api.guardians import router as guardians_router
 from app.api.health import router as health_router
 from app.api.management import router as management_router
+from app.api.platform import router as platform_router
+from app.api.platform import tenant_router as platform_subscription_router
 from app.api.teacher import router as teacher_router
 from app.api.teacher_management import router as teacher_management_router
 from app.core.config import get_settings
@@ -41,7 +43,7 @@ app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)
 app.add_middleware(
     CORSMiddleware, allow_origins=settings.allowed_origins, allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type", "Idempotency-Key"],
+    allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type", "Idempotency-Key", "X-Platform-CSRF"],
 )
 
 
@@ -54,7 +56,11 @@ async def enforce_origin(request: Request, call_next):
     origin = request.headers.get("origin")
     if request.method in {"POST", "PUT", "PATCH", "DELETE"} and origin and origin not in settings.allowed_origins:
         return error_response(403, "FORBIDDEN")
-    return await call_next(request)
+    response = await call_next(request)
+    if request.url.path.startswith("/api/v1/platform/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 @app.exception_handler(Exception)
@@ -79,3 +85,6 @@ app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(teacher_router, prefix="/api/v1")
 app.include_router(management_router, prefix="/api/v1")
 app.include_router(teacher_management_router, prefix="/api/v1")
+
+app.include_router(platform_router, prefix="/api/v1")
+app.include_router(platform_subscription_router, prefix="/api/v1")
