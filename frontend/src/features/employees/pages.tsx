@@ -15,6 +15,7 @@ import { employeesApi } from "@/lib/api/employees";
 import { managementPeopleApi } from "@/lib/api/management-people";
 import { userMessage } from "@/lib/api/client";
 import { fullName } from "@/lib/people-names";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import type { DuplicateMatch } from "@/types/people";
 import type { Employee, EmployeeCategory, EmployeeFields, EmployeeSummary, InvitationResult } from "@/types/stage3";
 
@@ -41,6 +42,9 @@ function EmployeeForm({ initial = empty, busy, submit, cancel }: {
 }) {
   const [fields, setFields] = useState(initial);
   const submitting = useRef(false);
+  const confirmDiscard = useUnsavedChanges(Object.entries(fields).some(
+    ([key, value]) => value !== initial[key as keyof EmployeeFields],
+  ));
   function set<K extends keyof EmployeeFields>(key: K, value: EmployeeFields[K]) {
     setFields((current) => ({ ...current, [key]: value }));
   }
@@ -72,7 +76,7 @@ function EmployeeForm({ initial = empty, busy, submit, cancel }: {
       <label>Телефон<Input type="tel" maxLength={32} value={fields.phone ?? ""} onChange={(event) => set("phone", event.target.value || null)} /></label>
       <label>Email<Input type="email" maxLength={254} value={fields.email ?? ""} onChange={(event) => set("email", event.target.value || null)} /></label>
     </div>
-    <div className="action-row"><Button disabled={busy}>{busy ? "Сохранение..." : "Сохранить"}</Button>{cancel && <Button type="button" variant="secondary" onClick={cancel}>Отмена</Button>}</div>
+    <div className="action-row"><Button disabled={busy}>{busy ? "Сохранение..." : "Сохранить"}</Button>{cancel && <Button type="button" variant="secondary" onClick={() => { if (confirmDiscard()) cancel(); }}>Отмена</Button>}</div>
   </form>;
 }
 
