@@ -26,6 +26,7 @@ from app.schemas.management_control import (
     OrganizationNotificationSettingsResponse,
     SecurityStatus,
 )
+from app.services import audit
 from app.services.auth import utc_now
 
 
@@ -47,8 +48,14 @@ def update_notification_settings(
     if row is None:
         row = OrganizationNotificationSettings(organization_id=actor.organization_id)
         db.add(row)
+    changed = []
     for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(row, field, value)
+        if getattr(row, field) != value:
+            setattr(row, field, value)
+            changed.append(field)
+    if changed:
+        audit.write(db, actor, "organization.settings_update", "organization", actor.organization_id,
+                    {"changed_fields": sorted(changed)})
     db.commit()
     return notification_settings(db, actor)
 

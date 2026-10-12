@@ -50,6 +50,9 @@ _SAFE_FIELDS = {
     "start_time": "время начала", "end_time": "время окончания", "due_at": "срок",
     "read_at": "отметка о прочтении", "arrival_time": "время прихода",
     "departure_time": "время ухода", "assignee_employee_id": "исполнитель",
+    "show_informational_notifications": "информационные уведомления",
+    "attendance_checkpoint_time": "время проверки посещаемости",
+    "schedule_missing_alert_enabled": "напоминание о расписании",
 }
 
 

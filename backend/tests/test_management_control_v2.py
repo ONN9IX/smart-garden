@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from alembic import command
 from app.models.account_access_token import AccountAccessToken
+from app.models.audit_event import AuditEvent
 from app.models.child import Child
 from app.models.employee import Employee
 from app.models.group import Group
@@ -100,6 +101,26 @@ def test_control_settings_invites_notifications_timezone_and_role(client, db, us
         "schedule_missing_alert_enabled": False,
     })
     assert update.status_code == 200, update.text
+    policy_events = db.scalars(select(AuditEvent).where(
+        AuditEvent.organization_id == organization.id,
+        AuditEvent.actor_user_id == director.id,
+        AuditEvent.action == "organization.settings_update",
+    )).all()
+    assert len(policy_events) == 1
+    assert policy_events[0].details == {"changed_fields": [
+        "attendance_checkpoint_time", "schedule_missing_alert_enabled", "show_informational_notifications",
+    ]}
+    journal = client.get("/api/v1/audit/journal?category=organization")
+    assert journal.status_code == 200
+    assert any(item["id"] == str(policy_events[0].id) and len(item["safe_changes"]) == 3
+               for item in journal.json()["items"])
+    assert client.patch("/api/v1/management/notification-settings", json={
+        "schedule_missing_alert_enabled": False,
+    }).status_code == 200
+    assert len(db.scalars(select(AuditEvent).where(
+        AuditEvent.organization_id == organization.id,
+        AuditEvent.action == "organization.settings_update",
+    )).all()) == 1
     assert client.get("/api/v1/management/control").json()["event_notifications"] == []
     assert db.get(Notification, notice.id).read_at is None
     assert client.get("/api/v1/management/notifications?status=all").json()["items"][0]["id"] == str(notice.id)

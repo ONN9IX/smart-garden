@@ -86,6 +86,7 @@ _ALLOWED_CHANGED_FIELDS = {
     "options", "closes_at", "occurred_at", "category", "description", "due_at",
     "assignee_employee_id", "requires_ack", "read_at", "acknowledged_at", "scope",
     "effective_from", "effective_to", "captured_at", "mime_type", "size_bytes", "body",
+    "show_informational_notifications", "attendance_checkpoint_time", "schedule_missing_alert_enabled",
 }
 _ALLOWED_STATUSES = {
     "active", "archived", "blocked", "closed", "open", "in_progress", "done", "cancelled",
@@ -118,7 +119,10 @@ def _validate_details(details: dict[str, Any], action: str) -> None:
     if action == "organization.settings_update" and (
         set(details) != {"changed_fields"}
         or not fields
-        or any(field not in {"name", "timezone"} for field in fields)
+        or any(field not in {
+            "name", "timezone", "show_informational_notifications",
+            "attendance_checkpoint_time", "schedule_missing_alert_enabled",
+        } for field in fields)
     ):
         raise ValueError("Audit organization settings details are invalid")
     for key in ("status_before", "status_after"):
