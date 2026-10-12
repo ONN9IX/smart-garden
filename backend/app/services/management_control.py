@@ -122,7 +122,10 @@ def _occurrence(db: Session, actor: User, item: ManagementAttentionItem) -> str:
     """Version a live condition by its source rows, so a resolved condition can recur as new."""
     if item.kind == "group_without_teacher":
         rows = db.execute(select(TeacherGroupAssignment.created_at, TeacherGroupAssignment.archived_at,
-                                 Employee.updated_at).join(Employee, Employee.id == TeacherGroupAssignment.employee_id)
+                                 Employee.updated_at, User.updated_at)
+                          .join(Employee, Employee.id == TeacherGroupAssignment.employee_id)
+                          .outerjoin(User, (User.id == Employee.user_id)
+                                     & (User.organization_id == actor.organization_id))
                           .where(TeacherGroupAssignment.organization_id == actor.organization_id,
                                  TeacherGroupAssignment.group_id == item.entity_id,
                                  Employee.organization_id == actor.organization_id)).all()
@@ -186,6 +189,11 @@ def _not_found():
 
 
 def _state(db: Session, actor: User, key: str) -> OperationalAlertState:
+    # A missing state row cannot be locked. Serialize on its existing, tenant-scoped
+    # owner so concurrent first view/snooze requests share the same state row.
+    db.scalar(select(User.id).where(
+        User.organization_id == actor.organization_id, User.id == actor.id,
+    ).with_for_update())
     row = db.scalar(select(OperationalAlertState).where(
         OperationalAlertState.organization_id == actor.organization_id,
         OperationalAlertState.user_id == actor.id, OperationalAlertState.alert_key == key,

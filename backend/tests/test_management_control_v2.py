@@ -1,11 +1,16 @@
 """Synthetic PostgreSQL HTTP coverage for tenant-scoped live Control and settings."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, time, timedelta
+from threading import Barrier
+from time import sleep
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+import pytest
 from alembic.config import Config
-from sqlalchemy import select
+from sqlalchemy import delete, event, select
+from sqlalchemy.orm import Session
 
 from alembic import command
 from app.models.account_access_token import AccountAccessToken
@@ -17,6 +22,7 @@ from app.models.group_schedule_item import GroupScheduleItem
 from app.models.guardian import Guardian
 from app.models.notification import Notification
 from app.models.operational_alert_state import OperationalAlertState
+from app.models.organization import Organization
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.teacher_task import TeacherTask
 from app.models.user import User
@@ -173,3 +179,108 @@ def test_control_migration_roundtrip(migrations):
         command.upgrade(config, "0018")
     tables = inspect(engine).get_table_names()
     assert "operational_alert_states" in tables and "organization_notification_settings" in tables
+
+
+def test_teacher_account_reblocking_creates_new_alert(client, db, users):
+    organization, _other, director, _admin = users
+    _director(client, db, users)
+    teacher = User(organization_id=organization.id, username="control-reblocking-teacher",
+                   password_hash=director.password_hash, role="TEACHER", status="active",
+                   must_change_password=False)
+    group = Group(organization_id=organization.id, name="Повторное условие", status="active")
+    db.add_all([teacher, group]); db.flush()
+    employee = Employee(organization_id=organization.id, user_id=teacher.id,
+                        first_name="Анна", last_name="Синтетическая", position="Воспитатель",
+                        category="teacher", status="active")
+    db.add(employee); db.flush()
+    db.add(TeacherGroupAssignment(organization_id=organization.id, employee_id=employee.id,
+                                 group_id=group.id, status="active", assigned_by=director.id))
+    db.flush()
+    assert not any(item["kind"] == "group_without_teacher" for item in _alerts(client))
+    teacher.status = "blocked"
+    teacher.updated_at = datetime.now(UTC) + timedelta(seconds=1)
+    db.flush()
+    first = next(item for item in _alerts(client) if item["kind"] == "group_without_teacher")
+    key = first["alert_key"]
+    assert client.post("/api/v1/management/control/alerts/snooze", json={
+        "alert_key": key, "duration": "one_hour",
+    }).status_code == 200
+    teacher.status = "active"
+    teacher.updated_at += timedelta(seconds=1)
+    db.flush()
+    assert not any(item["kind"] == "group_without_teacher" for item in _alerts(client))
+    teacher.status = "blocked"
+    teacher.updated_at += timedelta(seconds=1)
+    db.flush()
+    recurrence = next(item for item in _alerts(client) if item["kind"] == "group_without_teacher")
+    assert recurrence["alert_key"] != key
+    assert recurrence["viewed_at"] is None and recurrence["snoozed_until"] is None
+    assert client.post("/api/v1/management/control/alerts/view", json={"alert_key": key}).status_code == 404
+
+
+@pytest.mark.parametrize("operations", [("view", "view"), ("snooze", "snooze"), ("view", "snooze")])
+def test_concurrent_first_alert_writes_are_idempotent_and_tenant_scoped(migrations, operations):
+    """Exercise real independent PostgreSQL transactions, including the first INSERT race."""
+    from app.db.session import engine
+
+    owner_ids, organization_ids, keys = [], [], []
+    with Session(engine) as setup:
+        for _ in range(2):
+            organization = Organization(name="Синтетическая конкурентная проверка", status="active",
+                                        timezone="Europe/Moscow")
+            setup.add(organization); setup.flush()
+            owner = User(organization_id=organization.id, username=f"control-concurrent-{uuid4()}",
+                         password_hash="unused-synthetic-hash", role="DIRECTOR", status="active",
+                         must_change_password=False)
+            group = Group(organization_id=organization.id, name="Синтетическая группа", status="active")
+            setup.add_all([owner, group]); setup.flush()
+            owner_ids.append(owner.id)
+            organization_ids.append(organization.id)
+            keys.append(next(alert.alert_key for alert in management_control.active_alerts(setup, owner)
+                             if alert.kind == "group_without_teacher"))
+        setup.commit()
+
+    barrier = Barrier(4)
+
+    def delay_first_insert(_mapper, _connection, _target):
+        # Enlarge the absent-row window; row locks must protect the first INSERT too.
+        sleep(0.1)
+
+    def mutate(index, operation):
+        with Session(engine) as transaction:
+            owner = transaction.get(User, owner_ids[index])
+            barrier.wait(timeout=10)
+            if operation == "view":
+                return management_control.view_alert(transaction, owner, keys[index])
+            return management_control.snooze_alert(transaction, owner, keys[index], "one_hour")
+
+    event.listen(OperationalAlertState, "before_insert", delay_first_insert)
+    try:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = [pool.submit(mutate, index, operation) for index in range(2) for operation in operations]
+            for future in futures:
+                assert future.result(timeout=20).viewed_at is not None
+        with Session(engine) as verify:
+            rows = verify.scalars(select(OperationalAlertState).where(
+                OperationalAlertState.organization_id.in_(organization_ids),
+            )).all()
+            assert len(rows) == 2
+            for index in range(2):
+                row = next(row for row in rows if row.organization_id == organization_ids[index])
+                assert row.user_id == owner_ids[index] and row.alert_key == keys[index]
+                assert row.viewed_at is not None
+                if "snooze" in operations:
+                    assert datetime.now(UTC) < row.snoozed_until < datetime.now(UTC) + timedelta(hours=2)
+                actor = verify.get(User, owner_ids[index])
+                management_control.view_alert(verify, actor, keys[index])
+                with pytest.raises(management_control.AppError) as error:
+                    management_control.view_alert(verify, actor, keys[1 - index])
+                assert error.value.status == 404
+    finally:
+        event.remove(OperationalAlertState, "before_insert", delay_first_insert)
+        with Session(engine) as cleanup:
+            cleanup.execute(delete(OperationalAlertState).where(OperationalAlertState.organization_id.in_(organization_ids)))
+            cleanup.execute(delete(Group).where(Group.organization_id.in_(organization_ids)))
+            cleanup.execute(delete(User).where(User.organization_id.in_(organization_ids)))
+            cleanup.execute(delete(Organization).where(Organization.id.in_(organization_ids)))
+            cleanup.commit()
