@@ -11,10 +11,10 @@ import styles from "./cabinet.module.css";
 export function TeacherPageFrame({ title, eyebrow, children }: {
   title: string; eyebrow?: string; children: React.ReactNode;
 }) {
-  return <AuthGate route="teacher"><AppShell><div className={styles.stack}>
-    <div className="page-heading">{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1></div>
+  return <AuthGate route="teacher"><div className={styles.teacherShell}><AppShell><div className={styles.stack}>
+    <div className={styles.pageHeading}>{eyebrow && <span className={styles.eyebrow}>{eyebrow}</span>}<h1>{title}</h1></div>
     {children}
-  </div></AppShell></AuthGate>;
+  </div></AppShell></div></AuthGate>;
 }
 
 export function useGroups() {

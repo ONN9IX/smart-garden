@@ -34,7 +34,7 @@ export function AttendancePage() {
   const load = useCallback(async () => {
     const request = ++requestId.current;
     if (!groupId || !day) { setRows([]); setLoading(false); return; }
-    setLoading(true); setError("");
+    setLoading(true); setRows([]); setError("");
     try {
       const result = await teacherApi.attendance(groupId, day);
       if (request === requestId.current) setRows(result);
@@ -45,7 +45,9 @@ export function AttendancePage() {
   }, [day, groupId]);
   useEffect(() => {
     void Promise.resolve().then(load).catch(() => undefined);
-    return () => { requestId.current += 1; contextId.current += 1; };
+    const refresh = () => { void load().catch(() => undefined); };
+    window.addEventListener("focus", refresh);
+    return () => { requestId.current += 1; contextId.current += 1; window.removeEventListener("focus", refresh); };
   }, [load]);
   async function action(row: AttendanceRow, kind: "arrival" | "departure" | "absent") {
     const key = row.child.id;
@@ -70,10 +72,11 @@ export function AttendancePage() {
   }
   return <TeacherPageFrame title="Посещаемость" eyebrow="Ежедневная отметка">
     <div className={styles.toolbar}><GroupPicker groups={groups} groupId={groupId} setGroupId={(id) => { requestId.current += 1; contextId.current += 1; setRows([]); setError(""); setGroupId(id); }} /><label>Дата<input type="date" value={day} onChange={(event) => { userChangedDay.current = true; requestId.current += 1; contextId.current += 1; setRows([]); setError(""); setDay(event.target.value); }} /></label></div>
-    {(error || groupError) && <p className={styles.error}>{error || groupError}</p>}
+    {(error || groupError) && <p className={styles.error} role="alert">{error || groupError}</p>}
+    {error && groupId && day && <button className={styles.buttonSecondary} disabled={loading} onClick={() => void load().catch(() => undefined)}>Повторить загрузку</button>}
     {loading ? <p className={styles.muted}>Загружаем посещаемость…</p> : <section className={styles.card}><ul className={styles.list}>{rows.map((row) => {
       const state = rowState(row); const isBusy = busy.has(row.child.id);
-      return <li className={styles.row} key={row.child.id}><span><strong>{row.child.first_name} {row.child.last_name}</strong><br/><span className={`${styles.statusPill} ${state === "В саду" ? styles.statusPresent : state === "Отсутствует" ? styles.statusAbsent : styles.statusUnknown}`}>{state}</span>{(row.arrival_time || row.departure_time) && <><br/><span className={styles.muted}>{row.arrival_time ? `Пришёл: ${row.arrival_time.slice(0, 5)}` : "Приход не отмечен"}{row.departure_time ? ` · Ушёл: ${row.departure_time.slice(0, 5)}` : ""}</span></>}</span><span className={styles.toolbar}>
+      return <li className={styles.row} key={row.child.id}><span><strong>{row.child.first_name} {row.child.last_name}</strong><br/><span className={`${styles.statusPill} ${state === "В саду" ? styles.statusPresent : state === "Отсутствует" ? styles.statusAbsent : state === "Ушёл" ? styles.statusDeparted : styles.statusUnknown}`}>{state}</span>{(row.arrival_time || row.departure_time) && <><br/><span className={styles.muted}>{row.arrival_time ? `Пришёл: ${row.arrival_time.slice(0, 5)}` : "Приход не отмечен"}{row.departure_time ? ` · Ушёл: ${row.departure_time.slice(0, 5)}` : ""}</span></>}</span><span className={styles.toolbar}>
         {state === "Без отметки" || state === "Отсутствует" || state === "Уточнить приход" ? <button className={styles.button} disabled={day !== today || isBusy} onClick={() => void action(row, "arrival")}>{isBusy ? "Сохранение…" : state === "Уточнить приход" ? "Записать приход" : "Пришёл"}</button> : null}
         {state === "В саду" ? <button className={styles.buttonSecondary} disabled={day !== today || isBusy} onClick={() => void action(row, "departure")}>{isBusy ? "Сохранение…" : "Ушёл"}</button> : null}
         {state !== "Отсутствует" && <button className={styles.buttonSecondary} disabled={isBusy} onClick={() => void action(row, "absent")}>{isBusy ? "Сохранение…" : "Отсутствует"}</button>}
