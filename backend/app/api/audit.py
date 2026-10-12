@@ -12,7 +12,8 @@ from app.core.permissions import require_role
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.audit import AuditEventList, AuditEventResponse
-from app.services import audit
+from app.schemas.audit_journal import JournalCategory, JournalList
+from app.services import audit, audit_journal
 
 router = APIRouter(prefix="/audit", tags=["Аудит"], responses=MANAGEMENT_ERRORS)
 Director = Annotated[User, Depends(require_role("DIRECTOR"))]
@@ -42,6 +43,22 @@ def list_audit_events(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/journal", response_model=JournalList)
+def journal(
+    user: Director, db: Database,
+    category: JournalCategory | None = None,
+    actor_user_id: UUID | None = None,
+    context_id: UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> JournalList:
+    return audit_journal.list_journal(db, user, category=category, actor_user_id=actor_user_id,
+                                      context_id=context_id, date_from=date_from, date_to=date_to,
+                                      limit=limit, offset=offset)
 
 
 @router.get("/{event_id}", response_model=AuditEventResponse)

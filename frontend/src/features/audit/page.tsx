@@ -9,159 +9,64 @@ import { Loading } from "@/components/ui/loading";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { auditApi } from "@/lib/api/audit";
 import { userMessage } from "@/lib/api/client";
-import type { AuditEvent } from "@/types/stage4";
+import type { JournalActor, JournalCategory, JournalItem } from "@/types/stage4";
 
-const entityTypes = [
-  "group", "child", "guardian", "child_guardian", "employee", "user_account", "attendance", "announcement",
-  "teacher_assignment", "group_schedule_item", "communication_message", "child_diary_entry", "poll",
-  "incident", "teacher_task", "notification", "document_notice", "photo_consent", "photo_asset", "organization",
+const categories: [JournalCategory, string][] = [
+  ["access", "Доступы и аккаунты"], ["people", "Люди и связи"], ["groups", "Группы и назначения"],
+  ["operations", "Работа сада"], ["communications", "Связь"], ["documents", "Документы"],
+  ["integrations", "Интеграции"], ["organization", "Настройки организации"],
 ];
-const actions = [
-  "group.create", "group.update", "group.archive", "group.restore",
-  "child.create", "child.update", "child.archive", "child.restore",
-  "guardian.create", "guardian.update", "guardian.archive", "guardian.restore",
-  "child_guardian.create", "child_guardian.update", "child_guardian.archive", "child_guardian.restore",
-  "employee.create", "employee.update", "employee.archive", "employee.restore",
-  "account.create", "account.reset_password", "account.block", "account.unblock",
-  "teacher_account.create", "teacher_account.reset", "teacher_account.block", "teacher_account.unblock",
-  "attendance.create", "attendance.update",
-  "announcement.create", "announcement.update", "announcement.archive",
-  "teacher_assignment.create", "teacher_assignment.archive", "teacher_assignment.restore",
-  "schedule.create", "schedule.update", "schedule.archive",
-  "teacher_message.create", "diary.create", "diary.update",
-  "poll.create", "poll.close", "poll.vote",
-  "incident.create", "incident.update", "incident.resolve",
-  "teacher_task.create", "teacher_task.update", "teacher_task.cancel", "teacher_task.status",
-  "notification.read", "document_notice.issue", "document_notice.ack",
-  "photo_consent.record", "photo_consent.withdraw", "photo.create", "photo.restrict", "photo.remove",
-  "organization.settings_update",
-];
-const detailLabels: Record<string, string> = {
-  changed_fields: "Изменённые поля", status_before: "Статус до", status_after: "Статус после",
-  account_role: "Роль аккаунта", relation_type: "Тип связи", child_id: "ID ребёнка",
-  guardian_id: "ID представителя", before: "До", after: "После",
-  target_type: "Цель", group_id: "ID группы", thread_id: "ID чата",
-  assignee_employee_id: "ID воспитателя", recipient_user_id: "ID получателя",
-  requires_ack: "Требуется подтверждение", category: "Категория", scope: "Область согласия",
-};
-const actorRole: Record<string, string> = { DIRECTOR: "Директор", ADMIN: "Администратор", TEACHER: "Воспитатель", PARENT: "Родитель" };
-const detailValueLabels: Record<string, string> = {
-  active: "Активно", archived: "Архивировано", blocked: "Заблокировано",
-  present: "В саду", absent: "Отсутствует", unknown: "Не отмечено",
-  mother: "Мама", father: "Папа", legal_guardian: "Опекун", other: "Другое",
-  DIRECTOR: "Директор", ADMIN: "Администратор", TEACHER: "Воспитатель", PARENT: "Родитель",
-};
-const entityLabels: Record<string, string> = {
-  group: "Группа", child: "Ребёнок", guardian: "Представитель", child_guardian: "Связь ребёнка и представителя",
-  employee: "Сотрудник", user_account: "Аккаунт", attendance: "Посещаемость", announcement: "Объявление",
-  teacher_assignment: "Назначение воспитателя", group_schedule_item: "Расписание", communication_message: "Сообщение",
-  child_diary_entry: "Запись дневника", poll: "Опрос", incident: "Событие", teacher_task: "Задача воспитателя",
-  notification: "Уведомление", document_notice: "Документ", photo_consent: "Согласие на фото", photo_asset: "Фото",
-  organization: "Организация",
-};
-const actionNouns: Record<string, string> = {
-  create: "Создание", update: "Изменение", archive: "Архивация", restore: "Восстановление",
-  reset_password: "Сброс пароля", reset: "Сброс пароля", block: "Блокировка", unblock: "Разблокировка",
-  status: "Изменение статуса", cancel: "Отмена", close: "Закрытие", vote: "Голосование", read: "Прочтение",
-  issue: "Выдача", ack: "Подтверждение", record: "Фиксация", withdraw: "Отзыв", restrict: "Ограничение",
-  remove: "Удаление", settings_update: "Изменение настроек",
-};
-function actionLabel(value: string) {
-  const [entity, action] = value.split(".");
-  if (value === "teacher_account.create") return "Создание аккаунта воспитателя";
-  if (value === "account.create") return "Создание аккаунта";
-  if (value === "teacher_assignment.create") return "Назначение воспитателя";
-  const noun = actionNouns[action];
-  return noun ? `${noun}: ${entityLabels[entity] ?? entity}` : value;
-}
-
-function detailValue(value: unknown): string {
-  if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "object" && value !== null) {
-    return Object.entries(value).map(([key, item]) => `${key}: ${detailValue(item)}`).join("; ");
-  }
-  if (value === null || value === undefined) return "—";
-  return detailValueLabels[String(value)] ?? String(value);
-}
-
-function AuditDetails({ event }: { event: AuditEvent }) {
-  const entries = Object.entries(event.details);
-  if (entries.length === 0) return <span className="muted">—</span>;
-  return <dl className="audit-details">{entries.map(([key, value]) => <div key={key}>
-    <dt>{detailLabels[key] ?? key}</dt><dd>{detailValue(value)}</dd>
-  </div>)}</dl>;
-}
+const roleLabels = { DIRECTOR: "Директор", ADMIN: "Администратор", TEACHER: "Воспитатель", PARENT: "Родитель" };
 
 export function AuditPage() {
-  return <AuthGate route="director"><AuditContent /></AuthGate>;
+  return <AuthGate route="director"><AppShell><JournalContent /></AppShell></AuthGate>;
 }
 
-function AuditContent() {
-  const [entityType, setEntityType] = useState("");
-  const [action, setAction] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [limit, setLimit] = useState(50);
+function JournalContent() {
+  const [category, setCategory] = useState<JournalCategory | "">("");
+  const [actor, setActor] = useState("");
+  const [from, setFrom] = useState(""); const [to, setTo] = useState("");
   const [offset, setOffset] = useState(0);
-  const [items, setItems] = useState<AuditEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
+  const [items, setItems] = useState<JournalItem[]>([]);
+  const [actors, setActors] = useState<JournalActor[]>([]);
+  const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const limit = 25;
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    if (dateFrom && dateTo && dateFrom > dateTo) {
-      setItems([]);
-      setError("Дата начала не может быть позже даты окончания.");
-      setLoading(false);
-      return;
-    }
     try {
-      const result = await auditApi.list({
-        entity_type: entityType || undefined, action: action || undefined,
-        date_from: dateFrom || undefined, date_to: dateTo || undefined, limit, offset,
-      });
-      setItems(result.items);
-    } catch (reason) { setError(userMessage(reason)); }
+      const result = await auditApi.journal({ category: category || undefined, actor_user_id: actor || undefined,
+        date_from: from || undefined, date_to: to || undefined, limit, offset });
+      setItems(result.items); setActors(result.actors);
+    } catch (reason) { setItems([]); setError(userMessage(reason)); }
     finally { setLoading(false); }
-  }, [action, dateFrom, dateTo, entityType, limit, offset]);
-
+  }, [category, actor, from, to, offset]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
-  const resetPage = () => setOffset(0);
-  const resetFilters = () => { setEntityType(""); setAction(""); setDateFrom(""); setDateTo(""); setLimit(50); setOffset(0); };
 
-  return <AppShell>
-    <div className="page-heading"><span className="eyebrow">Безопасность</span><h1>Журнал аудита</h1>
-      <p>Неизменяемая история критичных действий в вашем детском саду.</p></div>
-    <div className="filter-row">
-      <label>Объект <select className="input" value={entityType} onChange={(event) => { resetPage(); setEntityType(event.target.value); }}>
-        <option value="">Все объекты</option>{entityTypes.map((value) => <option key={value} value={value}>{entityLabels[value] ?? value}</option>)}
+  return <>
+    <div className="page-heading"><span className="eyebrow">История</span><h1>Журнал действий</h1>
+      <p>Действия в вашем детском саду. Имена показаны по текущим записям.</p></div>
+    <div className="journal-filters">
+      <label>Категория<select className="input" value={category} onChange={(event) => { setOffset(0); setCategory(event.target.value as JournalCategory | ""); }}>
+        <option value="">Все</option>{categories.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
       </select></label>
-      <label>Действие <select className="input" value={action} onChange={(event) => { resetPage(); setAction(event.target.value); }}>
-        <option value="">Все действия</option>{actions.map((value) => <option key={value} value={value}>{actionLabel(value)}</option>)}
+      <label>Участник<select className="input" value={actor} onChange={(event) => { setOffset(0); setActor(event.target.value); }}>
+        <option value="">Все</option>{actors.map((item) => <option key={item.id} value={item.id}>{item.display_name} · {roleLabels[item.role]}</option>)}
       </select></label>
-      <label>С даты <Input type="date" value={dateFrom} onChange={(event) => { resetPage(); setDateFrom(event.target.value); }} /></label>
-      <label>По дату <Input type="date" value={dateTo} onChange={(event) => { resetPage(); setDateTo(event.target.value); }} /></label>
-      <label>На странице <select className="input" value={limit} onChange={(event) => { resetPage(); setLimit(Number(event.target.value)); }}>
-        {[25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
-      </select></label>
-      <Button type="button" variant="secondary" onClick={resetFilters}>Сбросить фильтры</Button>
+      <label>С даты<Input type="date" value={from} onChange={(event) => { setOffset(0); setFrom(event.target.value); }} /></label>
+      <label>По дату<Input type="date" value={to} onChange={(event) => { setOffset(0); setTo(event.target.value); }} /></label>
+      <Button variant="secondary" onClick={() => { setCategory(""); setActor(""); setFrom(""); setTo(""); setOffset(0); }}>Сбросить</Button>
     </div>
     {error && <Alert>{error}</Alert>}
-    {loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button>
-      : items.length === 0 ? <p className="empty-state">События не найдены.</p>
-        : <div className="audit-table-wrap"><table className="audit-table">
-          <thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>ID объекта</th><th>Детали</th></tr></thead>
-          <tbody>{items.map((event) => <tr key={event.id}>
-            <td>{new Date(event.created_at).toLocaleString("ru-RU")}</td>
-            <td>{event.actor.username}<br /><span className="muted">{actorRole[event.actor.role]}</span></td>
-            <td>{actionLabel(event.action)}</td><td>{entityLabels[event.entity_type] ?? event.entity_type}</td>
-            <td className="audit-id">{event.entity_id ?? "—"}</td><td><AuditDetails event={event} /></td>
-          </tr>)}</tbody>
-        </table></div>}
-    <div className="audit-pagination" aria-label="Постраничная навигация">
-      <Button variant="secondary" disabled={loading || offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>Назад</Button>
-      <span>Записи {items.length === 0 ? 0 : offset + 1}–{offset + items.length}</span>
-      <Button variant="secondary" disabled={loading || items.length < limit} onClick={() => setOffset(offset + limit)}>Далее</Button>
-    </div>
-  </AppShell>;
+    {loading ? <Loading /> : items.length === 0 ? <p className="empty-state">События не найдены.</p> :
+      <ol className="journal-list">{items.map((item) => <li className="card journal-card" key={item.id}>
+        <div className="journal-meta"><time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString("ru-RU")}</time>
+          <span>{categories.find(([key]) => key === item.category)?.[1]}</span></div>
+        <h2>{item.summary}</h2>
+        <p>{item.actor.display_name} · {roleLabels[item.actor.role]}</p>
+        {item.safe_changes.length > 0 && <ul>{item.safe_changes.map((change) => <li key={change}>{change}</li>)}</ul>}
+      </li>)}</ol>}
+    <div className="audit-pagination"><Button variant="secondary" disabled={loading || offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>Назад</Button>
+      <span>Записи {items.length ? offset + 1 : 0}–{offset + items.length}</span>
+      <Button variant="secondary" disabled={loading || items.length < limit} onClick={() => setOffset(offset + limit)}>Далее</Button></div>
+  </>;
 }

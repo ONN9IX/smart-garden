@@ -1,7 +1,20 @@
 export type AuditActor = {
   id: string;
   username: string;
-  role: "DIRECTOR" | "ADMIN" | "PARENT";
+  role: "DIRECTOR" | "ADMIN" | "TEACHER" | "PARENT";
+
+};
+
+export type JournalCategory = "access" | "people" | "groups" | "operations" | "communications" | "documents" | "integrations" | "organization";
+export type JournalActor = { id: string; display_name: string; role: AuditActor["role"] };
+export type JournalItem = {
+  id: string; created_at: string; category: JournalCategory; actor: JournalActor;
+  summary: string; target: { type: string; display_name: string }; safe_changes: string[];
+};
+export type JournalList = { items: JournalItem[]; actors: JournalActor[]; limit: number; offset: number };
+export type JournalFilters = {
+  category?: JournalCategory; actor_user_id?: string; context_id?: string;
+  date_from?: string; date_to?: string; limit: number; offset: number;
 };
 
 export type AuditEvent = {
