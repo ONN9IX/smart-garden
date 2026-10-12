@@ -6,6 +6,10 @@ import type {
   Incident,
   ManagementMessage,
   ManagementNotification,
+  ManagementControl,
+  OperationalAlert,
+  OrganizationNotificationSettings,
+  SecurityStatus,
   ManagementPoll,
   ManagementSettings,
   ManagementToday,
@@ -29,6 +33,10 @@ type TeacherAccount = NonNullable<TeacherProjection["account"]>;
 
 export const managementApi = {
   today: () => api.get<ManagementToday>("/management/today"),
+  control: () => api.get<ManagementControl>("/management/control"),
+  viewAlert: (alertKey: string) => api.post<OperationalAlert>("/management/control/alerts/view", { alert_key: alertKey }),
+  snoozeAlert: (alertKey: string, duration: "one_hour" | "next_morning") =>
+    api.post<OperationalAlert>("/management/control/alerts/snooze", { alert_key: alertKey, duration }),
 
   teachers: (filters: { status?: string; account_status?: string; group_id?: string; q?: string } = {}) =>
     api.get<TeacherProjectionList>(`/teacher-management/teachers${query(filters)}`),
@@ -134,4 +142,8 @@ export const managementApi = {
   settings: () => api.get<ManagementSettings>("/management/settings"),
   updateSettings: (body: Partial<Pick<ManagementSettings, "name" | "timezone">>) =>
     api.patch<ManagementSettings>("/management/settings", body),
+  notificationSettings: () => api.get<OrganizationNotificationSettings>("/management/notification-settings"),
+  updateNotificationSettings: (body: OrganizationNotificationSettings) =>
+    api.patch<OrganizationNotificationSettings>("/management/notification-settings", body),
+  securityStatus: () => api.get<SecurityStatus>("/management/security-status"),
 };

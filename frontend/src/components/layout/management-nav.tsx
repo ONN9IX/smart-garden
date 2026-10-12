@@ -54,11 +54,11 @@ export function ManagementNav({ role }: { role: Role }) {
           })}
         </div>;
       })}
-      {role === "DIRECTOR" && <div className="nav-group">
+      <div className="nav-group">
         <div className="nav-section-title">Контроль</div>
-        <Link href="/notifications" className={navClass(pathname.startsWith("/notifications"))} aria-current={pathname.startsWith("/notifications") ? "page" : undefined}>Уведомления</Link>
-        <Link href="/audit" className={navClass(pathname.startsWith("/audit"))} aria-current={pathname.startsWith("/audit") ? "page" : undefined}>Журнал действий</Link>
-      </div>}
+        <Link href="/notifications" className={navClass(pathname.startsWith("/notifications"))} aria-current={pathname.startsWith("/notifications") ? "page" : undefined}>Контроль и уведомления</Link>
+        {role === "DIRECTOR" && <Link href="/audit" className={navClass(pathname.startsWith("/audit"))} aria-current={pathname.startsWith("/audit") ? "page" : undefined}>Журнал действий</Link>}
+      </div>
       {role === "DIRECTOR" && <Link href="/settings" className={navClass(pathname.startsWith("/settings"))} aria-current={pathname.startsWith("/settings") ? "page" : undefined}>Настройки</Link>}
     </nav>
     <p className="sidebar-note">{role === "DIRECTOR" ? "Управление детским садом" : "Операционная работа детского сада"}</p>

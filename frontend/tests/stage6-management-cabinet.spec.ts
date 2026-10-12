@@ -109,6 +109,11 @@ async function mockCabinet(page: Page, role: "DIRECTOR" | "ADMIN") {
       id: notificationId, kind: "task_attention", entity_type: "teacher_task", entity_id: taskId,
       read_at: null, created_at: "2026-10-01T09:00:00Z",
     }]});
+    if (path.endsWith("/management/control")) return reply(route, {
+      alerts: [], event_notifications: [{ id: notificationId, title: "Назначена задача", priority: "important",
+        read_at: null, created_at: "2026-10-01T09:00:00Z" }],
+      summary: { new: 0, important: 0, snoozed: 0 },
+    });
     if (path.endsWith("/teacher-management/document-notices")) return reply(route, { items: [{
       id: noticeId, recipient_user_id: teacherUserId, title: "Политика", kind: "policy_update",
       requires_ack: true, issued_by: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
@@ -124,6 +129,15 @@ async function mockCabinet(page: Page, role: "DIRECTOR" | "ADMIN") {
       if (role === "ADMIN") return reply(route, { error: { code: "FORBIDDEN", message: "Доступ запрещён.", field: null } }, 403);
       return reply(route, { id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", name: "Синтетический сад", timezone: "Europe/Moscow" });
     }
+    if (path.endsWith("/management/notification-settings")) return role === "ADMIN"
+      ? reply(route, { error: { code: "FORBIDDEN" } }, 403)
+      : reply(route, { show_informational_notifications: true, attendance_checkpoint_time: null, schedule_missing_alert_enabled: true });
+    if (path.endsWith("/management/security-status")) return role === "ADMIN"
+      ? reply(route, { error: { code: "FORBIDDEN" } }, 403)
+      : reply(route, { blocked_accounts: 0, failed_or_expired_parent_invites: 0 });
+    if (path.endsWith("/audit/journal")) return role === "ADMIN"
+      ? reply(route, { error: { code: "FORBIDDEN" } }, 403)
+      : reply(route, { items: [], actors: [], limit: 25, offset: 0 });
     if (path.endsWith("/audit")) {
       if (role === "ADMIN") return reply(route, { error: { code: "FORBIDDEN", message: "Доступ запрещён.", field: null } }, 403);
       return reply(route, { items: [], limit: 50, offset: 0 });
@@ -144,8 +158,8 @@ test("DIRECTOR can traverse the complete Stage 6 management cabinet", async ({ p
     ["/schedule", "Расписание"],
     ["/tasks", "Задачи воспитателей"],
     ["/communications?group_id=" + groupId, "Сообщения группы"],
-    ["/notifications", "Уведомления"],
-    ["/audit", "Журнал аудита"],
+    ["/notifications", "Требует внимания"],
+    ["/audit", "Журнал действий"],
     ["/settings", "Настройки организации"],
   ];
 
@@ -181,7 +195,7 @@ test("ADMIN gets operations but no privileged teacher-account, assignment, Audit
   await expect(page.getByRole("button", { name: /Заблокировать|Разблокировать/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Назначить" })).toHaveCount(0);
 
-  for (const heading of ["Расписание", "Задачи воспитателей", "Уведомления"]) {
+  for (const heading of ["Расписание", "Задачи воспитателей", "Требует внимания"]) {
     const route = heading === "Расписание" ? "/schedule"
       : heading === "Задачи воспитателей" ? "/tasks"
       : "/notifications";

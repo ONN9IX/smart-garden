@@ -87,6 +87,28 @@ class Settings(BaseSettings):
     public_app_base_url: str | None = None
     activation_ttl_seconds: int = 86400
     reset_ttl_seconds: int = 3600
+    platform_encryption_key: str | None = None
+    platform_credential_handoff_enabled: bool = False
+    platform_session_ttl_seconds: int = 3600
+    platform_step_up_seconds: int = 300
+
+    @field_validator("platform_encryption_key")
+    @classmethod
+    def platform_key(cls, value: str | None) -> str | None:
+        if value:
+            from cryptography.fernet import Fernet
+            try:
+                Fernet(value.encode("ascii"))
+            except (ValueError, UnicodeEncodeError):
+                raise ValueError("PLATFORM_ENCRYPTION_KEY must be a valid external Fernet key") from None
+        return value or None
+
+    @field_validator("platform_session_ttl_seconds", "platform_step_up_seconds")
+    @classmethod
+    def platform_ttl(cls, value: int) -> int:
+        if not 60 <= value <= 3600:
+            raise ValueError("Platform expiry must be between 60 and 3600 seconds")
+        return value
 
     @field_validator("database_url")
     @classmethod
