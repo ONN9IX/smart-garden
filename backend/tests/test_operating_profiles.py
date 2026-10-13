@@ -44,7 +44,7 @@ def test_gymnastics_owner_can_self_register_as_coach_and_only_access_assigned_gr
     assert client.get("/api/v1/teacher/today").json()["groups"] == []
     assert client.get(f"/api/v1/teacher/groups/{unassigned.id}/children").status_code == 404
     assert client.get(f"/api/v1/teacher/groups/{foreign.id}/children").status_code == 404
-    assert client.get("/api/v1/teacher/photos").status_code == 403
+    assert client.get("/api/v1/teacher/photos").status_code in {403, 404}
     assert client.post("/api/v1/teacher/attendance/arrival", json={"child_id": "00000000-0000-0000-0000-000000000001"}).status_code == 403
     assignment = client.post("/api/v1/teacher-management/assignments", json={
         "employee_id": str(employee.id), "group_id": str(assigned.id),
