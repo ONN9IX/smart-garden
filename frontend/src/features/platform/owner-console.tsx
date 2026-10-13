@@ -416,6 +416,7 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
   const busyRef = useRef(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Provisioning | null>(null);
+  const terms = organizationTerms(operatingProfile);
   const key = useRef(crypto.randomUUID());
   const fingerprint = useRef("");
   const [attempted, setAttempted] = useState(false);
@@ -478,7 +479,7 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
       {error && <p role="alert">{error}</p>}
       {result ? (
         <div>
-          <h3>Сад зарегистрирован</h3>
+          <h3>{organizationTerms(result.organization.operating_profile).registrationSuccess}</h3>
           <Link href={`/platform/organizations/${result.organization.id}`}>
             {result.organization.name}
           </Link>
@@ -520,7 +521,7 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
           onSubmit={(event) => void submit(event)}
         >
           <label>
-            Название организации
+            {`Название ${terms.organizationNominative}`}
             <input
               required
               maxLength={200}
@@ -633,7 +634,7 @@ function GardenDetail({
       {error && <p role="alert">{error}</p>}
       <div className="platform-form">
         <label>
-          Введите название организации для подтверждения
+          {`Введите название ${terms.organizationGenitive} для подтверждения`}
           <input
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
@@ -669,7 +670,7 @@ function GardenDetail({
             : `Заблокировать ${terms.organization}`}
         </button>
         <h3>Подписка · Стандартный план</h3>
-        <p>Статус оплаты не блокирует сад автоматически.</p>
+        <p>{`Статус оплаты не блокирует ${terms.organization} автоматически.`}</p>
         <SubscriptionFields value={subscription} change={setSubscription} />
         <button
           className="button"

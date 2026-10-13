@@ -19,6 +19,7 @@ const garden = {
   status: "active",
   created_at: "2026-10-12T00:00:00Z",
   onboarding_status: "password_change_required",
+  operating_profile: "KINDERGARTEN",
   subscription,
 };
 const identity = {

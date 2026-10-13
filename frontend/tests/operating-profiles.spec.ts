@@ -16,7 +16,7 @@ test("gymnastics director sees assigned-coach Today workflow and profile terms",
   await expect(page.getByRole("heading", { name: "Сегодня" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Юные гимнастки" })).toBeVisible();
   await expect(page.getByText("Спортсменов: 3 · присутствуют: 1 · отсутствуют: 1 · без отметки: 1")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Расписание" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Расписание", exact: true }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Сообщения" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Посещаемость" })).toBeVisible();
   await page.goto("/teacher");

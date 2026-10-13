@@ -38,7 +38,7 @@ function teacher() {
     middle_name: null,
     position: "Воспитатель",
     employee_status: "active",
-    account: { user_id: teacherUserId, username: "teacher-synthetic", status: "active", must_change_password: false },
+    account: { user_id: teacherUserId, username: "teacher-synthetic", role: "TEACHER", status: "active", must_change_password: false },
     assignments: [{ id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", group_id: groupId, group_name: "Солнышко", status: "active" }],
     eligible_for_teacher_account: false,
   };
@@ -54,7 +54,7 @@ async function mockCabinet(page: Page, role: "DIRECTOR" | "ADMIN") {
 
     if (path.endsWith("/auth/me")) return reply(route, {
       user: { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", username: role.toLowerCase() + "-synthetic", role, status: "active", must_change_password: false },
-      organization: { id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", name: "Синтетический сад" },
+      organization: { id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", name: "Синтетический сад", operating_profile: "KINDERGARTEN" },
     });
     if (path.endsWith("/dashboard/summary")) return reply(route, {
       date: "2026-10-01", active_children: 1, present: 1, on_site: 0, departed: 1, absent: 0, unknown: 0, needs_arrival: 0,
