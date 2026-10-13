@@ -5,8 +5,9 @@ Revises: 0019
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0020"
 down_revision = "0019"
