@@ -76,6 +76,7 @@ from app.schemas.management_cabinet import (
 )
 from app.services import audit, dashboard
 from app.services.auth import utc_now
+from app.services.tenant_locks import lock_tenant
 
 
 def _group(db: Session, actor: User, group_id: UUID, *, active: bool = False) -> Group:
@@ -394,6 +395,7 @@ def list_schedule(db: Session, actor: User, group_id: UUID | None, status: str) 
 
 
 def create_schedule(db: Session, actor: User, payload: ScheduleCreate) -> ScheduleItemResponse:
+    lock_tenant(db, actor.organization_id)
     _group(db, actor, payload.group_id, active=True)
     if payload.end_time <= payload.start_time:
         raise AppError(400, "VALIDATION_ERROR", "end_time")
@@ -513,9 +515,7 @@ def apply_initial_setup(
 ) -> InitialSetupApplyResponse:
     # Serialize setup batches per tenant so parallel previews/applies cannot
     # race past duplicate employee or schedule conflict validation.
-    db.scalar(select(Organization.id).where(
-        Organization.id == actor.organization_id,
-    ).with_for_update())
+    lock_tenant(db, actor.organization_id)
     digest = _initial_setup_digest(InitialSetupPreviewInput(
         idempotency_key=payload.idempotency_key,
         employees=payload.employees,
@@ -605,6 +605,7 @@ def apply_initial_setup(
 
 
 def update_schedule(db: Session, actor: User, item_id: UUID, payload: SchedulePatch) -> ScheduleItemResponse:
+    lock_tenant(db, actor.organization_id)
     item = _schedule_item(db, actor, item_id, lock=True)
     if item.status != "active":
         raise AppError(409, "VALIDATION_ERROR")

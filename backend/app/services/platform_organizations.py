@@ -9,14 +9,8 @@ from app.core import platform_security as security
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.security import generate_temporary_password, hash_password
-from app.models.attendance import Attendance
+from app.db.base import Base
 from app.models.auth_session import AuthSession
-from app.models.child import Child
-from app.models.communication import CommunicationThread
-from app.models.employee import Employee
-from app.models.group import Group
-from app.models.group_schedule_item import GroupScheduleItem
-from app.models.guardian import Guardian
 from app.models.organization import Organization
 from app.models.platform_provisioning_request import PlatformProvisioningRequest
 from app.models.tenant_subscription import TenantSubscription
@@ -246,14 +240,26 @@ def change_profile(
         return view(db, organization)
 
     # A profile change is allowed only before any tenant roster or activity exists.
-    # This avoids relabeling existing attendance, assignments or communications.
-    domain_models = (
-        Employee, Group, Child, Guardian, Attendance, GroupScheduleItem, CommunicationThread,
-    )
+    # Use the mapped tenant tables so independent records such as broadcast
+    # announcements, polls, notices and incidents cannot bypass this invariant.
+    non_business_tables = {
+        "audit_events",
+        "platform_audit_events",
+        "platform_provisioning_requests",
+        "tenant_subscriptions",
+        "users",  # The initial Director is allowed; other accounts are checked below.
+    }
+    tenant_tables = [
+        table for table in Base.metadata.sorted_tables
+        if "organization_id" in table.c and table.name not in non_business_tables
+    ]
     has_business_data = any(
-        db.scalar(select(model.id).where(model.organization_id == organization.id).limit(1))
-        is not None
-        for model in domain_models
+        db.scalar(
+            select(next(iter(table.primary_key.columns)))
+            .where(table.c.organization_id == organization.id)
+            .limit(1)
+        ) is not None
+        for table in tenant_tables
     )
     has_non_director_accounts = db.scalar(
         select(User.id).where(

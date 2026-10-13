@@ -21,6 +21,7 @@ from app.schemas.employee import (
 )
 from app.services import audit
 from app.services.auth import utc_now
+from app.services.tenant_locks import lock_tenant
 
 
 def get_employee(db: Session, actor: User, employee_id: UUID, *, lock: bool = False) -> Employee:
@@ -79,6 +80,7 @@ def list_employees(
 
 
 def create_employee(db: Session, actor: User, payload: EmployeeCreate) -> EmployeeResponse:
+    lock_tenant(db, actor.organization_id)
     employee = Employee(organization_id=actor.organization_id, **payload.model_dump(), status="active")
     db.add(employee)
     db.flush()
@@ -110,6 +112,7 @@ def create_my_coach_profile(
     db: Session, actor: User, payload: OwnCoachProfileCreate,
 ) -> EmployeeResponse:
     _require_gymnastics_director(db, actor)
+    lock_tenant(db, actor.organization_id)
     db.scalar(select(User.id).where(
         User.id == actor.id,
         User.organization_id == actor.organization_id,
@@ -139,6 +142,7 @@ def create_my_coach_profile(
 
 
 def update_employee(db: Session, actor: User, employee_id: UUID, payload: EmployeePatch) -> EmployeeResponse:
+    lock_tenant(db, actor.organization_id)
     employee = get_employee(db, actor, employee_id)
     data = payload.model_dump(exclude_unset=True)
     new_category = data.get("category")

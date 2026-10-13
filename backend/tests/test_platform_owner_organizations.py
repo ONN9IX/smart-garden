@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.session import engine
+from app.models.announcement import Announcement
 from app.models.auth_session import AuthSession
 from app.models.group import Group
 from app.models.organization import Organization
@@ -195,6 +196,37 @@ def test_profile_provisioning_change_audit_and_data_conflict(client, platform_ow
     }, headers=headers(csrf))
     assert rejected.status_code == 409
     assert rejected.json()["error"]["code"] == "PROFILE_CHANGE_BLOCKED"
+
+
+def test_profile_change_is_blocked_by_broadcast_announcement(client, platform_owner, db):
+    csrf = authenticate(client, platform_owner)
+    provisioned = create(client, csrf, dict(payload(), operating_profile="GYMNASTICS"))
+    tenant_view = provisioned["organization"]
+    tenant = db.get(Organization, UUID(tenant_view["id"]))
+    director = db.scalar(select(User).where(
+        User.organization_id == tenant.id,
+        User.role == "DIRECTOR",
+    ))
+    db.add(Announcement(
+        organization_id=tenant.id,
+        target_type="all",
+        audience="all",
+        title="Синтетическое объявление",
+        body="Только тестовые сведения.",
+        status="active",
+        created_by=director.id,
+        updated_by=director.id,
+    ))
+    db.flush()
+
+    changed = client.patch(
+        ROOT + f"/organizations/{tenant.id}/profile",
+        json={"confirmation_name": tenant.name, "operating_profile": "KINDERGARTEN"},
+        headers=headers(csrf),
+    )
+    assert changed.status_code == 409
+    assert changed.json()["error"]["code"] == "PROFILE_CHANGE_BLOCKED"
+    assert tenant.operating_profile == "GYMNASTICS"
 
 
 def test_block_revokes_only_target_and_unblock_preserves_user(
