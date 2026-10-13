@@ -5,10 +5,6 @@ from typing import Annotated
 from uuid import UUID
 
 import pytest
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy import select
-
 from app.core.errors import AppError, app_error_handler
 from app.core.permissions import require_role, require_tenant
 from app.core.security import verify_password
@@ -16,6 +12,10 @@ from app.db.session import get_db
 from app.models.auth_session import AuthSession
 from app.models.user import User
 from app.services.auth import current_user, utc_now
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+
 from tests.conftest import TEST_PASSWORD
 
 
@@ -36,7 +36,11 @@ def test_login_cookie_and_me_match_frontend(client, users, db):
     assert response.status_code == 200
     assert response.json() == {
         "user": {"id": str(director.id), "username": "director-test", "role": "DIRECTOR", "status": "active", "must_change_password": True},
-        "organization": {"id": str(organization.id), "name": organization.name},
+        "organization": {
+            "id": str(organization.id),
+            "name": organization.name,
+            "operating_profile": "KINDERGARTEN",
+        },
     }
     cookie = response.headers["set-cookie"].lower()
     assert "httponly" in cookie and "samesite=lax" in cookie

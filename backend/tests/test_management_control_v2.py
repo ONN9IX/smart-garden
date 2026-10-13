@@ -8,11 +8,8 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
-from alembic.config import Config
-from sqlalchemy import delete, event, select
-from sqlalchemy.orm import Session
-
 from alembic import command
+from alembic.config import Config
 from app.models.account_access_token import AccountAccessToken
 from app.models.audit_event import AuditEvent
 from app.models.child import Child
@@ -27,6 +24,9 @@ from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.teacher_task import TeacherTask
 from app.models.user import User
 from app.services import audit, management_control
+from sqlalchemy import delete, event, select
+from sqlalchemy.orm import Session
+
 from tests.test_stage6_management_cabinet import _director, _login, _logout
 
 
@@ -271,9 +271,8 @@ def test_control_settings_invites_notifications_timezone_and_role(client, db, us
 
 def test_control_migration_roundtrip(migrations):
     """One reversible E migration; previous 0017 remains intact."""
-    from sqlalchemy import inspect
-
     from app.db.session import engine
+    from sqlalchemy import inspect
 
     config = Config("alembic.ini")
     try:
@@ -282,7 +281,7 @@ def test_control_migration_roundtrip(migrations):
         assert "operational_alert_states" not in tables
         assert "organization_notification_settings" not in tables
     finally:
-        command.upgrade(config, "0018")
+        command.upgrade(config, "head")
     tables = inspect(engine).get_table_names()
     assert "operational_alert_states" in tables and "organization_notification_settings" in tables
 
