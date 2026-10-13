@@ -4,8 +4,9 @@
  * Child screens load tenant-scoped records through the backend.
  * No names, birth dates or contact details are persisted in browser storage or URL query.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { featureEnabled } from "@/config/product-features";
 import { Alert } from "@/components/ui/alert";
@@ -76,14 +77,21 @@ function ChildForm({ initial = emptyFields, groups, busy, submit, cancel }: {
 }
 
 export function ChildrenPage() {
-  return <AuthGate route="dashboard"><ChildrenContent /></AuthGate>;
+  return <AuthGate route="dashboard"><Suspense fallback={<AppShell><Loading /></AppShell>}><ChildrenRoute /></Suspense></AuthGate>;
 }
 
-function ChildrenContent() {
+function ChildrenRoute() {
+  const searchParams = useSearchParams();
+  const requestedGroupId = searchParams.get("group_id") ?? "";
+  return <ChildrenContent key={requestedGroupId} requestedGroupId={requestedGroupId} />;
+}
+
+function ChildrenContent({ requestedGroupId }: { requestedGroupId: string }) {
   const [items, setItems] = useState<ChildSummary[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [status, setStatus] = useState<StatusFilter>("active");
-  const [groupId, setGroupId] = useState("");
+  // Start with the route's group before any children request is made.
+  const [groupId, setGroupId] = useState(requestedGroupId);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -92,8 +100,15 @@ function ChildrenContent() {
     const current = ++request.current;
     setLoading(true); setError(""); setItems([]); setGroups([]);
     try {
-      const [children, groupList] = await Promise.all([childrenApi.list({ status, groupId: groupId || undefined }), groupsApi.list("all")]);
-      if (current === request.current) { setItems(children.items); setGroups(groupList.items); }
+      const groupList = await groupsApi.list("all");
+      if (current !== request.current) return;
+      setGroups(groupList.items);
+      if (groupId && !groupList.items.some((group) => group.id === groupId)) {
+        setError("Группа недоступна. Выберите другую группу.");
+        return;
+      }
+      const children = await childrenApi.list({ status, groupId: groupId || undefined });
+      if (current === request.current) setItems(children.items);
     } catch (reason) { if (current === request.current) { setItems([]); setGroups([]); setError(userMessage(reason)); } }
     finally { if (current === request.current) setLoading(false); }
   }, [status, groupId]);
@@ -185,7 +200,7 @@ function ChildDetail({ id }: { id: string }) {
         {featureEnabled("incidents") && <Link className="button button-secondary" href={`/incidents?group_id=${child.group.id}`}>Происшествия группы</Link>}
       </div></section>}
       <section id="child-guardians" className="profile-section card"><h2>Родители и представители</h2><ChildRelations child={child} refresh={load} /></section>
-      <section id="child-attendance" className="profile-section card"><h2>Посещаемость</h2><Link className="text-link" href={`/attendance?group_id=${encodeURIComponent(child.group.id)}`}>Открыть посещаемость группы</Link></section>
+      <section id="child-attendance" className="profile-section card"><h2>Посещаемость</h2><Link className="text-link" href="/attendance">Открыть посещаемость</Link></section>
       <section id="child-schedule" className="profile-section card"><h2>Расписание</h2><Link className="text-link" href={`/schedule?group_id=${encodeURIComponent(child.group.id)}`}>Открыть расписание группы</Link></section>
       <section id="child-documents" className="profile-section card"><h2>Документы</h2><p className="muted">Раздел документов пока не подключён. Не храните документы или их персональные данные в этом профиле.</p></section>
       <section id="child-history" className="profile-section card"><h2>История</h2><p>Карточка создана {dateLabel(child.created_at.slice(0, 10))}. Текущий статус: {child.status === "active" ? "Активен" : "Архив"}.</p></section>

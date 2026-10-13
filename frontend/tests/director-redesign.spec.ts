@@ -31,7 +31,7 @@ async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 }
 
-test("director screens reflow at desktop, tablet, mobile and 200% zoom", async ({ page }, testInfo) => {
+test("director screens reflow at desktop, tablet, mobile and 720 CSS px", async ({ page }, testInfo) => {
   await mock(page);
   for (const width of [1440, 768, 390, 720]) {
     await page.setViewportSize({ width, height: 900 });
@@ -43,10 +43,79 @@ test("director screens reflow at desktop, tablet, mobile and 200% zoom", async (
         await page.screenshot({ path: testInfo.outputPath(`${route.slice(1)}-${width}.png`), fullPage: true });
       }
       if (width === 720) {
-        await page.screenshot({ path: testInfo.outputPath(`${route.slice(1)}-200-percent.png`), fullPage: true });
+        await page.screenshot({ path: testInfo.outputPath(`${route.slice(1)}-720-css.png`), fullPage: true });
       }
     }
   }
+});
+
+test("group deep link filters the authorized children roster and rejects a foreign group", async ({ page }) => {
+  await mock(page);
+  const otherGroupId = "66666666-6666-4666-8666-666666666666";
+  const foreignGroupId = "77777777-7777-4777-8777-777777777777";
+  const otherGroup = { ...group, id: otherGroupId, name: "Другая синтетическая группа" };
+  const childRequests: string[] = [];
+  await page.route("**/api/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== "GET") return route.fallback();
+    if (url.pathname.endsWith("/groups")) return reply(route, { items: [group, otherGroup] });
+    if (url.pathname.endsWith("/children")) {
+      const selected = url.searchParams.get("group_id") ?? "";
+      childRequests.push(selected);
+      const items = selected === groupId ? [child(childA, "Первый")]
+        : selected === otherGroupId ? [{ ...child(childB, "Второй"), group: otherGroup }] : [];
+      return reply(route, { items });
+    }
+    return route.fallback();
+  });
+
+  await page.goto(`/groups/${groupId}`);
+  const groupChildren = page.getByRole("link", { name: "Открыть список детей группы" });
+  await expect(groupChildren).toHaveAttribute("href", `/children?group_id=${groupId}`);
+  await groupChildren.click();
+  await expect(page.getByLabel("Группа")).toHaveValue(groupId);
+  await expect(page.getByText("Тестовый Первый")).toBeVisible();
+  await expect(page.getByText("Тестовый Второй")).toHaveCount(0);
+  expect(childRequests).toEqual([groupId]);
+
+  await page.getByLabel("Группа").selectOption(otherGroupId);
+  await expect(page.getByText("Тестовый Второй")).toBeVisible();
+  await expect(page.getByText("Тестовый Первый")).toHaveCount(0);
+  expect(childRequests).toEqual([groupId, otherGroupId]);
+
+  await page.reload();
+  await expect(page.getByLabel("Группа")).toHaveValue(groupId);
+  await expect(page.getByText("Тестовый Первый")).toBeVisible();
+  expect(childRequests).toEqual([groupId, otherGroupId, groupId]);
+
+  await page.goto(`/children?group_id=${foreignGroupId}`);
+  await expect(page.getByText("Группа недоступна. Выберите другую группу.")).toBeVisible();
+  await expect(page.getByText("Тестовый Первый")).toHaveCount(0);
+  await expect(page.getByText("Тестовый Второй")).toHaveCount(0);
+  expect(childRequests).toEqual([groupId, otherGroupId, groupId]);
+});
+
+test("a denied filtered roster clears children and can retry the same group", async ({ page }) => {
+  await mock(page);
+  let denied = true;
+  const requestedGroups: string[] = [];
+  await page.route("**/api/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() === "GET" && url.pathname.endsWith("/children")) {
+      requestedGroups.push(url.searchParams.get("group_id") ?? "");
+      if (denied) return reply(route, { error: { code: "FORBIDDEN", message: "Доступ закрыт" } }, 403);
+      return reply(route, { items: [child(childA, "Первый")] });
+    }
+    return route.fallback();
+  });
+  await page.goto(`/children?group_id=${groupId}`);
+  await expect(page.locator(".alert-error")).toBeVisible();
+  await expect(page.getByText("Тестовый Первый")).toHaveCount(0);
+  expect(requestedGroups).toEqual([groupId]);
+  denied = false;
+  await page.getByRole("button", { name: "Повторить" }).click();
+  await expect(page.getByText("Тестовый Первый")).toBeVisible();
+  expect(requestedGroups).toEqual([groupId, groupId]);
 });
 
 test("group and child profiles retain authorized actions and responsive sections", async ({ page }, testInfo) => {
@@ -56,11 +125,14 @@ test("group and child profiles retain authorized actions and responsive sections
     await page.goto(`/groups/${groupId}`);
     await expect(page.getByRole("heading", { name: group.name, exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Архивировать" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Открыть посещаемость", exact: true })).toHaveAttribute("href", "/attendance");
+    await expect(page.getByRole("link", { name: "Открыть объявления", exact: true })).toHaveAttribute("href", "/announcements");
     await noOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`group-profile-${width}.png`), fullPage: true });
     await page.goto(`/children/${childB}`);
     await expect(page.getByRole("heading", { name: "Тестовый Второй" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Изменить данные" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Открыть посещаемость", exact: true })).toHaveAttribute("href", "/attendance");
     await noOverflow(page);
     await page.screenshot({ path: testInfo.outputPath(`child-profile-${width}.png`), fullPage: true });
   }
