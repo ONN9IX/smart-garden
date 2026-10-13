@@ -2,7 +2,10 @@ import { api } from "./client";
 import type { Employee, EmployeeFields, EmployeeSummary, InvitationResult, EmployeeAccount } from "@/types/stage3";
 
 const path = (id: string) => `/employees/${encodeURIComponent(id)}`;
+export type OwnCoachProfile = Omit<Employee, "account"> & { account: (Omit<EmployeeAccount, "role"> & { role: "DIRECTOR" }) | null };
 export const employeesApi = {
+  myCoachProfile: () => api.get<OwnCoachProfile | null>("/employees/me/coach-profile"),
+  createMyCoachProfile: (body: { first_name: string; last_name: string; middle_name?: string | null }) => api.post<OwnCoachProfile>("/employees/me/coach-profile", body),
   list: ({ status = "active", category, q }: { status?: "active" | "archived" | "all"; category?: "teacher" | "administrator" | "other"; q?: string } = {}) => {
     const query = new URLSearchParams({ status });
     if (category) query.set("category", category);

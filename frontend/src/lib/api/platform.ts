@@ -114,6 +114,8 @@ export const platformApi = {
       "PATCH",
       { confirmation_name, subscription },
     ),
+  changeProfile: (id: string, confirmation_name: string, operating_profile: PlatformOrganization["operating_profile"]) =>
+    request<PlatformOrganization>(`/organizations/${encodeURIComponent(id)}/profile`, "PATCH", { confirmation_name, operating_profile }),
   audit: (id?: string) =>
     request<PlatformAudit[]>(
       `/audit${id ? `?organization_id=${encodeURIComponent(id)}` : ""}`,

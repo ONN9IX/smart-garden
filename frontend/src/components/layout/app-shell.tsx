@@ -8,7 +8,7 @@ import { routeEnabled } from "@/config/product-features";
 import { authApi } from "@/lib/api/auth";
 import { userMessage } from "@/lib/api/client";
 import { useAuth } from "@/features/auth/auth-provider";
-import { ROLE_LABELS } from "@/types/auth";
+import { roleLabel } from "@/lib/organization-terminology";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ManagementNav } from "@/components/layout/management-nav";
@@ -21,17 +21,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const disabledRoute = !routeEnabled(pathname);
+  const gymnasticsDirector = current?.user.role === "DIRECTOR" && current.organization.operating_profile === "GYMNASTICS";
+  const disabledRoute = !routeEnabled(pathname) || (gymnasticsDirector && pathname === "/attendance");
 
   useEffect(() => {
     if (!current || current.user.role === "PARENT" || !disabledRoute) return;
-    router.replace(current.user.role === "TEACHER" ? "/teacher" : "/dashboard");
-  }, [current, disabledRoute, router]);
+    router.replace(current.user.role === "TEACHER" ? "/teacher" : gymnasticsDirector && pathname === "/attendance" ? "/teacher/attendance" : "/dashboard");
+  }, [current, disabledRoute, gymnasticsDirector, pathname, router]);
 
   if (!current || current.user.role === "PARENT") return null;
-  const isTeacher = current.user.role === "TEACHER";
+  const coachContext = current.user.role === "TEACHER" || (current.user.role === "DIRECTOR" && current.organization.operating_profile === "GYMNASTICS" && (pathname.startsWith("/teacher") || pathname === "/dashboard"));
+  const isTeacher = coachContext;
   const managementRole = current.user.role === "DIRECTOR" || current.user.role === "ADMIN" ? current.user.role : null;
-  const isManagement = managementRole !== null;
+  const isManagement = managementRole !== null && !coachContext;
   if (disabledRoute) return null;
 
   async function logout() {
@@ -54,7 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {isManagement && <span className="organization-name management-organization">{current.organization.name}</span>}
       <div className="header-actions">
         {!isManagement && <span className="organization-name">{current.organization.name}</span>}
-        <div className="header-user"><strong>{current.user.username}</strong><span>{ROLE_LABELS[current.user.role] ?? "Пользователь"}</span></div>
+        <div className="header-user"><strong>{current.user.username}</strong><span>{roleLabel(current.user.role, current.organization.operating_profile)}</span></div>
         <Button variant="secondary" onClick={() => void logout()} disabled={busy}>{busy ? "Выход..." : "Выйти"}</Button>
       </div>
     </header>
@@ -65,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
       <main className="main-content">{children}</main>
     </div>
-    {managementRole && <ManagementMobileNav role={managementRole} username={current.user.username}
-      roleLabel={ROLE_LABELS[managementRole] ?? "Пользователь"} />}
+    {isManagement && managementRole && <ManagementMobileNav role={managementRole} username={current.user.username}
+      roleLabel={roleLabel(managementRole, current.organization.operating_profile)} />}
   </div>;
 }

@@ -3,7 +3,8 @@
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -15,6 +16,7 @@ from app.models.group import Group
 from app.models.group_schedule_item import GroupScheduleItem
 from app.models.guardian import Guardian
 from app.models.notification import Notification
+from app.models.organization import Organization
 from app.models.teacher_task import TeacherTask
 from app.models.user import User
 from app.schemas.attendance import (
@@ -22,6 +24,7 @@ from app.schemas.attendance import (
     AttendanceDetail,
     AttendancePatch,
     AttendanceRow,
+    GroupDayAttendanceSave,
 )
 from app.schemas.teacher.contracts import (
     AttendanceSummary,
@@ -35,7 +38,7 @@ from app.schemas.teacher.contracts import (
     TaskResponse,
     TodayResponse,
 )
-from app.services import attendance
+from app.services import attendance, audit
 from app.services.attendance_counts import count_group_attendance
 from app.services.teacher import access
 
@@ -124,8 +127,8 @@ def parent_today(db: Session, actor: User, child_id: UUID) -> ParentTodayRespons
         group=GroupSummary(id=group.id, name=group.name),
         attendance=ParentAttendanceSummary(
             status=record.status if record is not None else "unknown",
-            arrival_time=record.arrival_time if record is not None else None,
-            departure_time=record.departure_time if record is not None else None,
+            arrival_time=(record.arrival_time if record is not None and actor.organization.operating_profile != "GYMNASTICS" else None),
+            departure_time=(record.departure_time if record is not None and actor.organization.operating_profile != "GYMNASTICS" else None),
         ),
         schedule=[
             ScheduleItemResponse(
@@ -178,7 +181,10 @@ def list_attendance(db: Session, actor: User, day: date, group_id: UUID) -> list
         Attendance.child_id.in_([child.id for child in active_children]),
     ))) if active_children else []
     by_child = {record.child_id: record for record in records}
-    return [attendance.row(by_child.get(child.id), child, assigned_group, day) for child in active_children]
+    rows = [attendance.row(by_child.get(child.id), child, assigned_group, day) for child in active_children]
+    if actor.organization.operating_profile == "GYMNASTICS":
+        return [row.model_copy(update={"arrival_time": None, "departure_time": None}) for row in rows]
+    return rows
 
 
 def save_attendance(
@@ -187,6 +193,91 @@ def save_attendance(
     child = access.teacher_child(db, actor, payload.child_id)
     access.teacher_group(db, actor, child.group_id)
     return attendance.upsert(db, actor, payload)
+
+
+def save_group_day_attendance(
+    db: Session, actor: User, payload: GroupDayAttendanceSave,
+) -> list[AttendanceDetail]:
+    profile = db.scalar(select(Organization.operating_profile).where(
+        Organization.id == actor.organization_id,
+    ))
+    if profile != "GYMNASTICS":
+        raise AppError(403, "FORBIDDEN")
+    assigned = access.teacher_group(db, actor, payload.group_id)
+    if payload.date > organization_today(actor.organization):
+        raise AppError(400, "INVALID_ATTENDANCE_DATE", "date")
+    group = db.scalar(select(Group).where(
+        Group.id == assigned.id,
+        Group.organization_id == actor.organization_id,
+        Group.status == "active",
+    ).with_for_update())
+    if group is None:
+        raise AppError(404, "NOT_FOUND")
+
+    children = list(db.scalars(select(Child).where(
+        Child.organization_id == actor.organization_id,
+        Child.group_id == group.id,
+        Child.status == "active",
+    ).order_by(Child.id).with_for_update()))
+    requested = {item.child_id: item.status for item in payload.items}
+    if len(requested) != len(payload.items):
+        raise AppError(400, "VALIDATION_ERROR", "items")
+    if not children or set(requested) != {child.id for child in children}:
+        raise AppError(409, "ROSTER_CHANGED")
+
+    saved_ids = []
+    for child in children:
+        status = requested[child.id]
+        existing = db.scalar(select(Attendance).where(
+            Attendance.organization_id == actor.organization_id,
+            Attendance.child_id == child.id,
+            Attendance.date == payload.date,
+        ).with_for_update())
+        if existing is not None and existing.group_id != group.id:
+            # Existing day records keep their original group snapshot after transfer.
+            raise AppError(409, "ATTENDANCE_GROUP_CONFLICT")
+        before = None if existing is None else {
+            "status": existing.status,
+            "arrival_time": existing.arrival_time.isoformat(timespec="minutes") if existing.arrival_time else None,
+            "departure_time": existing.departure_time.isoformat(timespec="minutes") if existing.departure_time else None,
+        }
+        after = {"status": status, "arrival_time": None, "departure_time": None}
+        if before is not None and before == after:
+            saved_ids.append(existing.id)
+            continue
+        statement = insert(Attendance).values(
+            organization_id=actor.organization_id,
+            child_id=child.id,
+            group_id=group.id,
+            date=payload.date,
+            status=status,
+            arrival_time=None,
+            departure_time=None,
+            created_by=actor.id,
+            updated_by=actor.id,
+        ).on_conflict_do_update(
+            constraint="uq_attendance_child_date",
+            set_={
+                "status": status,
+                "arrival_time": None,
+                "departure_time": None,
+                "updated_by": actor.id,
+                "updated_at": func.now(),
+            },
+        ).returning(Attendance.id)
+        record_id = db.scalar(statement)
+        details = {"after": after}
+        if before is not None:
+            details["before"] = before
+            details["changed_fields"] = audit.changed_fields(before, after)
+        audit.write(
+            db, actor, "attendance.create" if existing is None else "attendance.update",
+            "attendance", record_id, details,
+        )
+        saved_ids.append(record_id)
+    db.commit()
+    db.expire_all()
+    return [attendance.get(db, actor, record_id) for record_id in saved_ids]
 
 
 def patch_attendance(
@@ -263,7 +354,10 @@ def today(db: Session, actor: User) -> TodayResponse:
         ) for item in raw_schedule]
         counts_by_group = count_group_attendance(db, actor.organization_id, group_ids, day)
         for item in assigned_groups:
-            attendance_items.append(AttendanceSummary(group_id=item.id, **counts_by_group[item.id].__dict__))
+            counts = counts_by_group[item.id].__dict__.copy()
+            if actor.organization.operating_profile == "GYMNASTICS":
+                counts.update(on_site=0, departed=0, needs_arrival=0)
+            attendance_items.append(AttendanceSummary(group_id=item.id, **counts))
     tasks = db.scalars(select(TeacherTask).where(
         TeacherTask.organization_id == actor.organization_id,
         TeacherTask.assignee_employee_id == employee.id,

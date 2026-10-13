@@ -1,9 +1,12 @@
 """Stage 6 DIRECTOR/ADMIN services over the frozen Foundation schema."""
 
+import hashlib
+import json
 from datetime import UTC, date, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -16,7 +19,9 @@ from app.models.group import Group
 from app.models.group_schedule_item import GroupScheduleItem
 from app.models.guardian import Guardian
 from app.models.incident import Incident
+from app.models.initial_setup_batch import InitialSetupBatch
 from app.models.notification import Notification
+from app.models.organization import Organization
 from app.models.photo import PhotoConsent
 from app.models.poll import Poll, PollOption, PollVote
 from app.models.teacher_group_assignment import TeacherGroupAssignment
@@ -32,6 +37,13 @@ from app.schemas.management_cabinet import (
     IncidentList,
     IncidentPatch,
     IncidentResponse,
+    InitialEmployeeRow,
+    InitialScheduleRow,
+    InitialSetupApplyInput,
+    InitialSetupApplyResponse,
+    InitialSetupPreviewInput,
+    InitialSetupPreviewResponse,
+    InitialSetupRowResult,
     ManagementAttentionItem,
     ManagementMessageCreate,
     ManagementMessageList,
@@ -97,7 +109,17 @@ def _teacher_user(db: Session, actor: User, employee: Employee, *, active: bool 
         User.id == employee.user_id,
         User.organization_id == actor.organization_id,
     ))
-    if user is None or user.role != "TEACHER":
+    if user is None:
+        return None
+    director_coach = (
+        user.role == "DIRECTOR"
+        and employee.category == "teacher"
+        and employee.status == "active"
+        and db.scalar(select(Organization.operating_profile).where(
+            Organization.id == actor.organization_id,
+        )) == "GYMNASTICS"
+    )
+    if user.role != "TEACHER" and not director_coach:
         return None
     if active and user.status != "active":
         raise AppError(409, "EMPLOYEE_ACCOUNT_NOT_FOUND")
@@ -138,6 +160,7 @@ def management_today(db: Session, actor: User) -> ManagementToday:
         .join(Group, Group.id == TeacherGroupAssignment.group_id)
         .join(Employee, Employee.id == TeacherGroupAssignment.employee_id)
         .join(User, User.id == Employee.user_id)
+        .join(Organization, Organization.id == TeacherGroupAssignment.organization_id)
         .where(
             TeacherGroupAssignment.organization_id == actor.organization_id,
             TeacherGroupAssignment.status == "active",
@@ -145,8 +168,12 @@ def management_today(db: Session, actor: User) -> ManagementToday:
             Group.status == "active",
             Employee.organization_id == actor.organization_id,
             Employee.status == "active",
+            Employee.category == "teacher",
             User.organization_id == actor.organization_id,
-            User.role == "TEACHER",
+            or_(
+                User.role == "TEACHER",
+                and_(User.role == "DIRECTOR", Organization.operating_profile == "GYMNASTICS"),
+            ),
             User.status == "active",
         )
     ))
@@ -249,6 +276,7 @@ def _teacher_projection(db: Session, actor: User, employee: Employee) -> Teacher
     account_view = None if account is None else TeacherAccountView(
         user_id=account.id,
         username=account.username,
+        role=account.role,
         status=account.status,
         must_change_password=account.must_change_password,
     )
@@ -295,7 +323,7 @@ def list_teachers(
                 User.id == employee.user_id,
                 User.organization_id == actor.organization_id,
             ))
-            if linked is None or linked.role != "TEACHER":
+            if linked is None or _teacher_user(db, actor, employee) is None:
                 continue
         item = _teacher_projection(db, actor, employee)
         if account_status == "none" and item.account is not None:
@@ -390,6 +418,192 @@ def create_schedule(db: Session, actor: User, payload: ScheduleCreate) -> Schedu
     return _schedule_response(item)
 
 
+def _initial_setup_digest(payload: InitialSetupPreviewInput) -> str:
+    body = json.dumps(
+        payload.model_dump(mode="json"), ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def _employee_import_key(item: InitialEmployeeRow) -> tuple[str, str, str, str, str]:
+    return (
+        item.last_name.casefold(), item.first_name.casefold(),
+        (item.middle_name or "").casefold(), item.position.casefold(), item.category,
+    )
+
+
+def _schedule_overlaps(left_start, left_end, right_start, right_end) -> bool:
+    return left_start < right_end and right_start < left_end
+
+
+def preview_initial_setup(
+    db: Session, actor: User, payload: InitialSetupPreviewInput,
+) -> InitialSetupPreviewResponse:
+    digest = _initial_setup_digest(payload)
+    existing_employees = list(db.scalars(select(Employee).where(
+        Employee.organization_id == actor.organization_id,
+    )))
+    known_employee_keys = {_employee_import_key(item) for item in existing_employees}
+    employee_rows: list[InitialSetupRowResult] = []
+    for index, item in enumerate(payload.employees, start=1):
+        key = _employee_import_key(item)
+        if key in known_employee_keys:
+            employee_rows.append(InitialSetupRowResult(
+                row=index, status="conflict", message="Похожая карточка уже есть или повторена в пакете.",
+            ))
+        else:
+            known_employee_keys.add(key)
+            employee_rows.append(InitialSetupRowResult(
+                row=index, status="ready", message="Будет создана карточка без учётной записи.",
+            ))
+
+    group_ids = {item.group_id for item in payload.schedules}
+    groups = {
+        group.id: group
+        for group in db.scalars(select(Group).where(
+            Group.organization_id == actor.organization_id,
+            Group.status == "active",
+            Group.id.in_(group_ids),
+        ))
+    } if group_ids else {}
+    existing_schedules = list(db.scalars(select(GroupScheduleItem).where(
+        GroupScheduleItem.organization_id == actor.organization_id,
+        GroupScheduleItem.status == "active",
+    )))
+    accepted_schedule_rows: list[InitialScheduleRow] = []
+    schedule_rows: list[InitialSetupRowResult] = []
+    for index, item in enumerate(payload.schedules, start=1):
+        if item.group_id not in groups:
+            schedule_rows.append(InitialSetupRowResult(
+                row=index, status="invalid", message="Выберите активную группу этой организации.",
+            ))
+            continue
+        if item.end_time <= item.start_time:
+            schedule_rows.append(InitialSetupRowResult(
+                row=index, status="invalid", message="Время окончания должно быть позже начала.",
+            ))
+            continue
+        overlap = any(
+            saved.group_id == item.group_id and saved.weekday == item.weekday
+            and _schedule_overlaps(saved.start_time, saved.end_time, item.start_time, item.end_time)
+            for saved in existing_schedules
+        ) or any(
+            accepted.group_id == item.group_id and accepted.weekday == item.weekday
+            and _schedule_overlaps(accepted.start_time, accepted.end_time, item.start_time, item.end_time)
+            for accepted in accepted_schedule_rows
+        )
+        if overlap:
+            schedule_rows.append(InitialSetupRowResult(
+                row=index, status="conflict", message="В это время уже есть занятие или пересекающаяся строка.",
+            ))
+        else:
+            accepted_schedule_rows.append(item)
+            schedule_rows.append(InitialSetupRowResult(
+                row=index, status="ready", message=f"Будет добавлено в группу «{groups[item.group_id].name}».",
+            ))
+    ready = all(item.status == "ready" for item in employee_rows + schedule_rows)
+    return InitialSetupPreviewResponse(
+        request_digest=digest, ready=ready,
+        employee_rows=employee_rows, schedule_rows=schedule_rows,
+    )
+
+
+def apply_initial_setup(
+    db: Session, actor: User, payload: InitialSetupApplyInput,
+) -> InitialSetupApplyResponse:
+    # Serialize setup batches per tenant so parallel previews/applies cannot
+    # race past duplicate employee or schedule conflict validation.
+    db.scalar(select(Organization.id).where(
+        Organization.id == actor.organization_id,
+    ).with_for_update())
+    digest = _initial_setup_digest(InitialSetupPreviewInput(
+        idempotency_key=payload.idempotency_key,
+        employees=payload.employees,
+        schedules=payload.schedules,
+    ))
+    if digest != payload.request_digest:
+        raise AppError(409, "INITIAL_SETUP_PREVIEW_STALE")
+
+    prior = db.scalar(select(InitialSetupBatch).where(
+        InitialSetupBatch.organization_id == actor.organization_id,
+        InitialSetupBatch.idempotency_key == payload.idempotency_key,
+    ).with_for_update())
+    if prior is not None:
+        if prior.request_digest != digest:
+            raise AppError(409, "IDEMPOTENCY_KEY_REUSED")
+        return InitialSetupApplyResponse(
+            batch_id=prior.id, employee_count=prior.employee_count,
+            schedule_count=prior.schedule_count, replayed=True,
+        )
+
+    preview = preview_initial_setup(db, actor, InitialSetupPreviewInput(
+        idempotency_key=payload.idempotency_key,
+        employees=payload.employees,
+        schedules=payload.schedules,
+    ))
+    if not preview.ready:
+        raise AppError(409, "INITIAL_SETUP_CONFLICT")
+
+    batch = InitialSetupBatch(
+        organization_id=actor.organization_id,
+        idempotency_key=payload.idempotency_key,
+        request_digest=digest,
+        employee_count=len(payload.employees),
+        schedule_count=len(payload.schedules),
+        created_by_user_id=actor.id,
+    )
+    db.add(batch)
+    try:
+        for row in payload.employees:
+            employee = Employee(
+                organization_id=actor.organization_id,
+                first_name=row.first_name,
+                last_name=row.last_name,
+                middle_name=row.middle_name,
+                position=row.position,
+                category=row.category,
+                status="active",
+            )
+            db.add(employee)
+            db.flush()
+            audit.write(db, actor, "employee.create", "employee", employee.id)
+        for row in payload.schedules:
+            item = GroupScheduleItem(
+                organization_id=actor.organization_id,
+                group_id=row.group_id,
+                weekday=row.weekday,
+                start_time=row.start_time,
+                end_time=row.end_time,
+                title=row.title,
+                status="active",
+                created_by=actor.id,
+                updated_by=actor.id,
+            )
+            db.add(item)
+            db.flush()
+            audit.write(db, actor, "schedule.create", "group_schedule_item", item.id, {
+                "group_id": str(item.group_id),
+            })
+        db.commit()
+        db.refresh(batch)
+    except IntegrityError:
+        db.rollback()
+        prior = db.scalar(select(InitialSetupBatch).where(
+            InitialSetupBatch.organization_id == actor.organization_id,
+            InitialSetupBatch.idempotency_key == payload.idempotency_key,
+        ))
+        if prior is not None and prior.request_digest == digest:
+            return InitialSetupApplyResponse(
+                batch_id=prior.id, employee_count=prior.employee_count,
+                schedule_count=prior.schedule_count, replayed=True,
+            )
+        raise AppError(409, "INITIAL_SETUP_CONFLICT") from None
+    return InitialSetupApplyResponse(
+        batch_id=batch.id, employee_count=batch.employee_count,
+        schedule_count=batch.schedule_count, replayed=False,
+    )
+
+
 def update_schedule(db: Session, actor: User, item_id: UUID, payload: SchedulePatch) -> ScheduleItemResponse:
     item = _schedule_item(db, actor, item_id, lock=True)
     if item.status != "active":
@@ -459,10 +673,15 @@ def _management_sender(db: Session, actor: User, sender_user_id: UUID) -> tuple[
     ))
     if sender is None:
         raise AppError(404, "NOT_FOUND")
-    if sender.role == "TEACHER":
+    if sender.role in {"TEACHER", "DIRECTOR"}:
         profile = db.scalar(select(Employee).where(
             Employee.user_id == sender.id, Employee.organization_id == actor.organization_id,
+            Employee.status == "active", Employee.category == "teacher",
         ))
+        if sender.role == "DIRECTOR" and db.scalar(select(Organization.operating_profile).where(
+            Organization.id == actor.organization_id,
+        )) != "GYMNASTICS":
+            profile = None
     elif sender.role == "PARENT":
         profile = db.scalar(select(Guardian).where(
             Guardian.user_id == sender.id, Guardian.organization_id == actor.organization_id,
@@ -851,12 +1070,22 @@ def list_tasks(
 
 
 def _notify_task_assignee(db: Session, actor: User, item: TeacherTask) -> None:
-    recipient_id = db.scalar(select(User.id).join(Employee, Employee.user_id == User.id).where(
+    recipient_id = db.scalar(select(User.id).join(Employee, Employee.user_id == User.id).join(
+        Organization, Organization.id == User.organization_id,
+    ).where(
         Employee.id == item.assignee_employee_id,
         Employee.organization_id == actor.organization_id,
         Employee.status == "active",
         User.organization_id == actor.organization_id,
-        User.role == "TEACHER",
+        or_(
+            User.role == "TEACHER",
+            and_(
+                User.role == "DIRECTOR",
+                Organization.operating_profile == "GYMNASTICS",
+            ),
+        ),
+        Employee.category == "teacher",
+        Organization.id == actor.organization_id,
         User.status == "active",
     ))
     if recipient_id is not None:

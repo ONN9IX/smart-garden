@@ -120,7 +120,9 @@ test("employee category only preselects a visibly confirmed access role", async 
   await expect(roleSelect).toHaveValue("TEACHER");
   await expect(roleSelect.locator("option:checked")).toHaveText("Педагог (TEACHER)");
   expect(createCalls).toBe(0);
+  const createResponse = page.waitForResponse((response) => response.url().endsWith("/api/v1/employees/e1/account") && response.request().method() === "POST");
   await page.getByRole("button", { name: "Создать доступ с выбранной ролью" }).click();
+  expect((await createResponse).status()).toBe(201);
   expect(JSON.parse(createBody)).toEqual({ role: "TEACHER" });
 });
 

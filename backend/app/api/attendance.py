@@ -5,11 +5,14 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.error_responses import MANAGEMENT_ERRORS
+from app.core.errors import AppError
 from app.core.permissions import require_role
 from app.db.session import get_db
+from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.attendance import (
     AttendanceCreate,
@@ -20,7 +23,19 @@ from app.schemas.attendance import (
 from app.services import attendance
 
 router = APIRouter(prefix="/attendance", tags=["Посещаемость"], responses=MANAGEMENT_ERRORS)
-Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
+def attendance_manager(
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))],
+) -> User:
+    profile = db.scalar(select(Organization.operating_profile).where(
+        Organization.id == user.organization_id,
+    ))
+    if user.role == "DIRECTOR" and profile == "GYMNASTICS":
+        raise AppError(403, "FORBIDDEN")
+    return user
+
+
+Manager = Annotated[User, Depends(attendance_manager)]
 Database = Annotated[Session, Depends(get_db)]
 
 

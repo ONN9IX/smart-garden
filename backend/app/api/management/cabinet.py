@@ -27,6 +27,10 @@ from app.schemas.management_cabinet import (
     IncidentList,
     IncidentPatch,
     IncidentResponse,
+    InitialSetupApplyInput,
+    InitialSetupApplyResponse,
+    InitialSetupPreviewInput,
+    InitialSetupPreviewResponse,
     ManagementMessageCreate,
     ManagementMessageList,
     ManagementMessageResponse,
@@ -73,6 +77,20 @@ Database = Annotated[Session, Depends(get_db)]
 @router.get("/management/today", response_model=ManagementToday)
 def today(user: Manager, db: Database) -> ManagementToday:
     return management_cabinet.management_today(db, user)
+
+
+@router.post("/management/initial-setup/preview", response_model=InitialSetupPreviewResponse)
+def preview_initial_setup(
+    payload: InitialSetupPreviewInput, user: Manager, db: Database,
+) -> InitialSetupPreviewResponse:
+    return management_cabinet.preview_initial_setup(db, user, payload)
+
+
+@router.post("/management/initial-setup/apply", response_model=InitialSetupApplyResponse)
+def apply_initial_setup(
+    payload: InitialSetupApplyInput, user: Manager, db: Database,
+) -> InitialSetupApplyResponse:
+    return management_cabinet.apply_initial_setup(db, user, payload)
 
 
 @router.get("/management/control", response_model=ManagementControl)

@@ -11,6 +11,8 @@ import { userMessage } from "@/lib/api/client";
 import type { Group } from "@/types/stage2";
 import type { ScheduleItem } from "@/types/management";
 import { ManagerPage, useQueryParam } from "./common";
+import { useAuth } from "@/features/auth/auth-provider";
+import { organizationTerms } from "@/lib/organization-terminology";
 
 const weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
@@ -19,6 +21,8 @@ export function SchedulePage() {
 }
 
 function ScheduleContent() {
+  const { current } = useAuth();
+  const terms = organizationTerms(current?.organization.operating_profile ?? "KINDERGARTEN");
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupId, setGroupId] = useState("");
   const [items, setItems] = useState<ScheduleItem[]>([]);
@@ -99,13 +103,13 @@ function ScheduleContent() {
   }
 
   return <>
-    <div className="page-heading"><span className="eyebrow">Управление</span><h1>Расписание</h1><p>Недельное расписание групп.</p></div>
+    <div className="page-heading"><span className="eyebrow">Управление</span><h1>{terms.schedule}</h1><p>{current?.organization.operating_profile === "GYMNASTICS" ? "Регулярные тренировки по группам." : "Недельное расписание групп."}</p></div>
     <div className="filter-row">
       <label>Группа <select className="input" value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Все группы</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
       <label>Статус <select className="input" value={status} onChange={(event) => setStatus(event.target.value)}><option value="active">Активные</option><option value="archived">Архив</option><option value="all">Все</option></select></label>
     </div>
     {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
-    <form className="card section-card" onSubmit={(event) => void create(event)}><h2>Добавить занятие</h2><div className="form-grid">
+    <form className="card section-card" onSubmit={(event) => void create(event)}><h2>{current?.organization.operating_profile === "GYMNASTICS" ? "Добавить тренировку" : "Добавить занятие"}</h2><div className="form-grid">
       <label>Группа <select required className="input" value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Выберите</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
       <label>День <select className="input" value={weekday} onChange={(event) => setWeekday(Number(event.target.value))}>{weekdayLabels.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
       <label>Начало <Input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label>

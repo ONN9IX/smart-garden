@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.core.permissions import require_teacher_group_access
+from app.core.permissions import require_coach_employee, require_teacher_group_access
 from app.models.child import Child
 from app.models.child_guardian import ChildGuardian
 from app.models.communication import CommunicationThread
@@ -18,14 +18,7 @@ from app.models.user import User
 
 
 def teacher_employee(db: Session, actor: User) -> Employee:
-    employee = db.scalar(select(Employee).where(
-        Employee.user_id == actor.id,
-        Employee.organization_id == actor.organization_id,
-        Employee.status == "active",
-    ))
-    if actor.role != "TEACHER" or employee is None:
-        raise AppError(403, "FORBIDDEN")
-    return employee
+    return require_coach_employee(db, actor)
 
 
 def teacher_group_ids(db: Session, actor: User) -> list[UUID]:

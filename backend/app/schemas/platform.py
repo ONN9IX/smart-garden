@@ -57,6 +57,7 @@ class CreateOrganizationInput(StrictInput):
     idempotency_key: UUID
     name: str = Field(min_length=1, max_length=200)
     timezone: str = Field(max_length=64)
+    operating_profile: Literal["KINDERGARTEN", "GYMNASTICS"] = "KINDERGARTEN"
     director_username: str = Field(min_length=3, max_length=64)
     credential_handoff_confirmed: Literal[True]
     subscription: SubscriptionInput
@@ -84,6 +85,16 @@ class LifecycleInput(StrictInput):
     reason: Literal["owner_request", "security", "administrative"]
 
 
+class ChangeOrganizationProfileInput(StrictInput):
+    confirmation_name: str = Field(min_length=1, max_length=200)
+    operating_profile: Literal["KINDERGARTEN", "GYMNASTICS"]
+
+    @field_validator("confirmation_name", mode="before")
+    @classmethod
+    def confirmation_text(cls, value: str) -> str:
+        return value.strip() if isinstance(value, str) else value
+
+
 class SubscriptionChangeInput(StrictInput):
     confirmation_name: str = Field(min_length=1, max_length=200)
     subscription: SubscriptionInput
@@ -105,6 +116,7 @@ class OrganizationView(BaseModel):
     id: UUID
     name: str
     timezone: str
+    operating_profile: Literal["KINDERGARTEN", "GYMNASTICS"]
     status: str
     created_at: datetime
     onboarding_status: Literal[

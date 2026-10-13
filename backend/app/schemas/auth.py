@@ -32,6 +32,7 @@ class UserResponse(BaseModel):
 class OrganizationResponse(BaseModel):
     id: UUID
     name: str
+    operating_profile: Literal["KINDERGARTEN", "GYMNASTICS"]
 
 
 class AuthResponse(BaseModel):

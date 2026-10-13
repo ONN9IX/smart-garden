@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.platform import (
     AuditView,
+    ChangeOrganizationProfileInput,
     CreateOrganizationInput,
     IdentityView,
     LifecycleInput,
@@ -172,6 +173,16 @@ def unblock(
     return platform_organizations.lifecycle(
         db, identity[1].id, organization_id, payload, block=False
     )
+
+
+@router.patch("/organizations/{organization_id}/profile", response_model=OrganizationView)
+def change_organization_profile(
+    organization_id: UUID,
+    payload: ChangeOrganizationProfileInput,
+    db: Database,
+    identity: FreshOwner,
+):
+    return platform_organizations.change_profile(db, identity[1].id, organization_id, payload)
 
 
 @router.patch(

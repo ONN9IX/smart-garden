@@ -9,12 +9,24 @@ from app.core import platform_security as security
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.security import generate_temporary_password, hash_password
+from app.models.attendance import Attendance
 from app.models.auth_session import AuthSession
+from app.models.child import Child
+from app.models.communication import CommunicationThread
+from app.models.employee import Employee
+from app.models.group import Group
+from app.models.group_schedule_item import GroupScheduleItem
+from app.models.guardian import Guardian
 from app.models.organization import Organization
 from app.models.platform_provisioning_request import PlatformProvisioningRequest
 from app.models.tenant_subscription import TenantSubscription
 from app.models.user import User
-from app.schemas.platform import OrganizationView, ProvisioningView, SubscriptionView
+from app.schemas.platform import (
+    ChangeOrganizationProfileInput,
+    OrganizationView,
+    ProvisioningView,
+    SubscriptionView,
+)
 from app.services import platform_audit
 
 
@@ -45,6 +57,7 @@ def view(db, organization: Organization) -> OrganizationView:
         id=organization.id,
         name=organization.name,
         timezone=organization.timezone,
+        operating_profile=organization.operating_profile,
         status=organization.status,
         created_at=organization.created_at,
         onboarding_status=onboarding,
@@ -139,7 +152,10 @@ def provision(db, operator_id, payload):
     password = generate_temporary_password()
     try:
         organization = Organization(
-            name=payload.name, timezone=payload.timezone, status="active"
+            name=payload.name,
+            timezone=payload.timezone,
+            operating_profile=payload.operating_profile,
+            status="active",
         )
         db.add(organization)
         db.flush()
@@ -218,3 +234,45 @@ def lifecycle(db, operator_id, organization_id, payload, *, block: bool):
     result = view(db, organization)
     db.commit()
     return result
+
+
+def change_profile(
+    db, operator_id, organization_id, payload: ChangeOrganizationProfileInput,
+):
+    organization = get(db, organization_id, locked=True)
+    if payload.confirmation_name != organization.name or organization.status != "active":
+        raise AppError(400, "VALIDATION_ERROR")
+    if organization.operating_profile == payload.operating_profile:
+        return view(db, organization)
+
+    # A profile change is allowed only before any tenant roster or activity exists.
+    # This avoids relabeling existing attendance, assignments or communications.
+    domain_models = (
+        Employee, Group, Child, Guardian, Attendance, GroupScheduleItem, CommunicationThread,
+    )
+    has_business_data = any(
+        db.scalar(select(model.id).where(model.organization_id == organization.id).limit(1))
+        is not None
+        for model in domain_models
+    )
+    has_non_director_accounts = db.scalar(
+        select(User.id).where(
+            User.organization_id == organization.id,
+            User.role != "DIRECTOR",
+        ).limit(1)
+    ) is not None
+    if has_business_data or has_non_director_accounts:
+        raise AppError(409, "PROFILE_CHANGE_BLOCKED")
+
+    before = organization.operating_profile
+    organization.operating_profile = payload.operating_profile
+    platform_audit.write(
+        db,
+        operator_id,
+        "organization.profile_change",
+        organization.id,
+        {"before_profile": before, "after_profile": payload.operating_profile},
+    )
+    db.commit()
+    db.refresh(organization)
+    return view(db, organization)

@@ -13,6 +13,7 @@ export const teacherApi = {
   children: (groupId: string) => api.get<ChildSummary[]>(`/teacher/groups/${groupId}/children`),
   guardians: (groupId: string) => api.get<GuardianContext[]>(`/teacher/groups/${groupId}/guardians`),
   attendance: (groupId: string, date: string) => api.get<AttendanceRow[]>(`/teacher/attendance?group_id=${groupId}&date=${date}`),
+  saveGroupDayAttendance: (body: { group_id: string; date: string; items: { child_id: string; status: "present" | "absent" | "unknown" }[] }) => api.post<{ items: AttendanceRow[] }>("/teacher/attendance/group-day", body),
   saveAttendance: (body: object) => api.post<AttendanceRow>("/teacher/attendance", body),
   markArrival: (childId: string) => api.post<AttendanceRow>("/teacher/attendance/arrival", { child_id: childId }),
   markDeparture: (childId: string) => api.post<AttendanceRow>("/teacher/attendance/departure", { child_id: childId }),

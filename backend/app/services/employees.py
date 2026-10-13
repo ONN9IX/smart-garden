@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.models.auth_session import AuthSession
 from app.models.employee import Employee
+from app.models.organization import Organization
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.user import User
 from app.schemas.employee import (
@@ -16,6 +17,7 @@ from app.schemas.employee import (
     EmployeeListItem,
     EmployeePatch,
     EmployeeResponse,
+    OwnCoachProfileCreate,
 )
 from app.services import audit
 from app.services.auth import utc_now
@@ -78,6 +80,52 @@ def list_employees(
 
 def create_employee(db: Session, actor: User, payload: EmployeeCreate) -> EmployeeResponse:
     employee = Employee(organization_id=actor.organization_id, **payload.model_dump(), status="active")
+    db.add(employee)
+    db.flush()
+    audit.write(db, actor, "employee.create", "employee", employee.id)
+    db.commit()
+    db.refresh(employee)
+    return detail(employee)
+
+
+def _require_gymnastics_director(db: Session, actor: User) -> None:
+    if actor.role != "DIRECTOR" or db.scalar(select(Organization.operating_profile).where(
+        Organization.id == actor.organization_id,
+    )) != "GYMNASTICS":
+        raise AppError(403, "FORBIDDEN")
+
+
+def my_coach_profile(db: Session, actor: User) -> EmployeeResponse | None:
+    _require_gymnastics_director(db, actor)
+    employee = db.scalar(select(Employee).where(
+        Employee.user_id == actor.id,
+        Employee.organization_id == actor.organization_id,
+        Employee.status == "active",
+        Employee.category == "teacher",
+    ))
+    return detail(employee) if employee else None
+
+
+def create_my_coach_profile(
+    db: Session, actor: User, payload: OwnCoachProfileCreate,
+) -> EmployeeResponse:
+    _require_gymnastics_director(db, actor)
+    existing = db.scalar(select(Employee.id).where(
+        Employee.user_id == actor.id,
+        Employee.organization_id == actor.organization_id,
+    ))
+    if existing is not None:
+        raise AppError(409, "EMPLOYEE_PROFILE_EXISTS")
+    employee = Employee(
+        organization_id=actor.organization_id,
+        user_id=actor.id,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        middle_name=payload.middle_name,
+        position="Тренер",
+        category="teacher",
+        status="active",
+    )
     db.add(employee)
     db.flush()
     audit.write(db, actor, "employee.create", "employee", employee.id)

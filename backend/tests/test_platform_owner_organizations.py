@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import engine
 from app.models.auth_session import AuthSession
+from app.models.group import Group
 from app.models.organization import Organization
 from app.models.platform_audit_event import PlatformAuditEvent
 from app.models.platform_operator import PlatformOperator
@@ -162,6 +163,38 @@ def test_handoff_schema_injection_and_fresh_mfa(client, platform_owner, monkeypa
         == 200
     )
     assert create(client, csrf, data)["organization"]["status"] == "active"
+
+
+def test_profile_provisioning_change_audit_and_data_conflict(client, platform_owner, db):
+    csrf = authenticate(client, platform_owner)
+    data = dict(payload(), operating_profile="GYMNASTICS")
+    provisioned = create(client, csrf, data)
+    organization = provisioned["organization"]
+    assert organization["operating_profile"] == "GYMNASTICS"
+    path = ROOT + f"/organizations/{organization['id']}/profile"
+    changed = client.patch(path, json={
+        "confirmation_name": organization["name"],
+        "operating_profile": "KINDERGARTEN",
+    }, headers=headers(csrf))
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["operating_profile"] == "KINDERGARTEN"
+    event = db.scalar(select(PlatformAuditEvent).where(
+        PlatformAuditEvent.action == "organization.profile_change",
+        PlatformAuditEvent.organization_id == organization["id"],
+    ))
+    assert event is not None
+    assert event.details["before_profile"] == "GYMNASTICS"
+    assert event.details["after_profile"] == "KINDERGARTEN"
+
+    tenant = db.get(Organization, organization["id"])
+    db.add(Group(organization_id=tenant.id, name="Синтетическая группа", status="active"))
+    db.flush()
+    rejected = client.patch(path, json={
+        "confirmation_name": tenant.name,
+        "operating_profile": "GYMNASTICS",
+    }, headers=headers(csrf))
+    assert rejected.status_code == 409
+    assert rejected.json()["error"]["code"] == "PROFILE_CHANGE_BLOCKED"
 
 
 def test_block_revokes_only_target_and_unblock_preserves_user(

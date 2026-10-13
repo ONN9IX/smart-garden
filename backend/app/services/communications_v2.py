@@ -25,6 +25,7 @@ from app.models.employee import Employee
 from app.models.group import Group
 from app.models.guardian import Guardian
 from app.models.notification import Notification
+from app.models.organization import Organization
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.user import User
 from app.schemas.communications_v2 import (
@@ -46,6 +47,7 @@ def _active_teacher_assignment(db: Session, actor: User, employee_id: UUID, grou
     employee = db.scalar(
         select(Employee)
         .join(User, User.id == Employee.user_id)
+        .join(Organization, Organization.id == Employee.organization_id)
         .join(TeacherGroupAssignment, TeacherGroupAssignment.employee_id == Employee.id)
         .where(
             Employee.id == employee_id,
@@ -53,7 +55,10 @@ def _active_teacher_assignment(db: Session, actor: User, employee_id: UUID, grou
             Employee.status == "active",
             Employee.category == "teacher",
             User.organization_id == actor.organization_id,
-            User.role == "TEACHER",
+            or_(
+                User.role == "TEACHER",
+                and_(User.role == "DIRECTOR", Organization.operating_profile == "GYMNASTICS"),
+            ),
             User.status == "active",
             TeacherGroupAssignment.organization_id == actor.organization_id,
             TeacherGroupAssignment.group_id == group_id,
@@ -75,12 +80,18 @@ def eligible_teachers(db: Session, actor: User, child_id: UUID) -> list[TeacherO
     rows = db.execute(
         select(Employee, Group)
         .join(User, User.id == Employee.user_id)
+        .join(Organization, Organization.id == Employee.organization_id)
         .join(TeacherGroupAssignment, TeacherGroupAssignment.employee_id == Employee.id)
         .join(Group, Group.id == TeacherGroupAssignment.group_id)
         .where(
             Employee.organization_id == actor.organization_id,
             Employee.status == "active", Employee.category == "teacher",
-            User.organization_id == actor.organization_id, User.role == "TEACHER", User.status == "active",
+            User.organization_id == actor.organization_id,
+            or_(
+                User.role == "TEACHER",
+                and_(User.role == "DIRECTOR", Organization.operating_profile == "GYMNASTICS"),
+            ),
+            User.status == "active",
             TeacherGroupAssignment.organization_id == actor.organization_id,
             TeacherGroupAssignment.group_id == child.group_id, TeacherGroupAssignment.status == "active",
             Group.organization_id == actor.organization_id, Group.status == "active",

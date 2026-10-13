@@ -32,6 +32,8 @@ const query = (values: Record<string, string | undefined>) => {
 type TeacherAccount = NonNullable<TeacherProjection["account"]>;
 
 export const managementApi = {
+  previewInitialSetup: (body: object) => api.post<{ request_digest: string; ready: boolean; employee_rows: { row: number; status: "ready" | "conflict" | "invalid"; message: string }[]; schedule_rows: { row: number; status: "ready" | "conflict" | "invalid"; message: string }[] }>("/management/initial-setup/preview", body),
+  applyInitialSetup: (body: object) => api.post<{ batch_id: string; employee_count: number; schedule_count: number; replayed: boolean }>("/management/initial-setup/apply", body),
   today: () => api.get<ManagementToday>("/management/today"),
   control: () => api.get<ManagementControl>("/management/control"),
   viewAlert: (alertKey: string) => api.post<OperationalAlert>("/management/control/alerts/view", { alert_key: alertKey }),

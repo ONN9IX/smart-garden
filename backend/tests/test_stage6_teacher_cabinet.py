@@ -633,3 +633,46 @@ def test_assignment_employee_group_revocation_and_management_regression(client, 
         assert _login(director_client, world.director.username).status_code == 200
         assert director_client.get("/api/v1/groups").status_code == 200
         assert director_client.get("/api/v1/teacher/groups").status_code == 403
+
+
+def test_gym_owner_coach_context_and_daily_group_attendance(client, db, cabinet_world):
+    world = cabinet_world
+    world.organization.operating_profile = "GYMNASTICS"
+    own_employee = Employee(
+        organization_id=world.organization.id, user_id=world.director.id,
+        first_name="Синтетический", last_name="Владелец-тренер",
+        position="Тренер", category="teacher", status="active",
+    )
+    db.add(own_employee)
+    db.flush()
+    db.add(TeacherGroupAssignment(
+        organization_id=world.organization.id, employee_id=own_employee.id,
+        group_id=world.assigned.id, status="active", assigned_by=world.director.id,
+    ))
+    db.flush()
+    assert _login(client, world.director.username).status_code == 200
+    assert client.get("/api/v1/teacher/today").status_code == 200
+    assert client.get(f"/api/v1/teacher/groups/{world.unassigned.id}/children").status_code == 404
+    today = organization_today(world.organization).isoformat()
+    response = client.post("/api/v1/teacher/attendance/group-day", json={
+        "group_id": str(world.assigned.id), "date": today,
+        "items": [{"child_id": str(world.child.id), "status": "present"},
+                  {"child_id": str(world.no_consent_child.id), "status": "absent"}],
+    })
+    assert response.status_code == 200, response.text
+    assert {row["status"] for row in response.json()["items"]} == {"present", "absent"}
+    replay = client.post("/api/v1/teacher/attendance/group-day", json={
+        "group_id": str(world.assigned.id), "date": today,
+        "items": [{"child_id": str(world.child.id), "status": "present"},
+                  {"child_id": str(world.no_consent_child.id), "status": "absent"}],
+    })
+    assert replay.status_code == 200
+    assert db.scalar(select(func.count(Attendance.id)).where(
+        Attendance.organization_id == world.organization.id, Attendance.date == date.fromisoformat(today)
+    )) == 2
+
+
+def test_director_without_gym_profile_employee_is_not_coach(client, db, cabinet_world):
+    world = cabinet_world
+    assert _login(client, world.director.username).status_code == 200
+    assert client.get("/api/v1/teacher/today").status_code == 403

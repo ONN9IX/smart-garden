@@ -23,6 +23,7 @@ from app.schemas.employee import (
     EmployeeList,
     EmployeePatch,
     EmployeeResponse,
+    OwnCoachProfileCreate,
 )
 from app.services import account_access, employee_accounts, employees
 
@@ -30,6 +31,18 @@ router = APIRouter(prefix="/employees", tags=["Сотрудники"], responses
 Manager = Annotated[User, Depends(require_role("DIRECTOR", "ADMIN"))]
 Director = Annotated[User, Depends(require_role("DIRECTOR"))]
 Database = Annotated[Session, Depends(get_db)]
+
+
+@router.get("/me/coach-profile", response_model=EmployeeResponse | None)
+def my_coach_profile(user: Director, db: Database) -> EmployeeResponse | None:
+    return employees.my_coach_profile(db, user)
+
+
+@router.post("/me/coach-profile", response_model=EmployeeResponse, status_code=201)
+def create_my_coach_profile(
+    payload: OwnCoachProfileCreate, user: Director, db: Database,
+) -> EmployeeResponse:
+    return employees.create_my_coach_profile(db, user, payload)
 
 
 @router.get("", response_model=EmployeeList)
