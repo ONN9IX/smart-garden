@@ -2,7 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pyotp
 import pytest
@@ -180,13 +180,13 @@ def test_profile_provisioning_change_audit_and_data_conflict(client, platform_ow
     assert changed.json()["operating_profile"] == "KINDERGARTEN"
     event = db.scalar(select(PlatformAuditEvent).where(
         PlatformAuditEvent.action == "organization.profile_change",
-        PlatformAuditEvent.organization_id == organization["id"],
+        PlatformAuditEvent.organization_id == UUID(organization["id"]),
     ))
     assert event is not None
     assert event.details["before_profile"] == "GYMNASTICS"
     assert event.details["after_profile"] == "KINDERGARTEN"
 
-    tenant = db.get(Organization, organization["id"])
+    tenant = db.get(Organization, UUID(organization["id"]))
     db.add(Group(organization_id=tenant.id, name="Синтетическая группа", status="active"))
     db.flush()
     rejected = client.patch(path, json={

@@ -110,6 +110,10 @@ def create_my_coach_profile(
     db: Session, actor: User, payload: OwnCoachProfileCreate,
 ) -> EmployeeResponse:
     _require_gymnastics_director(db, actor)
+    db.scalar(select(User.id).where(
+        User.id == actor.id,
+        User.organization_id == actor.organization_id,
+    ).with_for_update())
     existing = db.scalar(select(Employee.id).where(
         Employee.user_id == actor.id,
         Employee.organization_id == actor.organization_id,

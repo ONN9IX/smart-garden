@@ -19,4 +19,6 @@ test("gymnastics director sees assigned-coach Today workflow and profile terms",
   await expect(page.getByRole("link", { name: "Расписание" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Сообщения" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Посещаемость" })).toBeVisible();
+  await page.goto("/teacher");
+  await expect(page.getByRole("heading", { name: "Юные гимнастки" })).toBeVisible();
 });

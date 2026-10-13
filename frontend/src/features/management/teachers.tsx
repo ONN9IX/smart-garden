@@ -9,6 +9,7 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { groupsApi } from "@/lib/api/groups";
 import { managementApi } from "@/lib/api/management";
 import { userMessage } from "@/lib/api/client";
+import { organizationTerms, roleLabel } from "@/lib/organization-terminology";
 import type { Group } from "@/types/stage2";
 import type { TeacherProjection, TemporaryTeacherCredentials } from "@/types/management";
 import { fullName, ManagerPage } from "./common";
@@ -20,6 +21,7 @@ export function TeachersPage() {
 function TeachersContent() {
   const { current } = useAuth();
   const director = current?.user.role === "DIRECTOR";
+  const terms = organizationTerms(current?.organization.operating_profile ?? "KINDERGARTEN");
   const [items, setItems] = useState<TeacherProjection[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [status, setStatus] = useState("active");
@@ -64,7 +66,7 @@ function TeachersContent() {
   const assignable = items.filter((item) => item.account?.status === "active" && item.employee_status === "active");
 
   return <>
-    <div className="page-heading"><span className="eyebrow">Управление</span><h1>Воспитатели</h1><p>Учётные записи воспитателей и назначения на группы.</p></div>
+    <div className="page-heading"><span className="eyebrow">Управление</span><h1>{terms.teacherPlural[0].toLocaleUpperCase("ru") + terms.teacherPlural.slice(1)}</h1><p>Учётные записи {terms.teacherPlural} и назначения на группы.</p></div>
     <div className="filter-row">
       <label>Статус сотрудника <select className="input" value={status} onChange={(event) => setStatus(event.target.value)}><option value="active">Активные</option><option value="archived">Архив</option><option value="all">Все</option></select></label>
       <label>Поиск <Input value={search} onChange={(event) => setSearch(event.target.value)} /></label>
@@ -72,12 +74,12 @@ function TeachersContent() {
     {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
     {credentials && <section className="card section-card"><h2>Приглашение</h2><p>Логин: <strong>{credentials.username}</strong></p><p>{credentials.status === "sent" ? "Ссылка активации отправлена на email." : "Письмо отправить не удалось; доступ сохранён."}</p><Button variant="secondary" onClick={() => setCredentials(null)}>Закрыть</Button></section>}
     {director && <section className="card section-card section-space"><h2>Назначить на группу</h2><div className="form-grid">
-      <label>Воспитатель <select className="input" value={teacherId} onChange={(event) => setTeacherId(event.target.value)}><option value="">Выберите</option>{assignable.map((item) => <option key={item.employee_id} value={item.employee_id}>{fullName(item)}</option>)}</select></label>
+      <label>{terms.teacher} <select className="input" value={teacherId} onChange={(event) => setTeacherId(event.target.value)}><option value="">Выберите</option>{assignable.map((item) => <option key={item.employee_id} value={item.employee_id}>{fullName(item)}</option>)}</select></label>
       <label>Группа <select className="input" value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Выберите</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
     </div><Button disabled={busy || !teacherId || !groupId} onClick={() => void run(() => managementApi.createAssignment(teacherId, groupId), "Назначение создано.")}>Назначить</Button></section>}
     {loading ? <Loading /> : items.length === 0 ? <p className="empty-state">Воспитатели и доступные кандидаты не найдены.</p> : <ul className="record-list">{items.map((item) => <li key={item.employee_id}><div className="card section-card">
       <h2>{fullName(item)}</h2><p className="muted">{item.position} · {item.employee_status === "active" ? "Активен" : "Архив"}</p>
-      <p>{item.account ? "TEACHER: " + item.account.username + " · " + (item.account.status === "active" ? "активен" : "заблокирован") : "Учётная запись воспитателя не выдана"}</p>
+      <p>{item.account ? `${roleLabel(item.account.role, current?.organization.operating_profile ?? "KINDERGARTEN")}: ${item.account.username} · ${item.account.status === "active" ? "активен" : "заблокирован"}` : `Учётная запись ${terms.teacher} не выдана`}</p>
       <div className="action-row">
         {director && item.eligible_for_teacher_account && <Button disabled={busy} onClick={() => void reveal(() => managementApi.createTeacherAccount(item.employee_id), "Доступ воспитателя выдан.")}>Выдать доступ</Button>}
         {director && item.account?.must_change_password && <Button variant="secondary" disabled={busy} onClick={() => void reveal(() => managementApi.resendTeacherInvite(item.employee_id), "Приглашение отправлено снова.")}>Отправить приглашение снова</Button>}

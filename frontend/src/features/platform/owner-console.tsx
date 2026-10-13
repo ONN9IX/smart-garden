@@ -12,6 +12,7 @@ import type {
   Provisioning,
   Subscription,
 } from "@/types/platform";
+import { organizationTerms } from "@/lib/organization-terminology";
 
 type View = "overview" | "organizations" | "new" | "detail";
 const statuses: Record<string, string> = {
@@ -588,6 +589,7 @@ function GardenDetail({
   garden: PlatformOrganization;
   onChanged: () => void;
 }) {
+  const terms = organizationTerms(garden.operating_profile);
   const [confirmation, setConfirmation] = useState("");
   const [profileDraft, setProfileDraft] = useState<PlatformOrganization["operating_profile"]>(garden.operating_profile);
   const [reason, setReason] = useState("owner_request");
@@ -631,7 +633,7 @@ function GardenDetail({
       {error && <p role="alert">{error}</p>}
       <div className="platform-form">
         <label>
-          Введите название сада для подтверждения
+          Введите название организации для подтверждения
           <input
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
@@ -663,8 +665,8 @@ function GardenDetail({
           onClick={() => void action("lifecycle")}
         >
           {garden.status === "blocked"
-            ? "Разблокировать сад"
-            : "Заблокировать сад"}
+          ? `Разблокировать ${terms.organization}`
+            : `Заблокировать ${terms.organization}`}
         </button>
         <h3>Подписка · Стандартный план</h3>
         <p>Статус оплаты не блокирует сад автоматически.</p>

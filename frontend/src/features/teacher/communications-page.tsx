@@ -4,12 +4,14 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, userMessage } from "@/lib/api/client";
 import { useAuth } from "@/features/auth/auth-provider";
 import { communicationAudienceLabels, relationLabels } from "@/lib/presentation";
+import { organizationTerms } from "@/lib/organization-terminology";
 import { teacherApi } from "@/lib/api/teacher";
 import type { ChildSummary, GuardianContext, TeacherMessageV2, ThreadV2 } from "@/types/teacher";
 import { GroupPicker, styles, TeacherPageFrame, useGroups } from "./shared";
 
 export function CommunicationsPage() {
   const { current } = useAuth();
+  const terms = organizationTerms(current?.organization.operating_profile ?? "KINDERGARTEN");
   const { groups, groupId, setGroupId, error: groupError } = useGroups();
   const [threads, setThreads] = useState<ThreadV2[]>([]);
   const [threadId, setThreadId] = useState("");
@@ -192,11 +194,11 @@ export function CommunicationsPage() {
       ? `${message.sender_name} · ${relationLabels[context.relation_type]} · ${context.child_name}`
       : message.sender_name;
   }
-  return <TeacherPageFrame title="Сообщения" eyebrow="Родители и группы">
+  return <TeacherPageFrame title="Сообщения" eyebrow={`${terms.guardians} и группы`}>
     {(error || groupError) && <p className={styles.error}>{error || groupError}</p>}
     <div className={styles.communicationLayout}><section className={styles.card}><h2>Новый диалог</h2><div className={styles.toolbar}>
       <GroupPicker groups={groups} groupId={groupId} setGroupId={selectGroup} />
-      <label>Аудитория<select value={groupAudience} onChange={(event) => setGroupAudience(event.target.value as typeof groupAudience)}><option value="all">Вся группа</option><option value="teachers">Воспитатели</option></select></label>
+      <label>Аудитория<select value={groupAudience} onChange={(event) => setGroupAudience(event.target.value as typeof groupAudience)}><option value="all">Вся группа</option><option value="teachers">{terms.teacherPlural[0].toLocaleUpperCase("ru") + terms.teacherPlural.slice(1)}</option></select></label>
       <button className={styles.buttonSecondary} onClick={() => void openGroupThread()}>Чат группы</button>
       <label>Ребёнок<select value={childId} onChange={(event) => selectChild(event.target.value)}>{children.map((child) => <option key={child.id} value={child.id}>{child.last_name} {child.first_name}</option>)}</select></label>
       <label>Родитель<select value={selectedGuardianId} onChange={(event) => selectGuardian(event.target.value)}>{guardians.filter((item) => item.child_id === childId).map((guardian) => <option key={guardian.id} value={guardian.id}>{guardian.last_name} {guardian.first_name} · {relationLabels[guardian.relation_type]}{guardian.can_message ? "" : " · нет аккаунта"}</option>)}</select></label>
