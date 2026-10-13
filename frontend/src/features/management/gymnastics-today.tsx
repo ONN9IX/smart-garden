@@ -31,7 +31,7 @@ export function GymnasticsToday() {
     catch (e) { setError(userMessage(e, "Не удалось сохранить посещаемость.")); }
     finally { setBusy(false); }
   }
-  return <main className="page-container"><header><p>Рабочий экран тренера</p><h1>Сегодня</h1><p>{today?.date ?? "Загрузка…"}</p></header>
+  return <section className="page-container"><header><p>Рабочий экран тренера</p><h1>Сегодня</h1><p>{today?.date ?? "Загрузка…"}</p></header>
     {error && <Alert>{error}</Alert>}
     {profile === undefined && <p role="status">Проверяем тренерский профиль…</p>}
     {profile === null && <section className="card"><h2>Создайте свой профиль тренера</h2><p>Используйте минимальные данные для своей карточки сотрудника. Аккаунт и роль не меняются.</p><label>Имя<input required maxLength={100} value={firstName} onChange={event => setFirstName(event.target.value)} /></label><label>Фамилия<input required maxLength={100} value={lastName} onChange={event => setLastName(event.target.value)} /></label><Button disabled={busy || !firstName.trim() || !lastName.trim()} onClick={() => void createProfile()}>{busy ? "Сохраняем…" : "Создать профиль тренера"}</Button></section>}
@@ -45,5 +45,5 @@ export function GymnasticsToday() {
       <Link href={`/teacher/attendance?group=${encodeURIComponent(group.id)}`}>Изменить отметки</Link>
     </article>; })}
     {today && today.groups.length === 0 && <p>Нет назначенных активных групп.</p>}
-  </main>;
+  </section>;
 }
