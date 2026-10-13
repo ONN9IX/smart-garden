@@ -8,6 +8,7 @@ import { Loading } from "@/components/ui/loading";
 import { managementApi } from "@/lib/api/management";
 import { userMessage } from "@/lib/api/client";
 import type { ManagementAttentionItem, ManagementToday } from "@/types/management";
+import styles from "./director-redesign.module.css";
 
 function displayDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -60,10 +61,10 @@ export function ManagementTodayPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setToday(null);
     setError("");
     try { setToday(await managementApi.today()); }
-    catch (reason) { setError(userMessage(reason, "Не удалось загрузить данные за сегодня.")); }
+    catch (reason) { setToday(null); setError(userMessage(reason, "Не удалось загрузить данные за сегодня.")); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
@@ -78,7 +79,7 @@ export function ManagementTodayPanel() {
     .map((item) => ({ item, text: attentionText(item, today) }))
     .filter((entry): entry is { item: ManagementAttentionItem; text: string } => Boolean(entry.text));
 
-  return <div className="today-page">
+  return <div className={`today-page ${styles.director}`}>
     <header className="today-heading">
       <div><span className="eyebrow">Оперативная картина</span><h1>Сегодня</h1>
         <p><time dateTime={today.date}>{displayDate(today.date)}</time> · по времени детского сада</p>
@@ -94,6 +95,11 @@ export function ManagementTodayPanel() {
       </Link>)}
     </section>
     <p className="muted">Посещали сегодня: {today.present}</p>
+
+    <nav className={styles.quickLinks} aria-label="Быстрые переходы">
+      <Link href="/children">Дети →</Link><Link href="/communications">Сообщения →</Link>
+      <Link href="/tasks">Задачи →</Link><Link href="/announcements">Объявления →</Link>
+    </nav>
 
     <div className="today-main-grid">
       <section className="today-groups" aria-labelledby="today-groups-heading">
@@ -126,7 +132,7 @@ export function ManagementTodayPanel() {
       <aside className="today-attention" aria-labelledby="today-attention-heading">
         <div className="today-section-heading"><div><span className="eyebrow">Приоритеты</span>
           <h2 id="today-attention-heading">Требует внимания</h2></div><span className="attention-count">{attention.length}</span></div>
-        {attention.length === 0 ? <p className="today-all-clear">Всё отмечено. Срочных действий нет.</p> :
+        {attention.length === 0 ? <p className="today-all-clear">Сейчас нет ситуаций, требующих внимания.</p> :
           <ul className="today-attention-list">{attention.map(({ item, text }, index) => <li key={`${item.kind}:${item.entity_id ?? index}`}>
             <span className="attention-dot" aria-hidden="true" />
             <Link href={attentionHref(item)}>{text}<span aria-hidden="true"> →</span></Link>

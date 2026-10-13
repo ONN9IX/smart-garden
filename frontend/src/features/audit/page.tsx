@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { AuthGate } from "@/features/auth/auth-gate";
 import { auditApi } from "@/lib/api/audit";
 import { userMessage } from "@/lib/api/client";
 import type { JournalActor, JournalCategory, JournalItem } from "@/types/stage4";
+import styles from "@/features/management/director-redesign.module.css";
 
 const categories: [JournalCategory, string][] = [
   ["access", "Доступы и аккаунты"], ["people", "Люди и связи"], ["groups", "Группы и назначения"],
@@ -30,21 +31,23 @@ function JournalContent() {
   const [items, setItems] = useState<JournalItem[]>([]);
   const [actors, setActors] = useState<JournalActor[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const request = useRef(0);
   const limit = 25;
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    const current = ++request.current;
+    setLoading(true); setError(""); setItems([]); setActors([]);
     try {
       const result = await auditApi.journal({ category: category || undefined, actor_user_id: actor || undefined,
         date_from: from || undefined, date_to: to || undefined, limit, offset });
-      setItems(result.items); setActors(result.actors);
-    } catch (reason) { setItems([]); setError(userMessage(reason)); }
-    finally { setLoading(false); }
+      if (current === request.current) { setItems(result.items); setActors(result.actors); }
+    } catch (reason) { if (current === request.current) { setItems([]); setActors([]); setError(userMessage(reason)); } }
+    finally { if (current === request.current) setLoading(false); }
   }, [category, actor, from, to, offset]);
-  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  useEffect(() => { void Promise.resolve().then(load); return () => { request.current += 1; }; }, [load]);
 
-  return <>
+  return <div className={styles.director}>
     <div className="page-heading"><span className="eyebrow">История</span><h1>Журнал действий</h1>
-      <p>Действия в вашем детском саду. Имена показаны по текущим записям.</p></div>
+      <p>Уже совершённые действия. Доступно только директору; имена показаны по текущим записям.</p></div>
     <div className="journal-filters">
       <label>Категория<select className="input" value={category} onChange={(event) => { setOffset(0); setCategory(event.target.value as JournalCategory | ""); }}>
         <option value="">Все</option>{categories.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
@@ -68,5 +71,5 @@ function JournalContent() {
     <div className="audit-pagination"><Button variant="secondary" disabled={loading || offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>Назад</Button>
       <span>Записи {items.length ? offset + 1 : 0}–{offset + items.length}</span>
       <Button variant="secondary" disabled={loading || items.length < limit} onClick={() => setOffset(offset + limit)}>Далее</Button></div>
-  </>;
+  </div>;
 }
