@@ -20,6 +20,7 @@ import { ChildRelations } from "@/features/guardians/relation-controls";
 import { FamilyWizard } from "@/features/children/family-wizard";
 import { ApiError, userMessage } from "@/lib/api/client";
 import type { Child, ChildFields, ChildSummary, Group, StatusFilter } from "@/types/stage2";
+import styles from "@/features/management/director-redesign.module.css";
 
 function fullName(item: { last_name: string; first_name: string; middle_name: string | null }) {
   return [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(" ");
@@ -86,17 +87,19 @@ function ChildrenContent() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const request = useRef(0);
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    const current = ++request.current;
+    setLoading(true); setError(""); setItems([]); setGroups([]);
     try {
       const [children, groupList] = await Promise.all([childrenApi.list({ status, groupId: groupId || undefined }), groupsApi.list("all")]);
-      setItems(children.items); setGroups(groupList.items);
-    } catch (reason) { setError(userMessage(reason)); }
-    finally { setLoading(false); }
+      if (current === request.current) { setItems(children.items); setGroups(groupList.items); }
+    } catch (reason) { if (current === request.current) { setItems([]); setGroups([]); setError(userMessage(reason)); } }
+    finally { if (current === request.current) setLoading(false); }
   }, [status, groupId]);
-  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  useEffect(() => { void Promise.resolve().then(load); return () => { request.current += 1; }; }, [load]);
   const visible = items.filter((child) => fullName(child).toLocaleLowerCase("ru").includes(search.trim().toLocaleLowerCase("ru")));
-  return <AppShell>
+  return <AppShell><div className={styles.director}>
     <div className="page-heading"><span className="eyebrow">Управление</span><h1>Дети</h1><p>Карточки детей вашего детского сада.</p><Link className="button button-primary" href="/children/new">Добавить ребёнка</Link></div>
     <div className="filter-row">
       <label>Статус <select className="input" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}><option value="active">Активные</option><option value="archived">Архив</option><option value="all">Все</option></select></label>
@@ -104,7 +107,7 @@ function ChildrenContent() {
       <label>Поиск по имени <Input value={search} onChange={(event) => setSearch(event.target.value)} /></label>
     </div>
     {error && <Alert>{error}</Alert>}{loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : visible.length === 0 ? <p className="empty-state">Дети не найдены.</p> : <ul className="record-list">{visible.map((child) => <li key={child.id}><Link href={`/children/${child.id}`} className="record-link"><strong>{fullName(child)}</strong><span className="muted">{child.group.name} · {dateLabel(child.birth_date)} · {child.status === "active" ? "Активен" : "Архив"}</span></Link></li>)}</ul>}
-  </AppShell>;
+  </div></AppShell>;
 }
 
 export function NewChildPage() {
@@ -112,11 +115,11 @@ export function NewChildPage() {
 }
 
 function NewChildContent() {
-  return <AppShell><Link className="text-link" href="/children">← К списку детей</Link><div className="page-heading section-space"><span className="eyebrow">Люди и группы</span><h1>Добавить ребёнка и семью</h1><p>Проверьте похожие карточки, добавьте представителей и создайте связанные записи одним действием.</p></div><FamilyWizard /></AppShell>;
+  return <AppShell><div className={styles.director}><Link className="text-link" href="/children">← К списку детей</Link><div className="page-heading section-space"><span className="eyebrow">Люди и группы</span><h1>Добавить ребёнка и семью</h1><p>Проверьте похожие карточки, добавьте представителей и создайте связанные записи одним действием.</p></div><FamilyWizard /></div></AppShell>;
 }
 
 export function ChildDetailPage({ id }: { id: string }) {
-  return <AuthGate route="dashboard"><ChildDetail id={id} /></AuthGate>;
+  return <AuthGate route="dashboard"><ChildDetail key={id} id={id} /></AuthGate>;
 }
 
 function ChildDetail({ id }: { id: string }) {
@@ -127,20 +130,23 @@ function ChildDetail({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const request = useRef(0);
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    const current = ++request.current;
+    setLoading(true); setError(""); setChild(null); setGroups([]); setEditing(false); setMessage("");
     try {
       const [item, groupList] = await Promise.all([childrenApi.get(id), groupsApi.list("all")]);
-      setChild(item); setGroups(groupList.items);
-    } catch (reason) { setError(reason instanceof ApiError && reason.status === 404 ? "Запись не найдена." : userMessage(reason)); }
-    finally { setLoading(false); }
+      if (current === request.current) { setChild(item); setGroups(groupList.items); }
+    } catch (reason) { if (current === request.current) { setChild(null); setGroups([]); setError(reason instanceof ApiError && reason.status === 404 ? "Запись не найдена." : userMessage(reason)); } }
+    finally { if (current === request.current) setLoading(false); }
   }, [id]);
-  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  useEffect(() => { void Promise.resolve().then(load); return () => { request.current += 1; }; }, [load]);
   async function save(fields: ChildFields) {
     if (child && fields.group_id !== child.group.id) { setError("Перевод между группами выполняется отдельным действием."); return; }
     setBusy(true); setError(""); setMessage("");
-    try { setChild(await childrenApi.update(id, fields)); setEditing(false); setMessage("Карточка сохранена."); }
-    catch (reason) { setError(userMessage(reason)); }
+    const current = request.current;
+    try { const updated = await childrenApi.update(id, fields); if (current === request.current) { setChild(updated); setEditing(false); setMessage("Карточка сохранена."); } }
+    catch (reason) { if (current === request.current) { if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) setChild(null); setError(userMessage(reason)); } }
     finally { setBusy(false); }
   }
   async function transfer(groupId: string) {
@@ -149,8 +155,9 @@ function ChildDetail({ id }: { id: string }) {
     const confirmation = `Перевести ребёнка из группы «${child.group.name}» в группу «${destination?.name ?? ""}»? Текущая группа, контекст работы и доступ воспитателей изменятся. Исторические отметки посещаемости сохранят прежнюю группу.`;
     if (!window.confirm(confirmation)) return;
     setBusy(true); setError(""); setMessage("");
-    try { setChild(await childrenApi.transfer(id, groupId)); setMessage("Ребёнок переведён. Исторические отметки посещаемости сохранены."); }
-    catch (reason) { setError(userMessage(reason)); }
+    const current = request.current;
+    try { const updated = await childrenApi.transfer(id, groupId); if (current === request.current) { setChild(updated); setMessage("Ребёнок переведён. Исторические отметки посещаемости сохранены."); } }
+    catch (reason) { if (current === request.current) { if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) setChild(null); setError(userMessage(reason)); } }
     finally { setBusy(false); }
   }
   async function changeStatus() {
@@ -158,13 +165,14 @@ function ChildDetail({ id }: { id: string }) {
     const confirmation = child.status === "active" ? "Архивировать карточку ребёнка?" : "Восстановить карточку ребёнка?";
     if (!window.confirm(confirmation)) return;
     setBusy(true); setError(""); setMessage("");
+    const current = request.current;
     try {
-      setChild(child.status === "active" ? await childrenApi.archive(id) : await childrenApi.restore(id));
-      setMessage(child.status === "active" ? "Карточка архивирована." : "Карточка восстановлена.");
-    } catch (reason) { setError(userMessage(reason)); }
+      const updated = child.status === "active" ? await childrenApi.archive(id) : await childrenApi.restore(id);
+      if (current === request.current) { setChild(updated); setMessage(child.status === "active" ? "Карточка архивирована." : "Карточка восстановлена."); }
+    } catch (reason) { if (current === request.current) { if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) setChild(null); setError(userMessage(reason)); } }
     finally { setBusy(false); }
   }
-  return <AppShell><Link className="text-link" href="/children">← К списку детей</Link>
+  return <AppShell><div className={styles.director}><Link className="text-link" href="/children">← К списку детей</Link>
     {loading ? <div className="section-space"><Loading /></div> : error && !child ? <div className="section-space"><Alert>{error}</Alert><Button variant="secondary" onClick={() => void load()}>Повторить</Button></div> : child && <>
       <div className="page-heading section-space"><span className="eyebrow">Ребёнок · {child.status === "active" ? "Активен" : "Архив"}</span><h1>{fullName(child)}</h1><p>Дата рождения: {dateLabel(child.birth_date)} · Группа: {child.group.name}</p></div>
       {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
@@ -182,5 +190,5 @@ function ChildDetail({ id }: { id: string }) {
       <section id="child-documents" className="profile-section card"><h2>Документы</h2><p className="muted">Раздел документов пока не подключён. Не храните документы или их персональные данные в этом профиле.</p></section>
       <section id="child-history" className="profile-section card"><h2>История</h2><p>Карточка создана {dateLabel(child.created_at.slice(0, 10))}. Текущий статус: {child.status === "active" ? "Активен" : "Архив"}.</p></section>
     </>}
-  </AppShell>;
+  </div></AppShell>;
 }

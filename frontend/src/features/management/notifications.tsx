@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loading } from "@/components/ui/loading";
 import { managementApi } from "@/lib/api/management";
 import { userMessage } from "@/lib/api/client";
 import type { ManagementControl, OperationalAlert } from "@/types/management";
 import { ManagerPage, SectionError } from "./common";
+import styles from "./director-redesign.module.css";
 
 export function NotificationsPage() {
   return <ManagerPage><NotificationsContent /></ManagerPage>;
@@ -19,13 +20,15 @@ function NotificationsContent() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [now, setNow] = useState(0);
+  const request = useRef(0);
   const load = useCallback(async () => {
-    setLoading(true); setError("");
-    try { setData(await managementApi.control()); setNow(Date.now()); }
-    catch (reason) { setData(null); setError(userMessage(reason)); }
-    finally { setLoading(false); }
+    const current = ++request.current;
+    setLoading(true); setError(""); setData(null);
+    try { const result = await managementApi.control(); if (current === request.current) { setData(result); setNow(Date.now()); } }
+    catch (reason) { if (current === request.current) { setData(null); setError(userMessage(reason)); } }
+    finally { if (current === request.current) setLoading(false); }
   }, []);
-  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  useEffect(() => { void Promise.resolve().then(load); return () => { request.current += 1; }; }, [load]);
 
   async function changeAlert(alert: OperationalAlert, operation: "view" | "one_hour" | "next_morning") {
     setBusy(alert.alert_key); setError("");
@@ -45,7 +48,7 @@ function NotificationsContent() {
 
   const active = data?.alerts.filter((alert) => !alert.snoozed_until || new Date(alert.snoozed_until).getTime() <= now) ?? [];
   const snoozed = data?.alerts.filter((alert) => alert.snoozed_until && new Date(alert.snoozed_until).getTime() > now) ?? [];
-  return <>
+  return <div className={styles.director}>
     <div className="page-heading"><span className="eyebrow">Работа сада</span><h1>Контроль</h1>
       <p>Актуальные условия сада и доставленные вам уведомления.</p></div>
     <SectionError error={error} retry={() => void load()} />
@@ -55,7 +58,7 @@ function NotificationsContent() {
         <div className="card"><span>Важные</span><strong>{data.summary.important}</strong></div>
         <div className="card"><span>Отложенные</span><strong>{data.summary.snoozed}</strong></div>
       </div>
-      <section className="card section-card" aria-label="Требует внимания"><h2>Требует внимания</h2>
+      <section className="card section-card" aria-label="Требует внимания"><span className="eyebrow">Оперативные условия</span><h2>Требует внимания</h2>
         {active.length === 0 ? <p className="empty-state">Сейчас нет условий, требующих действия.</p> :
           <ul className="control-list">{active.map((alert) => <li key={alert.alert_key} className="control-item">
             <div><span className="eyebrow">{alert.priority === "important" ? "Важно" : "Информация"} · {alert.viewed_at ? "Просмотрено" : "Новое"}</span>
@@ -69,7 +72,7 @@ function NotificationsContent() {
           <li key={alert.alert_key} className="control-item"><strong>{alert.title}</strong><span>До {new Date(alert.snoozed_until!).toLocaleString("ru-RU")}</span></li>
         )}</ul></div>}
       </section>
-      <section className="card section-card" aria-label="Уведомления"><h2>Уведомления</h2>
+      <section className="card section-card" aria-label="Уведомления"><span className="eyebrow">Доставлено вам</span><h2>Уведомления</h2>
         {data.event_notifications.length === 0 ? <p className="empty-state">Уведомлений нет.</p> :
           <ul className="control-list">{data.event_notifications.map((item) => <li key={item.id} className="control-item">
             <div><strong>{item.title}</strong><p>{new Date(item.created_at).toLocaleString("ru-RU")} · {item.read_at ? "Прочитано" : "Новое"}</p></div>
@@ -77,5 +80,5 @@ function NotificationsContent() {
           </li>)}</ul>}
       </section>
     </>}
-  </>;
+  </div>;
 }

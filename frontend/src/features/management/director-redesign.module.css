@@ -1,0 +1,136 @@
+.director {
+  --director-ink: #171a3b;
+  --director-muted: #4c5572;
+  --director-line: #dbe2ed;
+  --director-canvas: #f5f7fb;
+  --director-lime: #b7f078;
+  color: var(--director-ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.director :global(.page-heading),
+.director :global(.today-heading) {
+  background: linear-gradient(125deg, #171a3b, #20234b);
+  color: #fff;
+  border-radius: 18px;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  margin-bottom: 1.25rem;
+}
+
+.director :global(.page-heading h1),
+.director :global(.today-heading h1) { color: #fff; letter-spacing: -.035em; }
+.director :global(.page-heading p),
+.director :global(.today-heading p),
+.director :global(.page-heading .eyebrow),
+.director :global(.today-heading .eyebrow) { color: #dce3f9; }
+.director :global(.page-heading a.button) { margin-top: .75rem; }
+
+.director :global(.card),
+.director :global(.today-groups),
+.director :global(.today-attention),
+.director :global(.today-task-summary),
+.director :global(.today-group-card),
+.director :global(.today-metric),
+.director :global(.group-overview-card),
+.director :global(.record-link) {
+  border-radius: 16px;
+  border: 1px solid var(--director-line);
+  box-shadow: 0 4px 20px #171a3b08;
+  min-width: 0;
+}
+
+.director :global(.card),
+.director :global(.today-groups),
+.director :global(.today-attention),
+.director :global(.today-group-card),
+.director :global(.group-overview-card) { background: #fff; }
+.director :global(.profile-section),
+.director :global(.section-card) { margin-block: 1rem; padding: clamp(1rem, 2vw, 1.5rem); }
+.director :global(.profile-section h2),
+.director :global(.section-card h2),
+.director :global(.today-section-heading h2) { color: var(--director-ink); }
+.director :global(.muted),
+.director :global(.record-link .muted) { color: var(--director-muted); }
+.director :global(.record-link),
+.director :global(.group-overview-card) { padding: 1rem 1.2rem; gap: .45rem; }
+.director :global(.record-list) { gap: .65rem; }
+.director :global(.filter-row),
+.director :global(.journal-filters) {
+  background: #fff;
+  border: 1px solid var(--director-line);
+  border-radius: 16px;
+  padding: 1rem;
+  gap: .8rem;
+  margin-block: 1rem;
+}
+.director :global(.filter-row label),
+.director :global(.journal-filters label) { min-width: min(100%, 11rem); }
+.director :global(.profile-section-links) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  padding: .7rem 0;
+}
+.director :global(.profile-section-links a) {
+  background: #e9edf6;
+  color: var(--director-ink);
+  border-radius: 999px;
+  padding: .6rem .85rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.director :global(.profile-section-links a:hover),
+.director :global(.profile-section-links a:focus-visible) { background: var(--director-lime); }
+.director :global(.metric-grid) { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.director :global(.action-row) { flex-wrap: wrap; }
+.director :global(.action-row button),
+.director :global(.action-row select),
+.director :global(.control-actions button),
+.director :global(.control-actions a),
+.director :global(.audit-pagination button) { min-height: 44px; }
+.director :global(.control-item),
+.director :global(.journal-card) { overflow-wrap: anywhere; }
+.director :global(.control-actions) { display: flex; flex-wrap: wrap; gap: .55rem; }
+.director :global(.journal-meta),
+.director :global(.audit-pagination) { display: flex; flex-wrap: wrap; gap: .65rem; }
+.director :global(.today-metrics) { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
+.director :global(.today-metric) { min-height: 126px; }
+.director :global(.today-metric strong) { color: var(--director-ink); }
+.director :global(.today-group-counts) { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+.director :global(.today-main-grid) { align-items: start; }
+.director a:focus-visible,
+.director button:focus-visible,
+.director input:focus-visible,
+.director select:focus-visible { outline: 3px solid #415db2; outline-offset: 3px; }
+
+.quickLinks { display: flex; flex-wrap: wrap; gap: .65rem; margin: 1rem 0; }
+.quickLinks a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: .6rem .9rem;
+  background: #e9edf6;
+  border-radius: 999px;
+  color: #171a3b;
+  font-weight: 650;
+}
+.quickLinks a:hover, .quickLinks a:focus-visible { background: #b7f078; }
+
+@media (max-width: 768px) {
+  .director :global(.today-main-grid) { grid-template-columns: minmax(0, 1fr); }
+  .director :global(.control-summary) { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .director :global(.journal-filters) { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+}
+@media (max-width: 480px) {
+  .director :global(.today-metrics) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .director :global(.today-metric) { padding: .8rem; min-height: 115px; }
+  .director :global(.today-group-counts) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .director :global(.filter-row),
+  .director :global(.journal-filters) { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .director :global(.control-summary) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .director *, .director *::before, .director *::after { scroll-behavior: auto; transition-duration: .01ms; animation-duration: .01ms; }
+}
