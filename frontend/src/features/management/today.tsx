@@ -42,7 +42,6 @@ function attentionHref(item: ManagementAttentionItem) {
   if (item.kind === "tasks_overdue") return "/tasks";
   if (item.kind === "notifications_unread") return "/notifications";
   if (item.kind === "parent_invite_failed_or_expired") return "/access-accounts";
-  if (item.kind === "attendance_missing" && item.entity_id) return `/attendance?group_id=${encodeURIComponent(item.entity_id)}`;
   return "/attendance";
 }
 

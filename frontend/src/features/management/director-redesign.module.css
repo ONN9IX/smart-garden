@@ -104,6 +104,10 @@
 .director button:focus-visible,
 .director input:focus-visible,
 .director select:focus-visible { outline: 3px solid #415db2; outline-offset: 3px; }
+.director :global(.page-heading) a:focus-visible,
+.director :global(.page-heading) button:focus-visible,
+.director :global(.today-heading) a:focus-visible,
+.director :global(.today-heading) button:focus-visible { outline-color: #b7f078; }
 
 .quickLinks { display: flex; flex-wrap: wrap; gap: .65rem; margin: 1rem 0; }
 .quickLinks a {

@@ -67,9 +67,13 @@ test("DIRECTOR gets the v2 navigation and a single-read exception-first Today", 
   await expect(page.getByRole("heading", { name: "Группы сегодня" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Солнышко", exact: true })).toHaveAttribute("href", `/groups/${ids.group}`);
   await expect(page.getByText("Ромашка: нет активного воспитателя")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Солнышко: без отметки/ })).toHaveAttribute("href", "/attendance");
   await expect(page.getByText("Ромашка: нет недельного расписания")).toBeVisible();
   await expect(page.getByText("Просрочено задач: 1")).toBeVisible();
   await expect(page.getByText(new RegExp(ids.group))).toHaveCount(0);
+  const attendanceAction = page.locator(".today-primary-action");
+  await attendanceAction.focus();
+  expect(await attendanceAction.evaluate((element) => getComputedStyle(element).outlineColor)).toBe("rgb(183, 240, 120)");
   expect(todayRequests).toHaveLength(1);
 
   await page.setViewportSize({ width: 390, height: 844 });
