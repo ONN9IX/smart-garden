@@ -521,7 +521,7 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
           onSubmit={(event) => void submit(event)}
         >
           <label>
-            {`Название ${terms.organizationNominative}`}
+            {`Название ${terms.organizationGenitive}`}
             <input
               required
               maxLength={200}
