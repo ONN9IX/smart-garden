@@ -5,6 +5,10 @@ from typing import Annotated
 from uuid import UUID
 
 import pytest
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+
 from app.core.errors import AppError, app_error_handler
 from app.core.permissions import require_role, require_tenant
 from app.core.security import verify_password
@@ -12,10 +16,6 @@ from app.db.session import get_db
 from app.models.auth_session import AuthSession
 from app.models.user import User
 from app.services.auth import current_user, utc_now
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy import select
-
 from tests.conftest import TEST_PASSWORD
 
 
