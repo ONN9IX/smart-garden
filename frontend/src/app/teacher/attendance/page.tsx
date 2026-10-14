@@ -1,2 +1,5 @@
 import { AttendancePage } from "@/features/teacher/attendance-page";
-export default function Page() { return <AttendancePage />; }
+export default async function Page({ searchParams }: { searchParams: Promise<{ group?: string }> }) {
+  const { group } = await searchParams;
+  return <AttendancePage initialGroupId={group} />;
+}

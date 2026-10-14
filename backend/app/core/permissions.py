@@ -80,6 +80,7 @@ def require_coach_context(
             ("GET", "/teacher/groups/{group_id}/guardians"),
             ("GET", "/teacher/groups/{group_id}/communication-thread"),
             ("GET", "/teacher/attendance"),
+            ("POST", "/teacher/attendance"),
             ("POST", "/teacher/attendance/group-day"),
             ("GET", "/teacher/schedule"),
             ("GET", "/teacher/communications/threads"),

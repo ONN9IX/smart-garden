@@ -654,6 +654,14 @@ def test_gym_owner_coach_context_and_daily_group_attendance(client, db, cabinet_
     assert client.get("/api/v1/teacher/today").status_code == 200
     assert client.get(f"/api/v1/teacher/groups/{world.unassigned.id}/children").status_code == 404
     today = organization_today(world.organization).isoformat()
+    single = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.child.id), "date": today, "status": "present",
+    })
+    assert single.status_code == 201, single.text
+    hidden = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.other_child.id), "date": today, "status": "present",
+    })
+    assert hidden.status_code == 404
     response = client.post("/api/v1/teacher/attendance/group-day", json={
         "group_id": str(world.assigned.id), "date": today,
         "items": [{"child_id": str(world.child.id), "status": "present"},
