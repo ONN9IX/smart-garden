@@ -84,7 +84,7 @@ test("gymnastics Today releases busy and retries after roster load failure", asy
   await page.goto("/dashboard");
   const button = page.getByRole("button", { name: "Отметить всех присутствующими" });
   await button.click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByText("Запись не найдена.", { exact: true })).toBeVisible();
   await expect(button).toBeEnabled();
   await expect.poll(() => saves).toBe(0);
   await button.click();
