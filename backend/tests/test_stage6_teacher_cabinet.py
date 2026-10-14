@@ -658,6 +658,32 @@ def test_gym_owner_coach_context_and_daily_group_attendance(client, db, cabinet_
         "child_id": str(world.child.id), "date": today, "status": "present",
     })
     assert single.status_code == 201, single.text
+    status_only = db.scalar(select(Attendance).where(
+        Attendance.organization_id == world.organization.id,
+        Attendance.child_id == world.child.id,
+        Attendance.date == date.fromisoformat(today),
+    ))
+    assert status_only is not None
+    assert status_only.status == "present"
+    assert status_only.arrival_time is None
+    assert status_only.departure_time is None
+    rejected_day = date.fromisoformat(today) - timedelta(days=2)
+    for time_payload in (
+        {"arrival_time": "10:00:00"},
+        {"arrival_time": "10:00:00", "departure_time": "11:00:00"},
+        {"arrival_time": None},
+    ):
+        rejected = client.post("/api/v1/teacher/attendance", json={
+            "child_id": str(world.child.id), "date": rejected_day.isoformat(),
+            "status": "present", **time_payload,
+        })
+        assert rejected.status_code == 400
+        assert rejected.json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
+        assert db.scalar(select(func.count(Attendance.id)).where(
+            Attendance.organization_id == world.organization.id,
+            Attendance.child_id == world.child.id,
+            Attendance.date == rejected_day,
+        )) == 0
     hidden = client.post("/api/v1/teacher/attendance", json={
         "child_id": str(world.other_child.id), "date": today, "status": "present",
     })
