@@ -15,7 +15,7 @@ import { employeesApi } from "@/lib/api/employees";
 import { managementPeopleApi } from "@/lib/api/management-people";
 import { userMessage } from "@/lib/api/client";
 import { fullName } from "@/lib/people-names";
-import { roleLabel } from "@/lib/organization-terminology";
+import { organizationTerms, roleLabel } from "@/lib/organization-terminology";
 import type { DuplicateMatch } from "@/types/people";
 import type { Employee, EmployeeCategory, EmployeeFields, EmployeeSummary, InvitationResult } from "@/types/stage3";
 
@@ -33,6 +33,12 @@ const TABS: Array<{ label: string; category?: EmployeeCategory; status: "active"
 const empty: EmployeeFields = {
   first_name: "", last_name: "", middle_name: null, position: "", category: "other", phone: null, email: null,
 };
+
+function employeeAccessLabel(role: NonNullable<EmployeeSummary["account"]>["role"], profile: "KINDERGARTEN" | "GYMNASTICS") {
+  if (role === "DIRECTOR") return roleLabel(role, profile);
+  if (role === "ADMIN") return "Доступ администратора";
+  return `Доступ ${organizationTerms(profile).teacher.toLocaleLowerCase("ru-RU")}`;
+}
 
 function EmployeeForm({ initial = empty, busy, submit, cancel, categoryDisabled = false }: {
   initial?: EmployeeFields;
@@ -98,7 +104,7 @@ function EmployeesContent() {
     <div className="people-tabs" role="tablist" aria-label="Категории сотрудников">{TABS.map((item, index) => <button key={item.label} role="tab" aria-selected={tab === index} className={tab === index ? "people-tab people-tab-active" : "people-tab"} onClick={() => setTab(index)}>{item.label}</button>)}</div>
     <div className="filter-row"><label>Поиск по ФИО, должности или контактам<Input value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
     {error && <Alert>{error}</Alert>}{loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : items.length === 0 ? <p className="empty-state">{search ? "Сотрудники не найдены. Измените поиск." : tab === 3 ? "В архиве пока нет сотрудников." : "В этой категории пока нет сотрудников. Добавьте первую карточку."}</p> :
-      <ul className="record-list">{items.map((item) => <li key={item.id}><Link className="record-link" href={`/employees/${item.id}`}><strong>{fullName(item)}</strong><span className="muted">{item.position} · {CATEGORY_LABELS[item.category]} · {item.account ? `${roleLabel(item.account.role, current?.organization.operating_profile ?? "KINDERGARTEN")}: ${item.account.status === "active" ? "активен" : "заблокирован"}` : "Без аккаунта"}</span><span className="muted">{[item.phone, item.email].filter(Boolean).join(" · ") || "Контакты не указаны"}</span></Link></li>)}</ul>}
+      <ul className="record-list">{items.map((item) => <li key={item.id}><Link className="record-link" href={`/employees/${item.id}`}><strong>{fullName(item)}</strong><span className="muted">{item.position} · {CATEGORY_LABELS[item.category]} · {item.account ? `${employeeAccessLabel(item.account.role, current?.organization.operating_profile ?? "KINDERGARTEN")}: ${item.account.status === "active" ? "активен" : "заблокирован"}` : "Без аккаунта"}</span><span className="muted">{[item.phone, item.email].filter(Boolean).join(" · ") || "Контакты не указаны"}</span></Link></li>)}</ul>}
   </AppShell>;
 }
 
