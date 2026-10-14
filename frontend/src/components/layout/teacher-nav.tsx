@@ -10,14 +10,14 @@ export function TeacherNav() {
   const { current } = useAuth();
   const terms = organizationTerms(current?.organization.operating_profile ?? "KINDERGARTEN");
   const pathname = usePathname();
+  const ownerCoach = current?.user.role === "DIRECTOR" && current.organization.operating_profile === "GYMNASTICS";
   const items = [
     ["/teacher", "Сегодня"],
     ["/teacher/groups", `Мои ${terms.groups}`],
     ["/teacher/attendance", terms.attendance],
     ["/teacher/schedule", terms.schedule],
     ["/teacher/communications", "Сообщения"],
-    ["/teacher/announcements", "Объявления"],
-    ["/teacher/more", "Задачи и уведомления"],
+    ...(!ownerCoach ? [["/teacher/announcements", "Объявления"], ["/teacher/more", "Задачи и уведомления"]] : []),
   ];
   return <>
     <nav className={styles.teacherNav} aria-label="Разделы воспитателя">{items.map(([href, label]) => {
