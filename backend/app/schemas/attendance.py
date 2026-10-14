@@ -39,6 +39,7 @@ class LocalTimes(BaseModel):
 class AttendanceCreate(LocalTimes):
     model_config = ConfigDict(extra="forbid")
     child_id: UUID
+    group_id: UUID | None = None
     date: date
     status: AttendanceStatus
     arrival_time: time | None = None

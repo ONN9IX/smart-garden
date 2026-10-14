@@ -192,6 +192,12 @@ def save_attendance(
 ) -> tuple[AttendanceDetail, bool]:
     child = access.teacher_child(db, actor, payload.child_id, lock=True)
     access.teacher_group(db, actor, child.group_id)
+    if (
+        actor.organization.operating_profile == "GYMNASTICS"
+        and payload.group_id is not None
+        and payload.group_id != child.group_id
+    ):
+        raise AppError(409, "ROSTER_CHANGED")
     if actor.organization.operating_profile == "GYMNASTICS":
         historical_group_id = db.scalar(select(Attendance.group_id).where(
             Attendance.organization_id == actor.organization_id,

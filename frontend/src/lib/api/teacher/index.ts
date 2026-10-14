@@ -14,7 +14,7 @@ export const teacherApi = {
   guardians: (groupId: string) => api.get<GuardianContext[]>(`/teacher/groups/${groupId}/guardians`),
   attendance: (groupId: string, date: string) => api.get<AttendanceRow[]>(`/teacher/attendance?group_id=${groupId}&date=${date}`),
   saveGroupDayAttendance: (body: { group_id: string; date: string; items: { child_id: string; status: "present" | "absent" | "unknown" }[] }) => api.post<{ items: AttendanceRow[] }>("/teacher/attendance/group-day", body),
-  saveAttendance: (body: object) => api.post<AttendanceRow>("/teacher/attendance", body),
+  saveAttendance: (body: { child_id: string; date: string; status: "present" | "absent" | "unknown"; group_id?: string }) => api.post<AttendanceRow>("/teacher/attendance", body),
   markArrival: (childId: string) => api.post<AttendanceRow>("/teacher/attendance/arrival", { child_id: childId }),
   markDeparture: (childId: string) => api.post<AttendanceRow>("/teacher/attendance/departure", { child_id: childId }),
   patchAttendance: (id: string, body: object) => api.patch<AttendanceRow>(`/teacher/attendance/${id}`, body),

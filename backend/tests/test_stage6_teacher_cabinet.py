@@ -729,6 +729,29 @@ def test_gym_owner_coach_context_and_daily_group_attendance(client, db, cabinet_
     assert db.scalar(select(func.count(Attendance.id)).where(
         Attendance.organization_id == world.organization.id, Attendance.date == date.fromisoformat(today)
     )) == 2
+    db.add(TeacherGroupAssignment(
+        organization_id=world.organization.id, employee_id=own_employee.id,
+        group_id=world.unassigned.id, status="active", assigned_by=world.director.id,
+    ))
+    world.child.group_id = world.unassigned.id
+    db.flush()
+    moved_day = rejected_day.isoformat()
+    roster_changed = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.child.id), "group_id": str(world.assigned.id),
+        "date": moved_day, "status": "present",
+    })
+    assert roster_changed.status_code == 409
+    assert roster_changed.json()["error"]["code"] == "ROSTER_CHANGED"
+    assert db.scalar(select(func.count(Attendance.id)).where(
+        Attendance.organization_id == world.organization.id,
+        Attendance.child_id == world.child.id,
+        Attendance.date == date.fromisoformat(moved_day),
+    )) == 0
+    moved = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.child.id), "group_id": str(world.unassigned.id),
+        "date": moved_day, "status": "present",
+    })
+    assert moved.status_code == 201
 
 
 def test_gymnastics_profile_preserves_ordinary_teacher_modules(client, db, cabinet_world):

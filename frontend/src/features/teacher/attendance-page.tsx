@@ -90,11 +90,11 @@ export function AttendancePage({ initialGroupId }: { initialGroupId?: string }) 
     }
   }
   async function gymnasticsSaveChild(childId: string, status: "present" | "absent") {
-    if (!day) return;
+    if (!day || !groupId) return;
     const contextAtStart = contextId.current;
     setError(""); setBusy((current) => new Set(current).add(childId));
     try {
-      await teacherApi.saveAttendance({ child_id: childId, date: day, status });
+      await teacherApi.saveAttendance({ child_id: childId, group_id: groupId, date: day, status });
       if (contextId.current === contextAtStart) await load();
     } catch (reason) {
       if (contextId.current === contextAtStart) setError(userMessage(reason));
@@ -109,7 +109,7 @@ export function AttendancePage({ initialGroupId }: { initialGroupId?: string }) 
     {loading ? <p className={styles.muted}>Загружаем посещаемость…</p> : <section className={styles.card}><ul className={styles.list}>{rows.map((row) => {
       const state = gymnastics ? (row.status === "present" ? "Присутствует" : row.status === "absent" ? "Отсутствует" : "Без отметки") : rowState(row); const isBusy = busy.has(row.child.id);
       return <li className={styles.row} key={row.child.id}><span><strong>{row.child.first_name} {row.child.last_name}</strong><br/><span className={`${styles.statusPill} ${state === "В саду" || state === "Присутствует" ? styles.statusPresent : state === "Отсутствует" ? styles.statusAbsent : state === "Ушёл" ? styles.statusDeparted : styles.statusUnknown}`}>{state}</span>{!gymnastics && (row.arrival_time || row.departure_time) && <><br/><span className={styles.muted}>{row.arrival_time ? `Пришёл: ${row.arrival_time.slice(0, 5)}` : "Приход не отмечен"}{row.departure_time ? ` · Ушёл: ${row.departure_time.slice(0, 5)}` : ""}</span></>}</span><span className={styles.toolbar}>
-        {gymnastics ? <><button className={styles.button} disabled={day > today || isBusy || row.status === "present"} onClick={() => void gymnasticsSaveChild(row.child.id, "present")}>{isBusy ? "Сохранение…" : "Присутствует"}</button><button className={styles.buttonSecondary} disabled={isBusy || row.status === "absent"} onClick={() => void gymnasticsSaveChild(row.child.id, "absent")}>{isBusy ? "Сохранение…" : "Отсутствует"}</button></> : <>
+        {gymnastics ? <><button className={styles.button} disabled={day > today || isBusy || row.status === "present"} onClick={() => void gymnasticsSaveChild(row.child.id, "present")}>{isBusy ? "Сохранение…" : "Присутствует"}</button><button className={styles.buttonSecondary} disabled={day > today || isBusy || row.status === "absent"} onClick={() => void gymnasticsSaveChild(row.child.id, "absent")}>{isBusy ? "Сохранение…" : "Отсутствует"}</button></> : <>
         {state === "Без отметки" || state === "Отсутствует" || state === "Уточнить приход" ? <button className={styles.button} disabled={day !== today || isBusy} onClick={() => void action(row, "arrival")}>{isBusy ? "Сохранение…" : state === "Уточнить приход" ? "Записать приход" : "Пришёл"}</button> : null}
         {state === "В саду" ? <button className={styles.buttonSecondary} disabled={day !== today || isBusy} onClick={() => void action(row, "departure")}>{isBusy ? "Сохранение…" : "Ушёл"}</button> : null}
         {state !== "Отсутствует" && <button className={styles.buttonSecondary} disabled={isBusy} onClick={() => void action(row, "absent")}>{isBusy ? "Сохранение…" : "Отсутствует"}</button>}

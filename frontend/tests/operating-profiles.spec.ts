@@ -44,7 +44,7 @@ test("gymnastics director can correct attendance for a past date", async ({ page
   await page.goto("/teacher/attendance");
   await page.getByLabel("Дата").fill("2026-10-12");
   await page.getByRole("button", { name: "Присутствует", exact: true }).click();
-  await expect.poll(() => savedPayload).toEqual({ child_id: "child-1", date: "2026-10-12", status: "present" });
+  await expect.poll(() => savedPayload).toEqual({ child_id: "child-1", group_id: "group-1", date: "2026-10-12", status: "present" });
 });
 
 test("gymnastics attendance opens the group chosen on Today", async ({ page }) => {
@@ -63,6 +63,18 @@ test("gymnastics attendance opens the group chosen on Today", async ({ page }) =
   await page.locator('a[href="/teacher/attendance?group=group-2"]').click();
   await expect(page.getByLabel("Группа")).toHaveValue("group-2");
   await expect.poll(() => requestedGroup).toBe("group-2");
+});
+
+test("gymnastics attendance disables both status actions for a future date", async ({ page }) => {
+  await page.route("**/api/v1/auth/me", route => route.fulfill({ json: context }));
+  await page.route("**/api/v1/employees/me/coach-profile", route => route.fulfill({ json: { id: "employee-1", first_name: "Алексей", last_name: "Примеров", middle_name: null, position: "Тренер", category: "teacher", phone: null, email: null, status: "active", account: context.user, archived_at: null, created_at: "2026-10-13T00:00:00Z", updated_at: "2026-10-13T00:00:00Z" } }));
+  await page.route("**/api/v1/teacher/today", route => route.fulfill({ json: today }));
+  await page.route("**/api/v1/teacher/groups", route => route.fulfill({ json: [group] }));
+  await page.route("**/api/v1/teacher/attendance?**", route => route.fulfill({ json: [{ record_id: null, date: "2026-10-14", child: { id: "child-1", first_name: "Синтетическая", last_name: "Спортсменка", middle_name: null, status: "active" }, group, status: "unknown", arrival_time: null, departure_time: null }] }));
+  await page.goto("/teacher/attendance");
+  await page.getByLabel("Дата").fill("2026-10-14");
+  await expect(page.getByRole("button", { name: "Присутствует", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Отсутствует", exact: true })).toBeDisabled();
 });
 
 test("gymnastics Today releases busy and retries after roster load failure", async ({ page }) => {
