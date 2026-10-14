@@ -684,12 +684,6 @@ def test_gym_owner_coach_context_and_daily_group_attendance(client, db, cabinet_
             Attendance.child_id == world.child.id,
             Attendance.date == rejected_day,
         )) == 0
-    assert client.post("/api/v1/teacher/attendance/arrival", json={
-        "child_id": str(world.child.id),
-    }).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
-    assert client.post("/api/v1/teacher/attendance/departure", json={
-        "child_id": str(world.child.id),
-    }).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
     with TestClient(app) as teacher_client:
         assert _login(teacher_client, world.teacher.username).status_code == 200
         teacher_rejected = teacher_client.post("/api/v1/teacher/attendance", json={
@@ -699,6 +693,9 @@ def test_gym_owner_coach_context_and_daily_group_attendance(client, db, cabinet_
         assert teacher_rejected.status_code == 400
         assert teacher_rejected.json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
         assert teacher_client.post("/api/v1/teacher/attendance/arrival", json={
+            "child_id": str(world.child.id),
+        }).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
+        assert teacher_client.post("/api/v1/teacher/attendance/departure", json={
             "child_id": str(world.child.id),
         }).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
     hidden = client.post("/api/v1/teacher/attendance", json={

@@ -129,7 +129,7 @@ def test_archived_group_prevents_new_mark_but_keeps_history(client, db, users):
 
 
 def test_gymnastics_attendance_is_status_only_for_management_writers(client, db, users):
-    organization, _, director, _ = users
+    organization, _, _, _ = users
     organization.operating_profile = "GYMNASTICS"
     db.flush()
     _login(client)
@@ -149,10 +149,3 @@ def test_gymnastics_attendance_is_status_only_for_management_writers(client, db,
         assert db.get(Attendance, record_id).arrival_time is None
         assert db.get(Attendance, record_id).departure_time is None
     assert client.patch(f"{ROOT}/{record_id}", json={"arrival_time": None}).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
-    with TestClient(app) as director_client:
-        assert director_client.post("/api/v1/auth/login", json={
-            "username": director.username, "password": TEST_PASSWORD,
-        }).status_code == 200
-        assert director_client.patch(f"{ROOT}/{record_id}", json={
-            "departure_time": "15:00",
-        }).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"

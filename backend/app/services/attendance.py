@@ -200,6 +200,11 @@ def mark_departure(db: Session, actor: User, child_id: UUID) -> AttendanceDetail
 
 def update(db: Session, actor: User, record_id: UUID, payload: AttendancePatch) -> AttendanceDetail:
     record = _record(db, actor, record_id, lock=True)
+    if (
+        actor.organization.operating_profile == "GYMNASTICS"
+        and {"arrival_time", "departure_time"} & payload.model_fields_set
+    ):
+        raise AppError(400, "INVALID_ATTENDANCE_TIME")
     before = _audit_state(record.status, record.arrival_time, record.departure_time)
     status = payload.status if payload.status is not None else record.status
     if status != "present":
