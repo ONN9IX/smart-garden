@@ -633,3 +633,157 @@ def test_assignment_employee_group_revocation_and_management_regression(client, 
         assert _login(director_client, world.director.username).status_code == 200
         assert director_client.get("/api/v1/groups").status_code == 200
         assert director_client.get("/api/v1/teacher/groups").status_code == 403
+
+
+def test_gym_owner_coach_context_and_daily_group_attendance(client, db, cabinet_world):
+    world = cabinet_world
+    world.organization.operating_profile = "GYMNASTICS"
+    own_employee = Employee(
+        organization_id=world.organization.id, user_id=world.director.id,
+        first_name="Синтетический", last_name="Владелец-тренер",
+        position="Тренер", category="teacher", status="active",
+    )
+    db.add(own_employee)
+    db.flush()
+    db.add(TeacherGroupAssignment(
+        organization_id=world.organization.id, employee_id=own_employee.id,
+        group_id=world.assigned.id, status="active", assigned_by=world.director.id,
+    ))
+    db.flush()
+    assert _login(client, world.director.username).status_code == 200
+    assert client.get("/api/v1/teacher/today").status_code == 200
+    assert client.get(f"/api/v1/teacher/groups/{world.unassigned.id}/children").status_code == 404
+    today = organization_today(world.organization).isoformat()
+    single = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.child.id), "group_id": str(world.assigned.id),
+        "date": today, "status": "present",
+    })
+    assert single.status_code == 201, single.text
+    status_only = db.scalar(select(Attendance).where(
+        Attendance.organization_id == world.organization.id,
+        Attendance.child_id == world.child.id,
+        Attendance.date == date.fromisoformat(today),
+    ))
+    assert status_only is not None
+    assert status_only.status == "present"
+    assert status_only.arrival_time is None
+    assert status_only.departure_time is None
+    rejected_day = date.fromisoformat(today) - timedelta(days=2)
+    for time_payload in (
+        {"arrival_time": "10:00:00"},
+        {"arrival_time": "10:00:00", "departure_time": "11:00:00"},
+        {"arrival_time": None},
+    ):
+        rejected = client.post("/api/v1/teacher/attendance", json={
+            "child_id": str(world.child.id), "group_id": str(world.assigned.id),
+            "date": rejected_day.isoformat(),
+            "status": "present", **time_payload,
+        })
+        assert rejected.status_code == 400
+        assert rejected.json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
+        assert db.scalar(select(func.count(Attendance.id)).where(
+            Attendance.organization_id == world.organization.id,
+            Attendance.child_id == world.child.id,
+            Attendance.date == rejected_day,
+        )) == 0
+    with TestClient(app) as teacher_client:
+        assert _login(teacher_client, world.teacher.username).status_code == 200
+        teacher_rejected = teacher_client.post("/api/v1/teacher/attendance", json={
+            "child_id": str(world.child.id), "group_id": str(world.assigned.id),
+            "date": rejected_day.isoformat(),
+            "status": "present", "departure_time": None,
+        })
+        assert teacher_rejected.status_code == 400
+        assert teacher_rejected.json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
+        assert teacher_client.post("/api/v1/teacher/attendance/arrival", json={
+            "child_id": str(world.child.id),
+        }).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
+        assert teacher_client.post("/api/v1/teacher/attendance/departure", json={
+            "child_id": str(world.child.id),
+        }).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
+    hidden = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.other_child.id), "group_id": str(world.unassigned.id),
+        "date": today, "status": "present",
+    })
+    assert hidden.status_code == 404
+    yesterday = date.fromisoformat(today) - timedelta(days=1)
+    db.add(Attendance(
+        organization_id=world.organization.id, child_id=world.child.id,
+        group_id=world.unassigned.id, date=yesterday, status="absent",
+        created_by=world.director.id, updated_by=world.director.id,
+    ))
+    db.flush()
+    historical = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.child.id), "group_id": str(world.assigned.id),
+        "date": yesterday.isoformat(), "status": "present",
+    })
+    assert historical.status_code == 409
+    for group_payload in ({}, {"group_id": None}):
+        missing_group = client.post("/api/v1/teacher/attendance", json={
+            "child_id": str(world.child.id), "date": rejected_day.isoformat(),
+            "status": "present", **group_payload,
+        })
+        assert missing_group.status_code == 409
+        assert missing_group.json()["error"]["code"] == "ROSTER_CHANGED"
+        assert db.scalar(select(func.count(Attendance.id)).where(
+            Attendance.organization_id == world.organization.id,
+            Attendance.child_id == world.child.id,
+            Attendance.date == rejected_day,
+        )) == 0
+    response = client.post("/api/v1/teacher/attendance/group-day", json={
+        "group_id": str(world.assigned.id), "date": today,
+        "items": [{"child_id": str(world.child.id), "status": "present"},
+                  {"child_id": str(world.no_consent_child.id), "status": "absent"}],
+    })
+    assert response.status_code == 200, response.text
+    assert {row["status"] for row in response.json()["items"]} == {"present", "absent"}
+    replay = client.post("/api/v1/teacher/attendance/group-day", json={
+        "group_id": str(world.assigned.id), "date": today,
+        "items": [{"child_id": str(world.child.id), "status": "present"},
+                  {"child_id": str(world.no_consent_child.id), "status": "absent"}],
+    })
+    assert replay.status_code == 200
+    assert db.scalar(select(func.count(Attendance.id)).where(
+        Attendance.organization_id == world.organization.id, Attendance.date == date.fromisoformat(today)
+    )) == 2
+    db.add(TeacherGroupAssignment(
+        organization_id=world.organization.id, employee_id=own_employee.id,
+        group_id=world.unassigned.id, status="active", assigned_by=world.director.id,
+    ))
+    world.child.group_id = world.unassigned.id
+    db.flush()
+    moved_day = rejected_day.isoformat()
+    roster_changed = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.child.id), "group_id": str(world.assigned.id),
+        "date": moved_day, "status": "present",
+    })
+    assert roster_changed.status_code == 409
+    assert roster_changed.json()["error"]["code"] == "ROSTER_CHANGED"
+    assert db.scalar(select(func.count(Attendance.id)).where(
+        Attendance.organization_id == world.organization.id,
+        Attendance.child_id == world.child.id,
+        Attendance.date == date.fromisoformat(moved_day),
+    )) == 0
+    moved = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.child.id), "group_id": str(world.unassigned.id),
+        "date": moved_day, "status": "present",
+    })
+    assert moved.status_code == 201
+
+
+def test_gymnastics_profile_preserves_ordinary_teacher_modules(client, db, cabinet_world):
+    world = cabinet_world
+    world.organization.operating_profile = "GYMNASTICS"
+    db.flush()
+    assert _login(client, world.teacher.username).status_code == 200
+    assert client.get("/api/v1/teacher/tasks").status_code == 200
+    assert client.get("/api/v1/teacher/notifications").status_code == 200
+    assert client.get(
+        f"/api/v1/teacher/announcements?group_id={world.assigned.id}"
+    ).status_code == 200
+
+
+def test_director_without_gym_profile_employee_is_not_coach(client, db, cabinet_world):
+    world = cabinet_world
+    assert _login(client, world.director.username).status_code == 200
+    assert client.get("/api/v1/teacher/today").status_code == 403

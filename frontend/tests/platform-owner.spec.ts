@@ -19,6 +19,7 @@ const garden = {
   status: "active",
   created_at: "2026-10-12T00:00:00Z",
   onboarding_status: "password_change_required",
+  operating_profile: "KINDERGARTEN",
   subscription,
 };
 const identity = {
@@ -135,9 +136,9 @@ test("retry preserves idempotency key and never replays temporary password", asy
     .getByLabel("Логин первого директора")
     .fill("synthetic-director-221");
   await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: "Создать сад", exact: true }).click();
+  await page.getByRole("button", { name: "Создать организацию", exact: true }).click();
   await expect(page.getByText("Нет соединения. Повторите запрос.", { exact: true })).toContainText("Нет соединения");
-  await page.getByRole("button", { name: "Создать сад", exact: true }).click();
+  await page.getByRole("button", { name: "Создать организацию", exact: true }).click();
   await expect(
     page.getByText("Повтор запроса: пароль повторно не выдаётся."),
   ).toBeVisible();

@@ -93,10 +93,27 @@ class EmployeePatch(BaseModel):
         return self
 
 
+class OwnCoachProfileCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    middle_name: str | None = Field(default=None, max_length=100)
+
+    @field_validator("first_name", "last_name", mode="before")
+    @classmethod
+    def required_text(cls, value: str) -> str:
+        return _trim(value)
+
+    @field_validator("middle_name", mode="before")
+    @classmethod
+    def optional_text(cls, value: str | None) -> str | None:
+        return _trim(value) or None
+
+
 class EmployeeAccountSummary(BaseModel):
     id: UUID
     username: str
-    role: Literal["ADMIN", "TEACHER"]
+    role: Literal["ADMIN", "TEACHER", "DIRECTOR"]
     status: Literal["active", "blocked"]
     must_change_password: bool
 

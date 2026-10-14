@@ -282,7 +282,7 @@ def test_control_migration_roundtrip(migrations):
         assert "operational_alert_states" not in tables
         assert "organization_notification_settings" not in tables
     finally:
-        command.upgrade(config, "0018")
+        command.upgrade(config, "head")
     tables = inspect(engine).get_table_names()
     assert "operational_alert_states" in tables and "organization_notification_settings" in tables
 

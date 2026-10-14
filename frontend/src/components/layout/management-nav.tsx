@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@/types/auth";
+import { useAuth } from "@/features/auth/auth-provider";
+import { organizationTerms } from "@/lib/organization-terminology";
 
 function navClass(active: boolean) { return `nav-item ${active ? "active" : ""}`; }
 
@@ -10,23 +12,25 @@ type NavItem = readonly [href: string, label: string];
 type NavSection = { label: string; items: readonly NavItem[] };
 
 export function ManagementNav({ role }: { role: Role }) {
+  const { current } = useAuth();
+  const terms = organizationTerms(current?.organization.operating_profile ?? "KINDERGARTEN");
   const pathname = usePathname();
   const sections: readonly NavSection[] = [
     {
-      label: "Люди и группы",
+      label: current?.organization.operating_profile === "GYMNASTICS" ? "Спортсмены и группы" : "Люди и группы",
       items: [
         ["/groups", "Группы"],
-        ["/children", "Дети"],
+        ["/children", current?.organization.operating_profile === "GYMNASTICS" ? "Спортсмены" : "Дети"],
         ["/guardians", "Родители"],
         ["/employees", "Сотрудники"],
         ["/access-accounts", "Доступ и аккаунты"],
       ],
     },
     {
-      label: "Работа сада",
+      label: current?.organization.operating_profile === "GYMNASTICS" ? "Работа секции" : "Работа сада",
       items: [
-        ["/attendance", "Посещаемость"],
-        ["/schedule", "Расписание"],
+        ...(current?.organization.operating_profile === "GYMNASTICS" && role === "DIRECTOR" ? [["/teacher/attendance", "Посещаемость"] as const] : [["/attendance", "Посещаемость"] as const]),
+        ["/schedule", terms.schedule],
         ["/tasks", "Задачи"],
       ],
     },
@@ -60,7 +64,8 @@ export function ManagementNav({ role }: { role: Role }) {
         {role === "DIRECTOR" && <Link href="/audit" className={navClass(pathname.startsWith("/audit"))} aria-current={pathname.startsWith("/audit") ? "page" : undefined}>Журнал действий</Link>}
       </div>
       {role === "DIRECTOR" && <Link href="/settings" className={navClass(pathname.startsWith("/settings"))} aria-current={pathname.startsWith("/settings") ? "page" : undefined}>Настройки</Link>}
+      {role === "DIRECTOR" && <Link href="/initial-setup" className={navClass(pathname.startsWith("/initial-setup"))} aria-current={pathname.startsWith("/initial-setup") ? "page" : undefined}>Первоначальная настройка</Link>}
     </nav>
-    <p className="sidebar-note">{role === "DIRECTOR" ? "Управление детским садом" : "Операционная работа детского сада"}</p>
+    <p className="sidebar-note">{role === "DIRECTOR" ? (current?.organization.operating_profile === "GYMNASTICS" ? "Управление спортивной секцией" : "Управление детским садом") : (current?.organization.operating_profile === "GYMNASTICS" ? "Работа спортивной секции" : "Операционная работа детского сада")}</p>
   </>;
 }

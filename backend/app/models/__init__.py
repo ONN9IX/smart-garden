@@ -20,6 +20,7 @@ from app.models.group import Group
 from app.models.group_schedule_item import GroupScheduleItem
 from app.models.guardian import Guardian
 from app.models.incident import Incident
+from app.models.initial_setup_batch import InitialSetupBatch
 from app.models.notification import Notification
 from app.models.operational_alert_state import OperationalAlertState
 from app.models.organization import Organization
@@ -56,6 +57,7 @@ __all__ = [
     "GroupScheduleItem",
     "Guardian",
     "Incident",
+    "InitialSetupBatch",
     "Notification",
     "OperationalAlertState",
     "Organization",

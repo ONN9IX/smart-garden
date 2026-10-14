@@ -5,6 +5,7 @@ Legacy direct threads (without teacher_employee_id) are intentionally not expose
 """
 
 import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -25,6 +26,7 @@ from app.models.employee import Employee
 from app.models.group import Group
 from app.models.guardian import Guardian
 from app.models.notification import Notification
+from app.models.organization import Organization
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.user import User
 from app.schemas.communications_v2 import (
@@ -42,10 +44,45 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _is_coach_actor(db: Session, actor: User) -> bool:
+    if actor.role == "TEACHER":
+        return True
+    return actor.role == "DIRECTOR" and db.scalar(select(Organization.operating_profile).where(
+        Organization.id == actor.organization_id,
+    )) == "GYMNASTICS"
+
+
+@dataclass(frozen=True)
+class ManagementScope:
+    organization_id: UUID
+
+
+def management_scope(actor: User) -> ManagementScope:
+    if actor.role not in {"DIRECTOR", "ADMIN"} or actor.status != "active":
+        raise AppError(403, "FORBIDDEN")
+    return ManagementScope(organization_id=actor.organization_id)
+
+
+def _management_group(db: Session, actor: User, scope: ManagementScope, group_id: UUID) -> Group:
+    if (
+        scope.organization_id != actor.organization_id
+        or actor.role not in {"DIRECTOR", "ADMIN"}
+        or actor.status != "active"
+    ):
+        raise AppError(403, "FORBIDDEN")
+    group = db.scalar(select(Group).where(
+        Group.id == group_id, Group.organization_id == scope.organization_id, Group.status == "active",
+    ))
+    if group is None:
+        raise AppError(404, "NOT_FOUND")
+    return group
+
+
 def _active_teacher_assignment(db: Session, actor: User, employee_id: UUID, group_id: UUID) -> Employee:
     employee = db.scalar(
         select(Employee)
         .join(User, User.id == Employee.user_id)
+        .join(Organization, Organization.id == Employee.organization_id)
         .join(TeacherGroupAssignment, TeacherGroupAssignment.employee_id == Employee.id)
         .where(
             Employee.id == employee_id,
@@ -53,7 +90,10 @@ def _active_teacher_assignment(db: Session, actor: User, employee_id: UUID, grou
             Employee.status == "active",
             Employee.category == "teacher",
             User.organization_id == actor.organization_id,
-            User.role == "TEACHER",
+            or_(
+                User.role == "TEACHER",
+                and_(User.role == "DIRECTOR", Organization.operating_profile == "GYMNASTICS"),
+            ),
             User.status == "active",
             TeacherGroupAssignment.organization_id == actor.organization_id,
             TeacherGroupAssignment.group_id == group_id,
@@ -68,19 +108,25 @@ def _active_teacher_assignment(db: Session, actor: User, employee_id: UUID, grou
 def eligible_teachers(db: Session, actor: User, child_id: UUID) -> list[TeacherOption]:
     if actor.role == "PARENT":
         _, child = access.parent_child(db, actor, child_id)
-    elif actor.role == "TEACHER":
+    elif _is_coach_actor(db, actor):
         child = access.teacher_child(db, actor, child_id)
     else:
         raise AppError(403, "FORBIDDEN")
     rows = db.execute(
         select(Employee, Group)
         .join(User, User.id == Employee.user_id)
+        .join(Organization, Organization.id == Employee.organization_id)
         .join(TeacherGroupAssignment, TeacherGroupAssignment.employee_id == Employee.id)
         .join(Group, Group.id == TeacherGroupAssignment.group_id)
         .where(
             Employee.organization_id == actor.organization_id,
             Employee.status == "active", Employee.category == "teacher",
-            User.organization_id == actor.organization_id, User.role == "TEACHER", User.status == "active",
+            User.organization_id == actor.organization_id,
+            or_(
+                User.role == "TEACHER",
+                and_(User.role == "DIRECTOR", Organization.operating_profile == "GYMNASTICS"),
+            ),
+            User.status == "active",
             TeacherGroupAssignment.organization_id == actor.organization_id,
             TeacherGroupAssignment.group_id == child.group_id, TeacherGroupAssignment.status == "active",
             Group.organization_id == actor.organization_id, Group.status == "active",
@@ -151,8 +197,14 @@ def _get_or_create_direct(
     return thread
 
 
-def group_thread(db: Session, actor: User, group_id: UUID, audience: str) -> CommunicationThread:
-    if actor.role == "TEACHER":
+def group_thread(
+    db: Session, actor: User, group_id: UUID, audience: str, scope: ManagementScope | None = None,
+) -> CommunicationThread:
+    if scope is not None:
+        _management_group(db, actor, scope, group_id)
+        if audience not in {"all", "teachers"}:
+            raise AppError(404, "NOT_FOUND")
+    elif _is_coach_actor(db, actor):
         access.teacher_group(db, actor, group_id)
         if audience not in {"all", "teachers"}:
             raise AppError(404, "NOT_FOUND")
@@ -164,15 +216,7 @@ def group_thread(db: Session, actor: User, group_id: UUID, audience: str) -> Com
         ))
         if _group is None:
             raise AppError(404, "NOT_FOUND")
-    elif actor.role in {"DIRECTOR", "ADMIN"}:
-        group = db.scalar(select(Group).where(
-            Group.id == group_id, Group.organization_id == actor.organization_id, Group.status == "active",
-        ))
-        if group is None:
-            raise AppError(404, "NOT_FOUND")
-        if audience not in {"all", "teachers"}:
-            raise AppError(404, "NOT_FOUND")
-    elif actor.role not in {"DIRECTOR", "ADMIN"}:
+    else:
         raise AppError(403, "FORBIDDEN")
     query = select(CommunicationThread).where(
         CommunicationThread.organization_id == actor.organization_id,
@@ -196,8 +240,28 @@ def group_thread(db: Session, actor: User, group_id: UUID, audience: str) -> Com
     return thread
 
 
-def _eligible_thread(db: Session, actor: User, thread_id: UUID) -> CommunicationThread:
-    if actor.role == "TEACHER":
+def _eligible_thread(
+    db: Session, actor: User, thread_id: UUID, scope: ManagementScope | None = None,
+) -> CommunicationThread:
+    if scope is not None:
+        if (
+            scope.organization_id != actor.organization_id
+            or actor.role not in {"DIRECTOR", "ADMIN"}
+            or actor.status != "active"
+        ):
+            raise AppError(403, "FORBIDDEN")
+        thread = db.scalar(select(CommunicationThread).where(
+            CommunicationThread.id == thread_id,
+            CommunicationThread.organization_id == scope.organization_id,
+            CommunicationThread.thread_type == "group",
+            CommunicationThread.audience.in_(("all", "teachers")),
+        ).join(Group, Group.id == CommunicationThread.group_id).where(
+            Group.organization_id == scope.organization_id, Group.status == "active",
+        ))
+        if thread is None:
+            raise AppError(404, "NOT_FOUND")
+        return thread
+    if _is_coach_actor(db, actor):
         thread = access.teacher_thread(db, actor, thread_id)
         if thread.thread_type == "direct":
             employee = access.teacher_employee(db, actor)
@@ -220,18 +284,6 @@ def _eligible_thread(db: Session, actor: User, thread_id: UUID) -> Communication
             if child.group_id != thread.group_id:
                 raise AppError(404, "NOT_FOUND")
             _active_teacher_assignment(db, actor, thread.teacher_employee_id, thread.group_id)
-        return thread
-    if actor.role in {"DIRECTOR", "ADMIN"}:
-        thread = db.scalar(select(CommunicationThread).where(
-            CommunicationThread.id == thread_id,
-            CommunicationThread.organization_id == actor.organization_id,
-            CommunicationThread.thread_type == "group",
-            CommunicationThread.audience.in_(("all", "teachers")),
-        ).join(Group, Group.id == CommunicationThread.group_id).where(
-            Group.organization_id == actor.organization_id, Group.status == "active",
-        ))
-        if thread is None:
-            raise AppError(404, "NOT_FOUND")
         return thread
     raise AppError(403, "FORBIDDEN")
 
@@ -286,8 +338,19 @@ def _summary(db: Session, actor: User, thread: CommunicationThread) -> ThreadSum
     )
 
 
-def list_threads(db: Session, actor: User) -> list[ThreadSummaryV2]:
-    if actor.role == "TEACHER":
+def list_threads(db: Session, actor: User, scope: ManagementScope | None = None) -> list[ThreadSummaryV2]:
+    if scope is not None:
+        if (
+            scope.organization_id != actor.organization_id
+            or actor.role not in {"DIRECTOR", "ADMIN"}
+            or actor.status != "active"
+        ):
+            raise AppError(403, "FORBIDDEN")
+        query = select(CommunicationThread).where(
+            CommunicationThread.organization_id == scope.organization_id,
+            CommunicationThread.thread_type == "group", CommunicationThread.audience.in_(("all", "teachers")),
+        )
+    elif _is_coach_actor(db, actor):
         group_ids = access.teacher_group_ids(db, actor)
         if not group_ids:
             return []
@@ -310,26 +373,23 @@ def list_threads(db: Session, actor: User) -> list[ThreadSummaryV2]:
                      CommunicationThread.teacher_employee_id.is_not(None)),
             ),
         )
-    elif actor.role in {"DIRECTOR", "ADMIN"}:
-        query = select(CommunicationThread).where(
-            CommunicationThread.organization_id == actor.organization_id,
-            CommunicationThread.thread_type == "group", CommunicationThread.audience.in_(("all", "teachers")),
-        )
     else:
         raise AppError(403, "FORBIDDEN")
     candidates = db.scalars(query.order_by(CommunicationThread.created_at.desc(), CommunicationThread.id.desc()))
     result = []
     for item in candidates:
         try:
-            _eligible_thread(db, actor, item.id)
+            _eligible_thread(db, actor, item.id, scope)
         except AppError:
             continue
         result.append(_summary(db, actor, item))
     return result
 
 
-def messages(db: Session, actor: User, thread_id: UUID) -> list[CommunicationMessage]:
-    thread = _eligible_thread(db, actor, thread_id)
+def messages(
+    db: Session, actor: User, thread_id: UUID, scope: ManagementScope | None = None,
+) -> list[CommunicationMessage]:
+    thread = _eligible_thread(db, actor, thread_id, scope)
     return list(db.scalars(select(CommunicationMessage).where(
         CommunicationMessage.organization_id == actor.organization_id,
         CommunicationMessage.thread_id == thread.id,
@@ -340,7 +400,7 @@ def teacher_message_responses(
     db: Session, actor: User, thread_id: UUID, items: list[CommunicationMessage],
 ) -> list[TeacherMessageResponseV2]:
     """Resolve current relationships in one tenant/group-scoped query, never persist them."""
-    if actor.role != "TEACHER" or actor.status != "active":
+    if actor.status != "active" or not _is_coach_actor(db, actor):
         raise AppError(403, "FORBIDDEN")
     thread = _eligible_thread(db, actor, thread_id)
     employee = access.teacher_employee(db, actor)
@@ -380,8 +440,11 @@ def teacher_message_responses(
     ) for item in items]
 
 
-def send(db: Session, actor: User, thread_id: UUID, body: str, client_message_id: UUID) -> CommunicationMessage:
-    thread = _eligible_thread(db, actor, thread_id)
+def send(
+    db: Session, actor: User, thread_id: UUID, body: str, client_message_id: UUID,
+    scope: ManagementScope | None = None,
+) -> CommunicationMessage:
+    thread = _eligible_thread(db, actor, thread_id, scope)
     prior = db.scalar(select(CommunicationMessage).where(
         CommunicationMessage.organization_id == actor.organization_id,
         CommunicationMessage.sender_user_id == actor.id,
@@ -440,18 +503,30 @@ def _recipient_ids(db: Session, actor: User, thread: CommunicationThread) -> set
             Guardian.status == "active", User.organization_id == actor.organization_id,
             User.role == "PARENT", User.status == "active",
         ))
-        teacher_id = db.scalar(select(User.id).join(Employee, Employee.user_id == User.id).where(
+        teacher_id = db.scalar(select(User.id).join(Employee, Employee.user_id == User.id)
+            .join(Organization, Organization.id == User.organization_id).where(
             Employee.id == thread.teacher_employee_id, Employee.organization_id == actor.organization_id,
             Employee.status == "active", Employee.category == "teacher",
-            User.organization_id == actor.organization_id, User.role == "TEACHER", User.status == "active",
+            User.organization_id == actor.organization_id,
+            or_(
+                User.role == "TEACHER",
+                and_(User.role == "DIRECTOR", Organization.operating_profile == "GYMNASTICS"),
+            ),
+            User.status == "active",
         ))
         recipients.update(user_id for user_id in (parent_id, teacher_id) if user_id)
     else:
         teacher_ids = db.scalars(
             select(User.id).join(Employee, Employee.user_id == User.id)
+            .join(Organization, Organization.id == User.organization_id)
             .join(TeacherGroupAssignment, TeacherGroupAssignment.employee_id == Employee.id)
             .where(
-                User.organization_id == actor.organization_id, User.role == "TEACHER", User.status == "active",
+                User.organization_id == actor.organization_id,
+                or_(
+                    User.role == "TEACHER",
+                    and_(User.role == "DIRECTOR", Organization.operating_profile == "GYMNASTICS"),
+                ),
+                User.status == "active",
                 Employee.organization_id == actor.organization_id, Employee.status == "active", Employee.category == "teacher",
                 TeacherGroupAssignment.organization_id == actor.organization_id,
                 TeacherGroupAssignment.group_id == thread.group_id, TeacherGroupAssignment.status == "active",
@@ -470,14 +545,14 @@ def _recipient_ids(db: Session, actor: User, thread: CommunicationThread) -> set
                     Child.organization_id == actor.organization_id, Child.group_id == thread.group_id, Child.status == "active",
                 )
             ))
-        if thread.audience == "teachers":
-            recipients = {rid for rid in recipients if db.scalar(select(User.role).where(User.id == rid)) == "TEACHER"}
     recipients.discard(actor.id)
     return recipients
 
 
-def mark_read(db: Session, actor: User, thread_id: UUID, message_id: UUID) -> ReadStateResponse:
-    thread = _eligible_thread(db, actor, thread_id)
+def mark_read(
+    db: Session, actor: User, thread_id: UUID, message_id: UUID, scope: ManagementScope | None = None,
+) -> ReadStateResponse:
+    thread = _eligible_thread(db, actor, thread_id, scope)
     message = db.scalar(select(CommunicationMessage).where(
         CommunicationMessage.id == message_id,
         CommunicationMessage.organization_id == actor.organization_id,

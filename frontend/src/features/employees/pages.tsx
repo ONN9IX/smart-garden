@@ -15,6 +15,7 @@ import { employeesApi } from "@/lib/api/employees";
 import { managementPeopleApi } from "@/lib/api/management-people";
 import { userMessage } from "@/lib/api/client";
 import { fullName } from "@/lib/people-names";
+import { organizationTerms, roleLabel } from "@/lib/organization-terminology";
 import type { DuplicateMatch } from "@/types/people";
 import type { Employee, EmployeeCategory, EmployeeFields, EmployeeSummary, InvitationResult } from "@/types/stage3";
 
@@ -33,11 +34,18 @@ const empty: EmployeeFields = {
   first_name: "", last_name: "", middle_name: null, position: "", category: "other", phone: null, email: null,
 };
 
-function EmployeeForm({ initial = empty, busy, submit, cancel }: {
+function employeeAccessLabel(role: NonNullable<EmployeeSummary["account"]>["role"], profile: "KINDERGARTEN" | "GYMNASTICS") {
+  if (role === "DIRECTOR") return roleLabel(role, profile);
+  if (role === "ADMIN") return "Доступ администратора";
+  return `Доступ ${organizationTerms(profile).teacher.toLocaleLowerCase("ru-RU")}`;
+}
+
+function EmployeeForm({ initial = empty, busy, submit, cancel, categoryDisabled = false }: {
   initial?: EmployeeFields;
   busy: boolean;
   submit: (fields: EmployeeFields) => Promise<void>;
   cancel?: () => void;
+  categoryDisabled?: boolean;
 }) {
   const [fields, setFields] = useState(initial);
   const submitting = useRef(false);
@@ -66,7 +74,7 @@ function EmployeeForm({ initial = empty, busy, submit, cancel }: {
       <label>Имя *<Input required maxLength={100} value={fields.first_name} onChange={(event) => set("first_name", event.target.value)} /></label>
       <label>Отчество<Input maxLength={100} value={fields.middle_name ?? ""} onChange={(event) => set("middle_name", event.target.value || null)} /></label>
       <label>Должность *<Input required maxLength={100} value={fields.position} onChange={(event) => set("position", event.target.value)} /></label>
-      <label>Категория *<select className="input" required value={fields.category} onChange={(event) => set("category", event.target.value as EmployeeCategory)}>
+      <label>Категория *<select className="input" required disabled={categoryDisabled} value={fields.category} onChange={(event) => set("category", event.target.value as EmployeeCategory)}>
         <option value="teacher">Воспитатель</option><option value="administrator">Администратор</option><option value="other">Прочий сотрудник</option>
       </select></label>
       <label>Телефон<Input type="tel" maxLength={32} value={fields.phone ?? ""} onChange={(event) => set("phone", event.target.value || null)} /></label>
@@ -78,6 +86,7 @@ function EmployeeForm({ initial = empty, busy, submit, cancel }: {
 
 export function EmployeesPage() { return <AuthGate route="dashboard"><EmployeesContent /></AuthGate>; }
 function EmployeesContent() {
+  const { current } = useAuth();
   const [tab, setTab] = useState(0);
   const [items, setItems] = useState<EmployeeSummary[]>([]);
   const [search, setSearch] = useState("");
@@ -95,7 +104,7 @@ function EmployeesContent() {
     <div className="people-tabs" role="tablist" aria-label="Категории сотрудников">{TABS.map((item, index) => <button key={item.label} role="tab" aria-selected={tab === index} className={tab === index ? "people-tab people-tab-active" : "people-tab"} onClick={() => setTab(index)}>{item.label}</button>)}</div>
     <div className="filter-row"><label>Поиск по ФИО, должности или контактам<Input value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
     {error && <Alert>{error}</Alert>}{loading ? <Loading /> : error ? <Button variant="secondary" onClick={() => void load()}>Повторить</Button> : items.length === 0 ? <p className="empty-state">{search ? "Сотрудники не найдены. Измените поиск." : tab === 3 ? "В архиве пока нет сотрудников." : "В этой категории пока нет сотрудников. Добавьте первую карточку."}</p> :
-      <ul className="record-list">{items.map((item) => <li key={item.id}><Link className="record-link" href={`/employees/${item.id}`}><strong>{fullName(item)}</strong><span className="muted">{item.position} · {CATEGORY_LABELS[item.category]} · {item.account ? `${item.account.role === "TEACHER" ? "Доступ воспитателя" : "Доступ администратора"}: ${item.account.status === "active" ? "активен" : "заблокирован"}` : "Без аккаунта"}</span><span className="muted">{[item.phone, item.email].filter(Boolean).join(" · ") || "Контакты не указаны"}</span></Link></li>)}</ul>}
+      <ul className="record-list">{items.map((item) => <li key={item.id}><Link className="record-link" href={`/employees/${item.id}`}><strong>{fullName(item)}</strong><span className="muted">{item.position} · {CATEGORY_LABELS[item.category]} · {item.account ? `${employeeAccessLabel(item.account.role, current?.organization.operating_profile ?? "KINDERGARTEN")}: ${item.account.status === "active" ? "активен" : "заблокирован"}` : "Без аккаунта"}</span><span className="muted">{[item.phone, item.email].filter(Boolean).join(" · ") || "Контакты не указаны"}</span></Link></li>)}</ul>}
   </AppShell>;
 }
 
@@ -135,6 +144,7 @@ export function EmployeeDetailPage({ id }: { id: string }) { return <AuthGate ro
 function EmployeeDetail({ id }: { id: string }) {
   const { current } = useAuth();
   const director = current?.user.role === "DIRECTOR";
+  const ownerCoachProfile = current?.organization.operating_profile === "GYMNASTICS";
   const [item, setItem] = useState<Employee | null>(null);
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof managementPeopleApi.employeeProfile>> | null>(null);
   const [editing, setEditing] = useState(false);
@@ -184,7 +194,8 @@ function EmployeeDetail({ id }: { id: string }) {
   }
   const teacher = item?.category === "teacher";
   const teacherAccount = item?.account?.role === "TEACHER";
-  const hasAccountActions = director && item && item.status === "active" && (Boolean(item.account) || teacher || item.category === "administrator");
+  const directorLinkedCoach = ownerCoachProfile && item?.account?.role === "DIRECTOR";
+  const hasAccountActions = director && !directorLinkedCoach && item && item.status === "active" && (Boolean(item.account) || teacher || item.category === "administrator");
   const accountInvite = teacher ? employeesApi.resendTeacherInvite : (employeeId: string) => employeesApi.resendInvite(employeeId, "ADMIN");
   const accountBlock = teacherAccount ? employeesApi.blockTeacherAccount : employeesApi.block;
   const accountUnblock = teacherAccount ? employeesApi.unblockTeacherAccount : employeesApi.unblock;
@@ -200,15 +211,15 @@ function EmployeeDetail({ id }: { id: string }) {
 
   return <AppShell><Link className="text-link" href="/employees">← К сотрудникам</Link>
     {loading ? <Loading /> : !item ? <div className="section-space"><Alert>{error || "Запись не найдена."}</Alert><Button variant="secondary" onClick={() => void load()}>Повторить</Button></div> : <>
-      <div className="page-heading section-space"><span className="eyebrow">{CATEGORY_LABELS[item.category]} · {item.status === "active" ? "Активен" : "Архив"}</span><h1>{fullName(item)}</h1><p>{item.position}</p><div className="action-row"><Button variant="secondary" onClick={() => setEditing((value) => !value)}>{editing ? "Отмена" : "Изменить"}</Button><Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{item.status === "active" ? "Архивировать сотрудника" : "Восстановить карточку"}</Button></div></div>
+      <div className="page-heading section-space"><span className="eyebrow">{CATEGORY_LABELS[item.category]} · {item.status === "active" ? "Активен" : "Архив"}</span><h1>{fullName(item)}</h1><p>{item.position}</p><div className="action-row"><Button variant="secondary" onClick={() => setEditing((value) => !value)}>{editing ? "Отмена" : "Изменить"}</Button>{!directorLinkedCoach && <Button variant="secondary" disabled={busy} onClick={() => void changeStatus()}>{item.status === "active" ? "Архивировать сотрудника" : "Восстановить карточку"}</Button>}</div></div>
       {error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
-      {editing ? <EmployeeForm key={item.updated_at} initial={{ first_name: item.first_name, last_name: item.last_name, middle_name: item.middle_name, position: item.position, category: item.category, phone: item.phone, email: item.email }} busy={busy} submit={async (fields) => { if (await change(() => employeesApi.update(id, fields), "Карточка сотрудника сохранена.")) { setEditing(false); await load(); } }} cancel={() => setEditing(false)} /> : <>
+      {editing ? <EmployeeForm key={item.updated_at} initial={{ first_name: item.first_name, last_name: item.last_name, middle_name: item.middle_name, position: item.position, category: item.category, phone: item.phone, email: item.email }} busy={busy} categoryDisabled={directorLinkedCoach} submit={async (fields) => { if (await change(() => employeesApi.update(id, fields), "Карточка сотрудника сохранена.")) { setEditing(false); await load(); } }} cancel={() => setEditing(false)} /> : <>
         <section className="profile-section card"><h2>Основное</h2><dl className="profile-facts"><div><dt>ФИО</dt><dd>{fullName(item)}</dd></div><div><dt>Должность</dt><dd>{item.position}</dd></div><div><dt>Категория</dt><dd>{CATEGORY_LABELS[item.category]}</dd></div></dl></section>
         <section className="profile-section card"><h2>Контакты</h2><dl className="profile-facts"><div><dt>Телефон</dt><dd>{item.phone || "Не указан"}</dd></div><div><dt>Email</dt><dd>{item.email || "Не указан"}</dd></div></dl></section>
         <section className="profile-section card"><h2>Назначения</h2>{profile?.assignments.length ? <ul className="record-list">{profile.assignments.map((assignment) => <li key={assignment.group_id}><Link className="record-link" href={`/groups/${assignment.group_id}`}><strong>{assignment.group_name}</strong><span className="muted">{assignment.status === "active" ? "Активное назначение" : "В архиве"}</span></Link></li>)}</ul> : <p className="empty-state">Нет назначений. Назначение воспитателя создаётся отдельным действием.</p>}<div className="action-row"><Link className="button button-secondary" href="/teacher-management">К управлению воспитателями</Link></div></section>
         <section className="profile-section card"><h2>Задачи</h2><p>Открытые: {profile?.open_tasks ?? 0} · Просроченные: {profile?.overdue_tasks ?? 0}</p><Link className="text-link" href={`/tasks?assignee_employee_id=${encodeURIComponent(id)}`}>Открыть задачи</Link></section>
         <section className="profile-section card"><h2>Документы</h2><p>Документы будут доступны после подключения защищённого хранилища.</p></section>
-        {item.account ? <section className="profile-section card"><h2>Аккаунт</h2><p>Тип: {item.account.role === "TEACHER" ? "Воспитатель" : "Администратор"} · Логин: <strong>{item.account.username}</strong> · {item.account.status === "active" ? "Активен" : "Заблокирован"}{item.account.must_change_password ? " · Требуется смена пароля" : ""}</p>{item.status === "active" && <p className="muted">Восстановление карточки не меняет состояние аккаунта.</p>}
+        {item.account ? <section className="profile-section card"><h2>Аккаунт</h2><p>Тип: {roleLabel(item.account.role, current?.organization.operating_profile ?? "KINDERGARTEN")} · Логин: <strong>{item.account.username}</strong> · {item.account.status === "active" ? "Активен" : "Заблокирован"}{item.account.must_change_password ? " · Требуется смена пароля" : ""}</p>{item.status === "active" && !directorLinkedCoach && <p className="muted">Восстановление карточки не меняет состояние аккаунта.</p>}
         {hasAccountActions && <div className="action-row">{item.account.must_change_password && <Button variant="secondary" disabled={busy} onClick={() => void inviteAccount(() => accountInvite(id), "Приглашение отправлено.")}>Отправить приглашение снова</Button>}<Button variant="secondary" disabled={busy} onClick={() => { const blocking = item.account?.status === "active"; if (!blocking || window.confirm("Заблокировать аккаунт сотрудника и завершить все действующие сеансы?")) void updateAccount(() => blocking ? accountBlock(id) : accountUnblock(id), blocking ? "Доступ заблокирован." : "Доступ восстановлен отдельно."); }}>{item.account.status === "active" ? "Заблокировать" : "Разблокировать"}</Button>{director && <Button variant="secondary" disabled={busy} onClick={() => void changeRole(item.account?.role === "TEACHER" ? "ADMIN" : "TEACHER")}>Изменить роль</Button>}</div>}
         </section> : hasAccountActions && <section className="profile-section card"><h2>Аккаунт</h2><p>Пользователь задаст пароль по одноразовой ссылке из письма. Категория только предлагает роль — роль подтверждается явно.</p><label>Роль доступа<select className="input" aria-label="Роль доступа" value={newAccountRole} onChange={(event) => setNewAccountRole(event.target.value as "TEACHER" | "ADMIN")}><option value="" disabled>Выберите роль</option>{item.category === "teacher" && <option value="TEACHER">Педагог (TEACHER)</option>}{item.category === "administrator" && <option value="ADMIN">Администратор (ADMIN)</option>}</select></label><div className="action-row"><Button disabled={busy || !newAccountRole} onClick={() => void inviteAccount(() => employeesApi.createAccount(id, newAccountRole as "TEACHER" | "ADMIN"), "Приглашение отправлено.")}>Создать доступ с выбранной ролью</Button></div></section>}
         <section className="profile-section card"><h2>История</h2>{director ? <Link className="text-link" href="/audit">Открыть журнал действий</Link> : <p>Журнал действий доступен директору.</p>}</section>

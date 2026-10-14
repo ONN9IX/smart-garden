@@ -126,3 +126,26 @@ def test_archived_group_prevents_new_mark_but_keeps_history(client, db, users):
     saved_child.status = "active"
     db.flush()
     assert client.post(ROOT, json={"child_id": child, "date": "2025-09-22", "status": "absent"}).json()["error"]["code"] == "GROUP_ARCHIVED"
+
+
+def test_gymnastics_attendance_is_status_only_for_management_writers(client, db, users):
+    organization, _, _, _ = users
+    organization.operating_profile = "GYMNASTICS"
+    db.flush()
+    _login(client)
+    group = _group(client, "Гимнастика")
+    child = _child(client, group)
+    status_only = client.post(ROOT, json={"child_id": child, "date": DAY, "status": "present"})
+    assert status_only.status_code == 201
+    record_id = status_only.json()["record_id"]
+    for payload in (
+        {"arrival_time": "08:30"},
+        {"arrival_time": "08:30", "departure_time": "15:00"},
+        {"departure_time": None},
+    ):
+        rejected = client.post(ROOT, json={"child_id": child, "date": DAY, "status": "present", **payload})
+        assert rejected.status_code == 400
+        assert rejected.json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"
+        assert db.get(Attendance, record_id).arrival_time is None
+        assert db.get(Attendance, record_id).departure_time is None
+    assert client.patch(f"{ROOT}/{record_id}", json={"arrival_time": None}).json()["error"]["code"] == "INVALID_ATTENDANCE_TIME"

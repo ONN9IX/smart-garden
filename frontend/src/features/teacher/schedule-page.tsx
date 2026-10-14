@@ -5,9 +5,13 @@ import { userMessage } from "@/lib/api/client";
 import { teacherApi } from "@/lib/api/teacher";
 import type { ScheduleItem } from "@/types/teacher";
 import { GroupPicker, styles, TeacherPageFrame, useGroups } from "./shared";
+import { useAuth } from "@/features/auth/auth-provider";
+import { organizationTerms } from "@/lib/organization-terminology";
 
 const weekdays = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
 export function SchedulePage() {
+  const { current } = useAuth();
+  const terms = organizationTerms(current?.organization.operating_profile ?? "KINDERGARTEN");
   const { groups, groupId, setGroupId, error: groupError } = useGroups();
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [error, setError] = useState("");
@@ -28,7 +32,7 @@ export function SchedulePage() {
     window.addEventListener("focus", load);
     return () => { active = false; version += 1; window.removeEventListener("focus", load); };
   }, [groupId, revision]);
-  return <TeacherPageFrame title="Расписание" eyebrow="Только чтение">
+  return <TeacherPageFrame title={terms.schedule} eyebrow="Только чтение">
     <div className={styles.toolbar}><GroupPicker groups={groups} groupId={groupId} setGroupId={(id) => { setItems([]); setError(""); setGroupId(id); }} /></div>
     {(error || groupError) && <p className={styles.error} role="alert">{error || groupError}</p>}
     {error && <button className={styles.buttonSecondary} onClick={() => setRevision((value) => value + 1)}>Повторить загрузку</button>}

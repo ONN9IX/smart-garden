@@ -4,7 +4,7 @@ from datetime import date, datetime, time
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 AttendanceStatus = Literal["present", "absent", "unknown"]
 
@@ -12,6 +12,19 @@ AttendanceStatus = Literal["present", "absent", "unknown"]
 class AttendanceAction(BaseModel):
     model_config = ConfigDict(extra="forbid")
     child_id: UUID
+
+
+class GroupDayAttendanceRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    child_id: UUID
+    status: Literal["present", "absent", "unknown"]
+
+
+class GroupDayAttendanceSave(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    group_id: UUID
+    date: date
+    items: list[GroupDayAttendanceRow] = Field(min_length=1, max_length=250)
 
 
 class LocalTimes(BaseModel):
@@ -26,6 +39,7 @@ class LocalTimes(BaseModel):
 class AttendanceCreate(LocalTimes):
     model_config = ConfigDict(extra="forbid")
     child_id: UUID
+    group_id: UUID | None = None
     date: date
     status: AttendanceStatus
     arrival_time: time | None = None
@@ -73,6 +87,10 @@ class AttendanceDetail(AttendanceRow):
     updated_at: datetime
     created_by: UUID
     updated_by: UUID
+
+
+class GroupDayAttendanceResponse(BaseModel):
+    items: list[AttendanceDetail]
 
 
 class AttendanceList(BaseModel):

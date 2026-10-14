@@ -114,6 +114,11 @@ def list_day(db: Session, actor: User, day: date, group_id: UUID | None,
 
 def upsert(db: Session, actor: User, payload: AttendanceCreate) -> tuple[AttendanceDetail, bool]:
     _validate_day(payload.date, actor)
+    if (
+        actor.organization.operating_profile == "GYMNASTICS"
+        and {"arrival_time", "departure_time"} & payload.model_fields_set
+    ):
+        raise AppError(400, "INVALID_ATTENDANCE_TIME")
     _validate_times(payload.status, payload.arrival_time, payload.departure_time)
     child = _child(db, actor, payload.child_id, lock=True)
     if child.status != "active":
@@ -152,6 +157,8 @@ def upsert(db: Session, actor: User, payload: AttendanceCreate) -> tuple[Attenda
 
 
 def mark_arrival(db: Session, actor: User, child_id: UUID) -> AttendanceDetail:
+    if actor.organization.operating_profile == "GYMNASTICS":
+        raise AppError(400, "INVALID_ATTENDANCE_TIME")
     now = organization_now(actor.organization)
     _child(db, actor, child_id, lock=True)
     existing = db.scalar(select(Attendance).where(
@@ -172,6 +179,8 @@ def mark_arrival(db: Session, actor: User, child_id: UUID) -> AttendanceDetail:
 
 
 def mark_departure(db: Session, actor: User, child_id: UUID) -> AttendanceDetail:
+    if actor.organization.operating_profile == "GYMNASTICS":
+        raise AppError(400, "INVALID_ATTENDANCE_TIME")
     now = organization_now(actor.organization)
     _child(db, actor, child_id, lock=True)
     existing = db.scalar(select(Attendance).where(
@@ -191,6 +200,11 @@ def mark_departure(db: Session, actor: User, child_id: UUID) -> AttendanceDetail
 
 def update(db: Session, actor: User, record_id: UUID, payload: AttendancePatch) -> AttendanceDetail:
     record = _record(db, actor, record_id, lock=True)
+    if (
+        actor.organization.operating_profile == "GYMNASTICS"
+        and {"arrival_time", "departure_time"} & payload.model_fields_set
+    ):
+        raise AppError(400, "INVALID_ATTENDANCE_TIME")
     before = _audit_state(record.status, record.arrival_time, record.departure_time)
     status = payload.status if payload.status is not None else record.status
     if status != "present":

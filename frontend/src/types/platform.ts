@@ -27,6 +27,7 @@ export type PlatformOrganization = {
   status: "active" | "blocked" | "archived";
   created_at: string;
   onboarding_status: string;
+  operating_profile: "KINDERGARTEN" | "GYMNASTICS";
   subscription: Subscription | null;
 };
 export type PlatformAudit = {
@@ -46,6 +47,7 @@ export type CreateOrganization = {
   idempotency_key: string;
   name: string;
   timezone: string;
+  operating_profile: "KINDERGARTEN" | "GYMNASTICS";
   director_username: string;
   credential_handoff_confirmed: true;
   subscription: Subscription;

@@ -12,6 +12,7 @@ import type {
   Provisioning,
   Subscription,
 } from "@/types/platform";
+import { organizationTerms } from "@/lib/organization-terminology";
 
 type View = "overview" | "organizations" | "new" | "detail";
 const statuses: Record<string, string> = {
@@ -406,6 +407,7 @@ function SubscriptionFields({
 function CreateGarden({ enabled }: { enabled: boolean }) {
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState("Europe/Moscow");
+  const [operatingProfile, setOperatingProfile] = useState<"KINDERGARTEN" | "GYMNASTICS">("KINDERGARTEN");
   const [username, setUsername] = useState("");
   const [subscription, setSubscription] =
     useState<Subscription>(initialSubscription);
@@ -414,6 +416,7 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
   const busyRef = useRef(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Provisioning | null>(null);
+  const terms = organizationTerms(operatingProfile);
   const key = useRef(crypto.randomUUID());
   const fingerprint = useRef("");
   const [attempted, setAttempted] = useState(false);
@@ -423,6 +426,7 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
     const input = {
       name,
       timezone,
+      operating_profile: operatingProfile,
       director_username: username,
       credential_handoff_confirmed: true as const,
       subscription,
@@ -465,7 +469,7 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
   }
   return (
     <section className="platform-panel">
-      <h2>Регистрация сада</h2>
+      <h2>Регистрация организации</h2>
       {!enabled && (
         <p role="alert">
           Защищённая передача одноразовых учётных данных не настроена.
@@ -475,7 +479,7 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
       {error && <p role="alert">{error}</p>}
       {result ? (
         <div>
-          <h3>Сад зарегистрирован</h3>
+          <h3>{organizationTerms(result.organization.operating_profile).registrationSuccess}</h3>
           <Link href={`/platform/organizations/${result.organization.id}`}>
             {result.organization.name}
           </Link>
@@ -517,13 +521,19 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
           onSubmit={(event) => void submit(event)}
         >
           <label>
-            Название сада
+            {`Название ${terms.organizationGenitive}`}
             <input
               required
               maxLength={200}
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
+          </label>
+          <label>Профиль работы
+            <select value={operatingProfile} onChange={event => setOperatingProfile(event.target.value as "KINDERGARTEN" | "GYMNASTICS")}>
+              <option value="KINDERGARTEN">Детский сад</option>
+              <option value="GYMNASTICS">Спортивная секция (гимнастика)</option>
+            </select>
           </label>
           <label>
             Часовой пояс
@@ -555,7 +565,7 @@ function CreateGarden({ enabled }: { enabled: boolean }) {
             Подтверждаю защищённую передачу одноразового пароля
           </label>
           <button className="button" disabled={!enabled || !confirmed || busy}>
-            Создать сад
+            Создать организацию
           </button>
           {attempted && (
             <button
@@ -580,7 +590,9 @@ function GardenDetail({
   garden: PlatformOrganization;
   onChanged: () => void;
 }) {
+  const terms = organizationTerms(garden.operating_profile);
   const [confirmation, setConfirmation] = useState("");
+  const [profileDraft, setProfileDraft] = useState<PlatformOrganization["operating_profile"]>(garden.operating_profile);
   const [reason, setReason] = useState("owner_request");
   const [subscription, setSubscription] = useState<Subscription>(
     garden.subscription || initialSubscription(),
@@ -588,7 +600,7 @@ function GardenDetail({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  async function action(kind: "lifecycle" | "subscription") {
+  async function action(kind: "lifecycle" | "subscription" | "profile") {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
@@ -601,8 +613,9 @@ function GardenDetail({
           confirmation,
           reason,
         );
-      else
+      else if (kind === "subscription")
         await platformApi.subscription(garden.id, confirmation, subscription);
+      else await platformApi.changeProfile(garden.id, confirmation, profileDraft);
       onChanged();
     } catch (error) {
       setError(message(error));
@@ -615,18 +628,25 @@ function GardenDetail({
     <section className="platform-panel">
       <h2>{garden.name}</h2>
       <p>
-        {statuses[garden.status]} · {garden.timezone}
+        {statuses[garden.status]} · {garden.timezone} · {garden.operating_profile === "GYMNASTICS" ? "Спортивная секция" : "Детский сад"}
       </p>
       <p>{onboarding[garden.onboarding_status]}</p>
       {error && <p role="alert">{error}</p>}
       <div className="platform-form">
         <label>
-          Введите название сада для подтверждения
+          {`Введите название ${terms.organizationGenitive} для подтверждения`}
           <input
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
           />
         </label>
+        <label>Профиль организации
+          <select value={profileDraft} onChange={event => setProfileDraft(event.target.value as "KINDERGARTEN" | "GYMNASTICS")}>
+            <option value="KINDERGARTEN">Детский сад</option>
+            <option value="GYMNASTICS">Спортивная секция (гимнастика)</option>
+          </select>
+        </label>
+        <button className="button secondary" disabled={busy || confirmation !== garden.name || profileDraft === garden.operating_profile} onClick={() => void action("profile")}>Изменить профиль</button>
         <label>
           Причина
           <select
@@ -646,11 +666,11 @@ function GardenDetail({
           onClick={() => void action("lifecycle")}
         >
           {garden.status === "blocked"
-            ? "Разблокировать сад"
-            : "Заблокировать сад"}
+          ? `Разблокировать ${terms.organization}`
+            : `Заблокировать ${terms.organization}`}
         </button>
         <h3>Подписка · Стандартный план</h3>
-        <p>Статус оплаты не блокирует сад автоматически.</p>
+        <p>{`Статус оплаты не блокирует ${terms.organization} автоматически.`}</p>
         <SubscriptionFields value={subscription} change={setSubscription} />
         <button
           className="button"

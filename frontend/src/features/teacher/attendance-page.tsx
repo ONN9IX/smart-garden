@@ -5,6 +5,8 @@ import { ApiError, userMessage } from "@/lib/api/client";
 import { teacherApi } from "@/lib/api/teacher";
 import type { AttendanceRow } from "@/types/teacher";
 import { GroupPicker, styles, TeacherPageFrame, useGroups } from "./shared";
+import { useAuth } from "@/features/auth/auth-provider";
+import { organizationTerms } from "@/lib/organization-terminology";
 
 function rowState(row: AttendanceRow) {
   if (row.status === "absent") return "Отсутствует";
@@ -13,8 +15,11 @@ function rowState(row: AttendanceRow) {
   return row.arrival_time ? "В саду" : "Уточнить приход";
 }
 
-export function AttendancePage() {
-  const { groups, groupId, setGroupId, error: groupError } = useGroups();
+export function AttendancePage({ initialGroupId }: { initialGroupId?: string }) {
+  const { current } = useAuth();
+  const gymnastics = current?.organization.operating_profile === "GYMNASTICS";
+  const terms = organizationTerms(current?.organization.operating_profile ?? "KINDERGARTEN");
+  const { groups, groupId, setGroupId, error: groupError } = useGroups(initialGroupId);
   const userChangedDay = useRef(false);
   const requestId = useRef(0);
   const contextId = useRef(0);
@@ -70,16 +75,45 @@ export function AttendancePage() {
     }
     finally { inFlight.current.delete(key); setBusy((current) => { const next = new Set(current); next.delete(key); return next; }); }
   }
-  return <TeacherPageFrame title="Посещаемость" eyebrow="Ежедневная отметка">
+  async function gymnasticsSave(items: { child_id: string; status: "present" | "absent" | "unknown" }[]) {
+    if (!groupId || !day) return;
+    const contextAtStart = contextId.current;
+    setError(""); setBusy(new Set(items.map(item => item.child_id)));
+    try {
+      await teacherApi.saveGroupDayAttendance({ group_id: groupId, date: day, items });
+      if (contextId.current === contextAtStart) await load();
+    } catch (reason) {
+      if (contextId.current === contextAtStart) setError(userMessage(reason));
+    } finally {
+      const savedIds = new Set(items.map(item => item.child_id));
+      setBusy(current => new Set([...current].filter(id => !savedIds.has(id))));
+    }
+  }
+  async function gymnasticsSaveChild(childId: string, status: "present" | "absent") {
+    if (!day || !groupId) return;
+    const contextAtStart = contextId.current;
+    setError(""); setBusy((current) => new Set(current).add(childId));
+    try {
+      await teacherApi.saveAttendance({ child_id: childId, group_id: groupId, date: day, status });
+      if (contextId.current === contextAtStart) await load();
+    } catch (reason) {
+      if (contextId.current === contextAtStart) setError(userMessage(reason));
+    }
+    finally { setBusy((current) => { const next = new Set(current); next.delete(childId); return next; }); }
+  }
+  return <TeacherPageFrame title={terms.attendance} eyebrow={gymnastics ? "Дневная отметка тренировок" : "Ежедневная отметка"}>
     <div className={styles.toolbar}><GroupPicker groups={groups} groupId={groupId} setGroupId={(id) => { requestId.current += 1; contextId.current += 1; setRows([]); setError(""); setGroupId(id); }} /><label>Дата<input type="date" value={day} onChange={(event) => { userChangedDay.current = true; requestId.current += 1; contextId.current += 1; setRows([]); setError(""); setDay(event.target.value); }} /></label></div>
     {(error || groupError) && <p className={styles.error} role="alert">{error || groupError}</p>}
+    {gymnastics && rows.length > 0 && <button className={styles.button} disabled={loading || busy.size > 0 || day > today} onClick={() => void gymnasticsSave(rows.map(row => ({ child_id: row.child.id, status: "present" as const })))}>Отметить всех присутствующими</button>}
     {error && groupId && day && <button className={styles.buttonSecondary} disabled={loading} onClick={() => void load().catch(() => undefined)}>Повторить загрузку</button>}
     {loading ? <p className={styles.muted}>Загружаем посещаемость…</p> : <section className={styles.card}><ul className={styles.list}>{rows.map((row) => {
-      const state = rowState(row); const isBusy = busy.has(row.child.id);
-      return <li className={styles.row} key={row.child.id}><span><strong>{row.child.first_name} {row.child.last_name}</strong><br/><span className={`${styles.statusPill} ${state === "В саду" ? styles.statusPresent : state === "Отсутствует" ? styles.statusAbsent : state === "Ушёл" ? styles.statusDeparted : styles.statusUnknown}`}>{state}</span>{(row.arrival_time || row.departure_time) && <><br/><span className={styles.muted}>{row.arrival_time ? `Пришёл: ${row.arrival_time.slice(0, 5)}` : "Приход не отмечен"}{row.departure_time ? ` · Ушёл: ${row.departure_time.slice(0, 5)}` : ""}</span></>}</span><span className={styles.toolbar}>
+      const state = gymnastics ? (row.status === "present" ? "Присутствует" : row.status === "absent" ? "Отсутствует" : "Без отметки") : rowState(row); const isBusy = busy.has(row.child.id);
+      return <li className={styles.row} key={row.child.id}><span><strong>{row.child.first_name} {row.child.last_name}</strong><br/><span className={`${styles.statusPill} ${state === "В саду" || state === "Присутствует" ? styles.statusPresent : state === "Отсутствует" ? styles.statusAbsent : state === "Ушёл" ? styles.statusDeparted : styles.statusUnknown}`}>{state}</span>{!gymnastics && (row.arrival_time || row.departure_time) && <><br/><span className={styles.muted}>{row.arrival_time ? `Пришёл: ${row.arrival_time.slice(0, 5)}` : "Приход не отмечен"}{row.departure_time ? ` · Ушёл: ${row.departure_time.slice(0, 5)}` : ""}</span></>}</span><span className={styles.toolbar}>
+        {gymnastics ? <><button className={styles.button} disabled={day > today || isBusy || row.status === "present"} onClick={() => void gymnasticsSaveChild(row.child.id, "present")}>{isBusy ? "Сохранение…" : "Присутствует"}</button><button className={styles.buttonSecondary} disabled={day > today || isBusy || row.status === "absent"} onClick={() => void gymnasticsSaveChild(row.child.id, "absent")}>{isBusy ? "Сохранение…" : "Отсутствует"}</button></> : <>
         {state === "Без отметки" || state === "Отсутствует" || state === "Уточнить приход" ? <button className={styles.button} disabled={day !== today || isBusy} onClick={() => void action(row, "arrival")}>{isBusy ? "Сохранение…" : state === "Уточнить приход" ? "Записать приход" : "Пришёл"}</button> : null}
         {state === "В саду" ? <button className={styles.buttonSecondary} disabled={day !== today || isBusy} onClick={() => void action(row, "departure")}>{isBusy ? "Сохранение…" : "Ушёл"}</button> : null}
         {state !== "Отсутствует" && <button className={styles.buttonSecondary} disabled={isBusy} onClick={() => void action(row, "absent")}>{isBusy ? "Сохранение…" : "Отсутствует"}</button>}
+      </>}
       </span></li>;
     })}</ul>{!error && rows.length === 0 && <p className={styles.muted}>{groupId ? "Нет детей для отметки." : "Выберите назначенную группу."}</p>}</section>}
   </TeacherPageFrame>;

@@ -13,6 +13,7 @@ from app.models.communication import CommunicationMessage, CommunicationThread
 from app.models.employee import Employee
 from app.models.guardian import Guardian
 from app.models.notification import Notification
+from app.models.organization import Organization
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.user import User
 from app.schemas.teacher.contracts import MessageResponse, ThreadResponse
@@ -38,10 +39,15 @@ def _sender_presentation(db: Session, actor: User, sender_user_id: UUID) -> tupl
     ))
     if sender is None:
         raise AppError(404, "NOT_FOUND")
-    if sender.role == "TEACHER":
+    if sender.role in {"TEACHER", "DIRECTOR"}:
         profile = db.scalar(select(Employee).where(
             Employee.user_id == sender.id, Employee.organization_id == actor.organization_id,
+            Employee.status == "active", Employee.category == "teacher",
         ))
+        if sender.role == "DIRECTOR" and db.scalar(select(Organization.operating_profile).where(
+            Organization.id == actor.organization_id,
+        )) != "GYMNASTICS":
+            profile = None
     elif sender.role == "PARENT":
         profile = db.scalar(select(Guardian).where(
             Guardian.user_id == sender.id, Guardian.organization_id == actor.organization_id,

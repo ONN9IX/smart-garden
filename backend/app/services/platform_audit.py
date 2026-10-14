@@ -14,9 +14,10 @@ ACTIONS = {
     "organization.create",
     "organization.block",
     "organization.unblock",
+    "organization.profile_change",
     "subscription.update",
 }
-FIELDS = {"before_status", "after_status", "reason", "changed_fields"}
+FIELDS = {"before_status", "after_status", "before_profile", "after_profile", "reason", "changed_fields"}
 SUBSCRIPTION_FIELDS = {
     "status",
     "plan_code",
@@ -48,6 +49,8 @@ def write(db, operator_id, action: str, organization_id=None, details=None) -> N
             "owner_request",
             "security",
             "administrative",
+            "KINDERGARTEN",
+            "GYMNASTICS",
         }:
             raise ValueError("Invalid audit state")
     db.add(

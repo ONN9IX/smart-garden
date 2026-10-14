@@ -48,7 +48,11 @@ COMMON_ERRORS = {400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 4
 def auth_response(user: User) -> AuthResponse:
     return AuthResponse(
         user=UserResponse(id=user.id, username=user.username, role=user.role, status=user.status, must_change_password=user.must_change_password),
-        organization=OrganizationResponse(id=user.organization.id, name=user.organization.name),
+        organization=OrganizationResponse(
+            id=user.organization.id,
+            name=user.organization.name,
+            operating_profile=user.organization.operating_profile,
+        ),
     )
 
 
@@ -88,7 +92,7 @@ def reset_password(payload: PasswordActionRequest, db: Annotated[Session, Depend
     return AccountActionResponse()
 
 
-@router.get("/me", response_model=AuthResponse, responses=COMMON_ERRORS, summary="Текущий пользователь и детский сад")
+@router.get("/me", response_model=AuthResponse, responses=COMMON_ERRORS, summary="Текущий пользователь и профиль организации")
 def me(user: Annotated[User, Depends(current_identity)]) -> AuthResponse:
     return auth_response(user)
 

@@ -36,7 +36,11 @@ def test_login_cookie_and_me_match_frontend(client, users, db):
     assert response.status_code == 200
     assert response.json() == {
         "user": {"id": str(director.id), "username": "director-test", "role": "DIRECTOR", "status": "active", "must_change_password": True},
-        "organization": {"id": str(organization.id), "name": organization.name},
+        "organization": {
+            "id": str(organization.id),
+            "name": organization.name,
+            "operating_profile": "KINDERGARTEN",
+        },
     }
     cookie = response.headers["set-cookie"].lower()
     assert "httponly" in cookie and "samesite=lax" in cookie

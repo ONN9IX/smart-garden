@@ -42,6 +42,7 @@ export type ManagementToday = {
 export type TeacherAccountView = {
   user_id: string;
   username: string;
+  role: "TEACHER" | "DIRECTOR";
   status: "active" | "blocked";
   must_change_password: boolean;
 };

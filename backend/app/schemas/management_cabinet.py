@@ -57,6 +57,7 @@ class ManagementToday(BaseModel):
 class TeacherAccountView(BaseModel):
     user_id: UUID
     username: str
+    role: Literal["TEACHER", "DIRECTOR"]
     status: Literal["active", "blocked"]
     must_change_password: bool
 
@@ -96,6 +97,77 @@ class ScheduleCreate(BaseModel):
     @classmethod
     def trim_title(cls, value: str) -> str:
         return str(value).strip()
+
+
+class InitialEmployeeRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    middle_name: str | None = Field(default=None, max_length=100)
+    position: str = Field(min_length=1, max_length=100)
+    category: Literal["teacher", "administrator", "other"]
+
+    @field_validator("first_name", "last_name", "position", mode="before")
+    @classmethod
+    def required_text(cls, value: str) -> str:
+        return str(value).strip() if isinstance(value, str) else value
+
+    @field_validator("middle_name", mode="before")
+    @classmethod
+    def optional_text(cls, value: str | None) -> str | None:
+        return _trim(value) or None
+
+
+class InitialScheduleRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    group_id: UUID
+    weekday: int = Field(ge=0, le=6)
+    start_time: time
+    end_time: time
+    title: str = Field(min_length=1, max_length=160)
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def trim_title(cls, value: str) -> str:
+        return str(value).strip() if isinstance(value, str) else value
+
+
+class InitialSetupPreviewInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    idempotency_key: UUID
+    employees: list[InitialEmployeeRow] = Field(default_factory=list, max_length=200)
+    schedules: list[InitialScheduleRow] = Field(default_factory=list, max_length=500)
+
+    @model_validator(mode="after")
+    def require_rows(self):
+        if not self.employees and not self.schedules:
+            raise ValueError("At least one initial setup row is required")
+        return self
+
+
+class InitialSetupApplyInput(InitialSetupPreviewInput):
+    request_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    confirmed: Literal[True]
+
+
+class InitialSetupRowResult(BaseModel):
+    row: int
+    status: Literal["ready", "conflict", "invalid"]
+    message: str
+
+
+class InitialSetupPreviewResponse(BaseModel):
+    request_digest: str
+    ready: bool
+    employee_rows: list[InitialSetupRowResult]
+    schedule_rows: list[InitialSetupRowResult]
+
+
+class InitialSetupApplyResponse(BaseModel):
+    batch_id: UUID
+    employee_count: int
+    schedule_count: int
+    replayed: bool
 
 
 class SchedulePatch(BaseModel):

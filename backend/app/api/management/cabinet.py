@@ -27,6 +27,10 @@ from app.schemas.management_cabinet import (
     IncidentList,
     IncidentPatch,
     IncidentResponse,
+    InitialSetupApplyInput,
+    InitialSetupApplyResponse,
+    InitialSetupPreviewInput,
+    InitialSetupPreviewResponse,
     ManagementMessageCreate,
     ManagementMessageList,
     ManagementMessageResponse,
@@ -73,6 +77,20 @@ Database = Annotated[Session, Depends(get_db)]
 @router.get("/management/today", response_model=ManagementToday)
 def today(user: Manager, db: Database) -> ManagementToday:
     return management_cabinet.management_today(db, user)
+
+
+@router.post("/management/initial-setup/preview", response_model=InitialSetupPreviewResponse)
+def preview_initial_setup(
+    payload: InitialSetupPreviewInput, user: Manager, db: Database,
+) -> InitialSetupPreviewResponse:
+    return management_cabinet.preview_initial_setup(db, user, payload)
+
+
+@router.post("/management/initial-setup/apply", response_model=InitialSetupApplyResponse)
+def apply_initial_setup(
+    payload: InitialSetupApplyInput, user: Manager, db: Database,
+) -> InitialSetupApplyResponse:
+    return management_cabinet.apply_initial_setup(db, user, payload)
 
 
 @router.get("/management/control", response_model=ManagementControl)
@@ -218,26 +236,29 @@ def create_group_message(
 
 @router.get("/teacher-management/communications/v2/threads", response_model=list[ThreadSummaryV2])
 def list_v2_group_threads(user: Manager, db: Database) -> list[ThreadSummaryV2]:
-    return communications_v2.list_threads(db, user)
+    return communications_v2.list_threads(db, user, communications_v2.management_scope(user))
 
 
 @router.get("/teacher-management/communications/v2/groups/{group_id}/thread", response_model=ThreadSummaryV2)
 def get_v2_group_thread(
     group_id: UUID, user: Manager, db: Database, audience: Literal["all", "teachers"] = "all",
 ) -> ThreadSummaryV2:
-    thread = communications_v2.group_thread(db, user, group_id, audience)
-    return next(item for item in communications_v2.list_threads(db, user) if item.id == thread.id)
+    scope = communications_v2.management_scope(user)
+    thread = communications_v2.group_thread(db, user, group_id, audience, scope)
+    return next(item for item in communications_v2.list_threads(db, user, scope) if item.id == thread.id)
 
 
 @router.get("/teacher-management/communications/v2/threads/{thread_id}/messages", response_model=list[ManagementMessageResponse])
 def list_v2_messages(thread_id: UUID, user: Manager, db: Database) -> list[ManagementMessageResponse]:
+    scope = communications_v2.management_scope(user)
+    thread = communications_v2._eligible_thread(db, user, thread_id, scope)
     result = []
-    for item in communications_v2.messages(db, user, thread_id):
+    for item in communications_v2.messages(db, user, thread_id, scope):
         role, name = teacher_communications._sender_presentation(db, user, item.sender_user_id)
         result.append(ManagementMessageResponse(
             id=item.id, thread_id=item.thread_id, sender_user_id=item.sender_user_id,
-            group_id=communications_v2._eligible_thread(db, user, thread_id).group_id,
-            sender_role=role, sender_name=name, audience=communications_v2._eligible_thread(db, user, thread_id).audience,
+            group_id=thread.group_id,
+            sender_role=role, sender_name=name, audience=thread.audience,
             body=item.body, created_at=item.created_at,
         ))
     return result
@@ -245,11 +266,13 @@ def list_v2_messages(thread_id: UUID, user: Manager, db: Database) -> list[Manag
 
 @router.post("/teacher-management/communications/v2/threads/{thread_id}/messages", response_model=ManagementMessageResponse, status_code=201)
 def send_v2_message(thread_id: UUID, payload: MessageCreateV2, user: Manager, db: Database) -> ManagementMessageResponse:
-    item = communications_v2.send(db, user, thread_id, payload.body, payload.client_message_id)
+    scope = communications_v2.management_scope(user)
+    thread = communications_v2._eligible_thread(db, user, thread_id, scope)
+    item = communications_v2.send(db, user, thread_id, payload.body, payload.client_message_id, scope)
     role, name = teacher_communications._sender_presentation(db, user, item.sender_user_id)
     return ManagementMessageResponse(
         id=item.id, thread_id=item.thread_id, sender_user_id=item.sender_user_id,
-        group_id=thread.group_id if (thread := communications_v2._eligible_thread(db, user, thread_id)) else None,
+        group_id=thread.group_id,
         sender_role=role, sender_name=name, audience=thread.audience,
         body=item.body, created_at=item.created_at,
     )
@@ -257,7 +280,8 @@ def send_v2_message(thread_id: UUID, payload: MessageCreateV2, user: Manager, db
 
 @router.post("/teacher-management/communications/v2/threads/{thread_id}/read", response_model=ReadStateResponse)
 def mark_v2_read(thread_id: UUID, payload: ReadCursorCreate, user: Manager, db: Database) -> ReadStateResponse:
-    return communications_v2.mark_read(db, user, thread_id, payload.last_read_message_id)
+    scope = communications_v2.management_scope(user)
+    return communications_v2.mark_read(db, user, thread_id, payload.last_read_message_id, scope)
 
 
 @router.get("/teacher-management/diary", response_model=DiaryEntryList)

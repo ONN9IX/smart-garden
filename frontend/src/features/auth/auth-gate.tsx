@@ -24,6 +24,8 @@ export function AuthGate({ route, children }: { route: Route; children: React.Re
         ? (route === "parent" ? null : "/parent")
         : current.user.role === "TEACHER"
           ? (route === "teacher" ? null : "/teacher")
+          : current.user.role === "DIRECTOR" && current.organization.operating_profile === "GYMNASTICS"
+            ? (route === "teacher" || route === "dashboard" || route === "director" ? null : "/dashboard")
         : route === "director" && current.user.role !== "DIRECTOR"
           ? "/403"
           : (route === "dashboard" || route === "director" ? null : "/dashboard");

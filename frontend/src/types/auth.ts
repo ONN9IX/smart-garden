@@ -9,6 +9,7 @@ export const ROLES = {
 } as const;
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
+export type OperatingProfile = "KINDERGARTEN" | "GYMNASTICS";
 
 export interface AuthContext {
   user: {
@@ -21,6 +22,7 @@ export interface AuthContext {
   organization: {
     id: string;
     name: string;
+    operating_profile: OperatingProfile;
   };
 }
 

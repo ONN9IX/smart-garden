@@ -17,13 +17,15 @@ export function TeacherPageFrame({ title, eyebrow, children }: {
   </div></AppShell></div></AuthGate>;
 }
 
-export function useGroups() {
+export function useGroups(initialGroupId?: string) {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [groupId, setGroupId] = useState("");
   const [error, setError] = useState("");
   useEffect(() => { teacherApi.groups().then((items) => {
-    setGroups(items); setGroupId((current) => current || items[0]?.id || "");
-  }).catch((reason) => setError(userMessage(reason))); }, []);
+    setGroups(items); setGroupId((current) => initialGroupId
+      ? items.some((group) => group.id === initialGroupId) ? initialGroupId : ""
+      : current || items[0]?.id || "");
+  }).catch((reason) => setError(userMessage(reason))); }, [initialGroupId]);
   return { groups, groupId, setGroupId, error };
 }
 
@@ -31,7 +33,7 @@ export function GroupPicker({ groups, groupId, setGroupId }: {
   groups: GroupSummary[]; groupId: string; setGroupId: (id: string) => void;
 }) {
   return <label>Группа<select value={groupId} onChange={(event) => setGroupId(event.target.value)}>
-    {groups.length === 0 && <option value="">Нет назначенных групп</option>}
+    {(!groupId || groups.length === 0) && <option value="">{groups.length === 0 ? "Нет назначенных групп" : "Выберите назначенную группу"}</option>}
     {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
   </select></label>;
 }

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.models.employee import Employee
 from app.models.group import Group
+from app.models.organization import Organization
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.user import User
 from app.schemas.teacher_management import (
@@ -38,11 +39,21 @@ def _eligible_employee(db: Session, actor: User, employee_id: UUID) -> Employee:
         raise AppError(404, "NOT_FOUND")
     if employee.status != "active":
         raise AppError(409, "EMPLOYEE_ARCHIVED")
-    account = db.scalar(select(User.id).where(
+    account = db.scalar(select(User).where(
         User.id == employee.user_id, User.organization_id == actor.organization_id,
-        User.role == "TEACHER", User.status == "active",
     ))
-    if account is None:
+    director_coach = bool(
+        account is not None
+        and account.role == "DIRECTOR"
+        and db.scalar(select(Organization.operating_profile).where(
+            Organization.id == actor.organization_id,
+        )) == "GYMNASTICS"
+    )
+    if (
+        account is None
+        or account.status != "active"
+        or (account.role != "TEACHER" and not director_coach)
+    ):
         raise AppError(409, "EMPLOYEE_ACCOUNT_NOT_FOUND")
     if employee.category != "teacher":
         raise AppError(409, "EMPLOYEE_CATEGORY_CONFLICT", "employee_id")
@@ -75,6 +86,7 @@ def create(db: Session, actor: User, payload: TeacherAssignmentCreate) -> Teache
     _eligible_employee(db, actor, payload.employee_id)
     _active_group(db, actor, payload.group_id)
     existing = db.scalar(select(TeacherGroupAssignment).where(
+        TeacherGroupAssignment.organization_id == actor.organization_id,
         TeacherGroupAssignment.employee_id == payload.employee_id,
         TeacherGroupAssignment.group_id == payload.group_id,
     ))

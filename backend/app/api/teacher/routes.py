@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from app.core.permissions import require_role
+from app.core.permissions import require_coach_context
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.attendance import (
@@ -16,6 +16,8 @@ from app.schemas.attendance import (
     AttendanceDetail,
     AttendancePatch,
     AttendanceRow,
+    GroupDayAttendanceResponse,
+    GroupDayAttendanceSave,
 )
 from app.schemas.communications_v2 import (
     DirectThreadCreateV2,
@@ -58,7 +60,7 @@ from app.services import communications_v2
 from app.services.teacher import access, cabinet, communications, content, photos
 
 router = APIRouter(prefix="/teacher", tags=["Кабинет воспитателя"])
-Teacher = Annotated[User, Depends(require_role("TEACHER"))]
+Teacher = Annotated[User, Depends(require_coach_context)]
 Database = Annotated[Session, Depends(get_db)]
 
 
@@ -110,6 +112,13 @@ def save_attendance(
     if not created:
         response.status_code = 200
     return result
+
+
+@router.post("/attendance/group-day", response_model=GroupDayAttendanceResponse)
+def save_group_day_attendance(
+    payload: GroupDayAttendanceSave, user: Teacher, db: Database,
+) -> GroupDayAttendanceResponse:
+    return GroupDayAttendanceResponse(items=cabinet.save_group_day_attendance(db, user, payload))
 
 
 @router.patch("/attendance/{record_id}", response_model=AttendanceDetail)

@@ -15,6 +15,7 @@ from app.models.communication import (
 )
 from app.models.employee import Employee
 from app.models.notification import Notification
+from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.services.teacher import communications as legacy_communications
 from tests.test_stage6_teacher_cabinet import _login
 
@@ -362,6 +363,59 @@ def test_parent_v2_rejects_legacy_parents_group_but_legacy_api_keeps_it(client, 
         # The supported audience=all Parent Group channel remains accessible.
         group = parent_client.get(f"/api/v1/parent/communications/v2/groups/{world.assigned.id}/thread")
         assert group.status_code == 200 and group.json()["audience"] == "all"
+
+
+def test_management_scope_is_not_a_gym_coach_scope(client, db, cabinet_world):
+    world = cabinet_world
+    world.organization.operating_profile = "GYMNASTICS"
+    owner_coach = Employee(
+        organization_id=world.organization.id, user_id=world.director.id,
+        first_name="Синтетический", last_name="Владелец-тренер",
+        position="Тренер", category="teacher", status="active",
+    )
+    db.add(owner_coach)
+    db.flush()
+    db.add(TeacherGroupAssignment(
+        organization_id=world.organization.id, employee_id=owner_coach.id,
+        group_id=world.assigned.id, status="active", assigned_by=world.director.id,
+    ))
+    private = CommunicationThread(
+        organization_id=world.organization.id, thread_type="direct", audience="all",
+        group_id=world.unassigned.id, child_id=world.other_child.id,
+        guardian_id=world.guardian.id, teacher_employee_id=world.employee.id,
+    )
+    foreign = CommunicationThread(
+        organization_id=world.other.id, thread_type="group", audience="all", group_id=world.foreign.id,
+    )
+    db.add_all([private, foreign])
+    db.flush()
+
+    assert _login(client, world.director.username).status_code == 200
+    group_path = f"/api/v1/teacher-management/communications/v2/groups/{world.unassigned.id}/thread"
+    managed = client.get(group_path)
+    assert managed.status_code == 200
+    thread_id = managed.json()["id"]
+    assert thread_id in {item["id"] for item in client.get(
+        "/api/v1/teacher-management/communications/v2/threads",
+    ).json()}
+    assert client.get(f"/api/v1/teacher-management/communications/v2/threads/{thread_id}/messages").status_code == 200
+    sent = client.post(f"/api/v1/teacher-management/communications/v2/threads/{thread_id}/messages", json={
+        "body": "Синтетическое служебное сообщение", "client_message_id": str(uuid4()),
+    })
+    assert sent.status_code == 201
+    assert client.post(f"/api/v1/teacher-management/communications/v2/threads/{thread_id}/read", json={
+        "last_read_message_id": sent.json()["id"],
+    }).status_code == 200
+    assert client.get(f"/api/v1/teacher-management/communications/v2/threads/{private.id}/messages").status_code == 404
+    assert client.get(f"/api/v1/teacher-management/communications/v2/threads/{foreign.id}/messages").status_code == 404
+    assert client.get(
+        f"/api/v1/teacher-management/communications/v2/groups/{world.foreign.id}/thread",
+    ).status_code == 404
+
+    assert _login(client, world.teacher.username).status_code == 200
+    assert client.get(
+        f"/api/v1/teacher/communications/v2/groups/{world.unassigned.id}/thread",
+    ).status_code == 404
 
 
 def test_announcement_preview_matches_frozen_audience_matrix_and_group_fanout(client, db, cabinet_world):
