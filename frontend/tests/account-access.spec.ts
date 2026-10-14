@@ -142,21 +142,13 @@ test("role change explains consequences and surfaces API failure", async ({ page
   await expect(page.getByText("Изменение роли недоступно")).toBeVisible();
 });
 
-test("Gymnastics owner coach employee card shows its linked role without account lifecycle actions", async ({ page }) => {
+test("Gymnastics owner coach employee profile shows its linked role without account lifecycle actions", async ({ page }) => {
   const ownerAuth = { ...auth, organization: { id: "o1", name: "Секция", operating_profile: "GYMNASTICS" } };
   const ownerCoach = { id: "owner-coach", first_name: "Синтетический", last_name: "Владелец", middle_name: null, position: "Тренер", category: "teacher", phone: null, email: null, status: "active", account: { id: "u1", username: "section-owner", role: "DIRECTOR", status: "active", must_change_password: false }, archived_at: null, created_at: "2026-10-14T00:00:00Z", updated_at: "2026-10-14T00:00:00Z" };
   await page.route("**/api/v1/auth/me", route => route.fulfill({ json: ownerAuth }));
-  await page.route("**/api/v1/employees**", route => {
-    const url = new URL(route.request().url());
-    return url.pathname === "/api/v1/employees" && route.request().method() === "GET"
-      ? route.fulfill({ json: { items: [ownerCoach] } })
-      : route.continue();
-  });
   await page.route("**/api/v1/employees/owner-coach", route => route.fulfill({ json: ownerCoach }));
   await page.route("**/api/v1/management/employees/owner-coach/profile", route => route.fulfill({ json: { assignments: [], open_tasks: 0, overdue_tasks: 0 } }));
-  await page.goto("/employees");
-  await expect(page.getByText("Тренер · владелец секции: активен", { exact: true })).toBeVisible();
-  await page.getByRole("link").filter({ hasText: "Синтетический Владелец" }).click();
+  await page.goto("/employees/owner-coach");
   await expect(page.getByText(/Тип: Тренер · владелец секции/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Архивировать сотрудника" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Заблокировать", exact: true })).toHaveCount(0);
