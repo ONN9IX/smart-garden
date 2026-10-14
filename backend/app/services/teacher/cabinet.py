@@ -194,8 +194,7 @@ def save_attendance(
     access.teacher_group(db, actor, child.group_id)
     if (
         actor.organization.operating_profile == "GYMNASTICS"
-        and payload.group_id is not None
-        and payload.group_id != child.group_id
+        and (payload.group_id is None or payload.group_id != child.group_id)
     ):
         raise AppError(409, "ROSTER_CHANGED")
     if actor.organization.operating_profile == "GYMNASTICS":
