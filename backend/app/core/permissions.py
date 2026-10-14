@@ -69,7 +69,7 @@ def require_coach_context(
     profile = db.scalar(select(Organization.operating_profile).where(
         Organization.id == user.organization_id,
     ))
-    if profile == "GYMNASTICS":
+    if profile == "GYMNASTICS" and user.role == "DIRECTOR":
         route = request.scope.get("route")
         route_path = getattr(route, "path", request.url.path).removeprefix("/api/v1")
         allowed_routes = {

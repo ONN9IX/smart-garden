@@ -63,7 +63,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     {error && <div className="shell-alert"><Alert>{error}</Alert></div>}
     <div className="app-body">
       <aside className={`sidebar${isManagement ? " management-sidebar" : ""}`} aria-label="Основное меню">
-        {isTeacher ? <TeacherNav /> : <ManagementNav role={current.user.role} />}
+        {isTeacher ? <TeacherNav /> : null}
+        {managementRole && (isManagement || gymnasticsDirector) ? <ManagementNav role={managementRole} /> : null}
       </aside>
       <main className="main-content">{children}</main>
     </div>

@@ -672,6 +672,18 @@ def test_gym_owner_coach_context_and_daily_group_attendance(client, db, cabinet_
     )) == 2
 
 
+def test_gymnastics_profile_preserves_ordinary_teacher_modules(client, db, cabinet_world):
+    world = cabinet_world
+    world.organization.operating_profile = "GYMNASTICS"
+    db.flush()
+    assert _login(client, world.teacher.username).status_code == 200
+    assert client.get("/api/v1/teacher/tasks").status_code == 200
+    assert client.get("/api/v1/teacher/notifications").status_code == 200
+    assert client.get(
+        f"/api/v1/teacher/announcements?group_id={world.assigned.id}"
+    ).status_code == 200
+
+
 def test_director_without_gym_profile_employee_is_not_coach(client, db, cabinet_world):
     world = cabinet_world
     assert _login(client, world.director.username).status_code == 200
