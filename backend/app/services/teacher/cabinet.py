@@ -190,8 +190,16 @@ def list_attendance(db: Session, actor: User, day: date, group_id: UUID) -> list
 def save_attendance(
     db: Session, actor: User, payload: AttendanceCreate,
 ) -> tuple[AttendanceDetail, bool]:
-    child = access.teacher_child(db, actor, payload.child_id)
+    child = access.teacher_child(db, actor, payload.child_id, lock=True)
     access.teacher_group(db, actor, child.group_id)
+    if actor.organization.operating_profile == "GYMNASTICS":
+        historical_group_id = db.scalar(select(Attendance.group_id).where(
+            Attendance.organization_id == actor.organization_id,
+            Attendance.child_id == child.id,
+            Attendance.date == payload.date,
+        ).with_for_update())
+        if historical_group_id is not None and historical_group_id != child.group_id:
+            raise AppError(409, "ATTENDANCE_GROUP_CONFLICT")
     return attendance.upsert(db, actor, payload)
 
 

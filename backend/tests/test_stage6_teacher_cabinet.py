@@ -662,6 +662,17 @@ def test_gym_owner_coach_context_and_daily_group_attendance(client, db, cabinet_
         "child_id": str(world.other_child.id), "date": today, "status": "present",
     })
     assert hidden.status_code == 404
+    yesterday = date.fromisoformat(today) - timedelta(days=1)
+    db.add(Attendance(
+        organization_id=world.organization.id, child_id=world.child.id,
+        group_id=world.unassigned.id, date=yesterday, status="absent",
+        created_by=world.director.id, updated_by=world.director.id,
+    ))
+    db.flush()
+    historical = client.post("/api/v1/teacher/attendance", json={
+        "child_id": str(world.child.id), "date": yesterday.isoformat(), "status": "present",
+    })
+    assert historical.status_code == 409
     response = client.post("/api/v1/teacher/attendance/group-day", json={
         "group_id": str(world.assigned.id), "date": today,
         "items": [{"child_id": str(world.child.id), "status": "present"},

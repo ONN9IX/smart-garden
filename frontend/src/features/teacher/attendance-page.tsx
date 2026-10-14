@@ -77,16 +77,28 @@ export function AttendancePage({ initialGroupId }: { initialGroupId?: string }) 
   }
   async function gymnasticsSave(items: { child_id: string; status: "present" | "absent" | "unknown" }[]) {
     if (!groupId || !day) return;
+    const contextAtStart = contextId.current;
     setError(""); setBusy(new Set(items.map(item => item.child_id)));
-    try { await teacherApi.saveGroupDayAttendance({ group_id: groupId, date: day, items }); await load(); }
-    catch (reason) { setError(userMessage(reason)); }
-    finally { setBusy(new Set()); }
+    try {
+      await teacherApi.saveGroupDayAttendance({ group_id: groupId, date: day, items });
+      if (contextId.current === contextAtStart) await load();
+    } catch (reason) {
+      if (contextId.current === contextAtStart) setError(userMessage(reason));
+    } finally {
+      const savedIds = new Set(items.map(item => item.child_id));
+      setBusy(current => new Set([...current].filter(id => !savedIds.has(id))));
+    }
   }
   async function gymnasticsSaveChild(childId: string, status: "present" | "absent") {
     if (!day) return;
+    const contextAtStart = contextId.current;
     setError(""); setBusy((current) => new Set(current).add(childId));
-    try { await teacherApi.saveAttendance({ child_id: childId, date: day, status }); await load(); }
-    catch (reason) { setError(userMessage(reason)); }
+    try {
+      await teacherApi.saveAttendance({ child_id: childId, date: day, status });
+      if (contextId.current === contextAtStart) await load();
+    } catch (reason) {
+      if (contextId.current === contextAtStart) setError(userMessage(reason));
+    }
     finally { setBusy((current) => { const next = new Set(current); next.delete(childId); return next; }); }
   }
   return <TeacherPageFrame title={terms.attendance} eyebrow={gymnastics ? "Дневная отметка тренировок" : "Ежедневная отметка"}>
