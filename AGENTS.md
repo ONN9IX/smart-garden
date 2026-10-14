@@ -26,11 +26,27 @@
 ## Fast Flow and Git
 
 - Design/freeze product decisions in Chat before implementation.
-- One major delivery Issue → one fresh branch → implementation → targeted tests → PR → CI → review → merge.
+- One Issue → one fresh branch → one implementation → one PR → targeted tests → required CI → Master Chat review → explicit owner authorization for merge.
 - Never develop directly in `main`.
 - Fix ordinary defects found before merge in the same delivery branch.
 - Create a separate corrective Issue only for an independent architecture, API, DB, auth, RBAC, tenant, security, privacy or cross-stage finding.
-- A developer does not merge a Stage delivery PR without an explicit Master Chat decision.
+- Do not run `@codex review` automatically, repeatedly, or after every small fix. It is optional and requires a separate Master Chat decision.
+- A developer does not merge a Stage delivery PR without Master Chat acceptance and separate explicit owner authorization. Deploy also requires separate explicit owner authorization.
+
+## Delivery roles and PR acceptance
+
+- Master Chat owns architecture, Issue and WRITE-SET definition, privacy/security analysis, diff and CI review, and the `ACCEPT` or `FIX REQUIRED` decision.
+- Codex implements the approved scope and runs targeted local tests.
+- GitHub Actions runs all required deterministic test, quality, and security checks. The required PR gate is **8/8 successful checks** on the exact final HEAD.
+- The owner separately authorizes merge and deploy; neither is automatic.
+- Master Chat reviews scope, behavior, security, tenant isolation, RBAC, privacy, negative scenarios, test coverage, CI, and conflicts. Ordinary fixes stay on the delivery branch.
+- Green CI and technical review do not by themselves prove complete security, privacy, or legal compliance.
+
+### Optional AI review
+
+- Automated `@codex review` is not a required gate for every PR and must not be started by default.
+- Master Chat may request one final AI review for high-risk auth, RBAC, tenant isolation, personal-data, migration, or architecture changes, or for a serious unresolved defect.
+- Do not run AI review cyclically or after each minor correction. If it is unavailable because of limits, Master Chat records the residual risk; merge still requires a separate owner decision.
 
 ## Frozen stages and current product baseline
 
@@ -107,11 +123,14 @@ Read in this order:
 5. changed files/diff;
 6. relevant tests and CI.
 
-Do not rescan frozen stages without a concrete regression, compatibility or security reason.
+Read only the current Issue, the relevant part of `docs/CURRENT_STATE.md`, this file, changed or dependent files, and relevant tests. Do not rescan the repository or frozen stages without a concrete regression, compatibility, or security reason.
+
+When available, use Serena for symbols, `rg` for text, `ast-grep`/`sg` for structural search, RTK for large output without hiding diagnostics, and `ccusage` after large tasks. Do not reinstall tools unnecessarily or assume local utilities are available in Codex Cloud.
 
 ## Testing
 
 - During implementation, run only targeted tests relevant to the diff.
 - Before PR, use existing fast commands as applicable: `ruff check .` and targeted `pytest` from `backend/`; `npm run lint`, build when relevant, and targeted Playwright specs from `frontend/`.
-- Full backend/PostgreSQL/migration, frontend, browser, dependency-security and Docker regression belongs to required PR CI and acceptance/freeze checks.
+- Full backend/PostgreSQL/migration, frontend, browser, dependency-security and Docker regression belongs to the required 8/8 PR CI and acceptance/freeze checks.
 - Do not weaken old tests merely to make a new product change pass. When a capability is OFF, preserve its underlying regression behind explicit test-only feature enabling and add tests for the default OFF boundary.
+- Do not bypass branch protection, create auto-agents, call paid APIs, auto-merge, or auto-deploy.
