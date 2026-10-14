@@ -140,7 +140,7 @@ jobs:
           unset recovery_database_url
       - name: Sanitized candidate version report
         run: python scripts/version-report.py | tee compatibility-backend.json
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: compatibility-backend-versions
           path: compatibility-backend.json
@@ -179,7 +179,7 @@ jobs:
           node scripts/check-npm-audit.mjs
       - name: Sanitized candidate version report
         run: python scripts/version-report.py | tee "compatibility-frontend-${{ matrix.lane }}.json"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: compatibility-frontend-${{ matrix.lane }}-versions
           path: compatibility-frontend-${{ matrix.lane }}.json
