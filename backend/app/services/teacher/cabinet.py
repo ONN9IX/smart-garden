@@ -192,12 +192,6 @@ def save_attendance(
 ) -> tuple[AttendanceDetail, bool]:
     child = access.teacher_child(db, actor, payload.child_id, lock=True)
     access.teacher_group(db, actor, child.group_id)
-    if (
-        actor.organization.operating_profile == "GYMNASTICS"
-        and actor.role == "DIRECTOR"
-        and {"arrival_time", "departure_time"} & payload.model_fields_set
-    ):
-        raise AppError(400, "INVALID_ATTENDANCE_TIME")
     if actor.organization.operating_profile == "GYMNASTICS":
         historical_group_id = db.scalar(select(Attendance.group_id).where(
             Attendance.organization_id == actor.organization_id,

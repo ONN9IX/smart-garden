@@ -24,10 +24,8 @@ export function GymnasticsToday() {
     finally { setBusy(false); }
   }
   async function markAll(groupId: string) {
-    const roster = await teacherApi.children(groupId);
-    if (!roster.length) return;
     setBusy(true); setError("");
-    try { await teacherApi.saveGroupDayAttendance({ group_id: groupId, date: today!.date, items: roster.map(child => ({ child_id: child.id, status: "present" })) }); await load(); }
+    try { const roster = await teacherApi.children(groupId); if (!roster.length) return; await teacherApi.saveGroupDayAttendance({ group_id: groupId, date: today!.date, items: roster.map(child => ({ child_id: child.id, status: "present" })) }); await load(); }
     catch (e) { setError(userMessage(e, "Не удалось сохранить посещаемость.")); }
     finally { setBusy(false); }
   }

@@ -64,3 +64,30 @@ test("gymnastics attendance opens the group chosen on Today", async ({ page }) =
   await expect(page.getByLabel("Группа")).toHaveValue("group-2");
   await expect.poll(() => requestedGroup).toBe("group-2");
 });
+
+test("gymnastics Today releases busy and retries after roster load failure", async ({ page }) => {
+  await page.route("**/api/v1/auth/me", route => route.fulfill({ json: context }));
+  await page.route("**/api/v1/employees/me/coach-profile", route => route.fulfill({ json: { id: "employee-1", first_name: "Алексей", last_name: "Примеров", middle_name: null, position: "Тренер", category: "teacher", phone: null, email: null, status: "active", account: context.user, archived_at: null, created_at: "2026-10-13T00:00:00Z", updated_at: "2026-10-13T00:00:00Z" } }));
+  await page.route("**/api/v1/teacher/today", route => route.fulfill({ json: today }));
+  let rosterAttempts = 0;
+  let saves = 0;
+  await page.route("**/api/v1/teacher/groups/group-1/children", route => {
+    rosterAttempts += 1;
+    return rosterAttempts === 1
+      ? route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "NOT_FOUND" } }) })
+      : route.fulfill({ json: [{ id: "child-1", first_name: "Синтетическая", last_name: "Спортсменка" }] });
+  });
+  await page.route("**/api/v1/teacher/attendance/group-day", route => {
+    saves += 1;
+    return route.fulfill({ json: { items: [] } });
+  });
+  await page.goto("/dashboard");
+  const button = page.getByRole("button", { name: "Отметить всех присутствующими" });
+  await button.click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(button).toBeEnabled();
+  await expect.poll(() => saves).toBe(0);
+  await button.click();
+  await expect.poll(() => rosterAttempts).toBe(2);
+  await expect.poll(() => saves).toBe(1);
+});
