@@ -4,16 +4,16 @@ from datetime import UTC, datetime, timedelta
 
 import pyotp
 import pytest
-from alembic import command
 from alembic.config import Config
+from cryptography.fernet import Fernet
+from sqlalchemy import select, text
+
+from alembic import command
 from app.core import platform_security as security
 from app.core.config import get_settings
 from app.db.session import engine
 from app.models.platform_session import PlatformSession
 from app.services.platform_bootstrap import configure_operator
-from cryptography.fernet import Fernet
-from sqlalchemy import select, text
-
 from tests.conftest import TEST_PASSWORD
 
 PASSWORD = "synthetic-owner-password-221"
@@ -379,13 +379,14 @@ def test_cleanup_and_expired_authenticate_do_not_deadlock(platform_owner):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event
 
+    from sqlalchemy import delete, event
+    from sqlalchemy.orm import Session
+
     from app.core.errors import AppError
     from app.core.security import generate_session_token, hash_session_token
     from app.models.platform_audit_event import PlatformAuditEvent
     from app.models.platform_operator import PlatformOperator
     from app.services import platform_auth
-    from sqlalchemy import delete, event
-    from sqlalchemy.orm import Session
 
     raw = generate_session_token()
     now = platform_owner[2][0]
