@@ -45,9 +45,22 @@ bash scripts/setup-platform-owner-local.sh diagnose
 ключ, URI или содержимое env-файлов.
 
 Если оператор уже существует, используйте именно его username и текущий ключ.
-Не запускайте `init-key` или `create`; при штатной настройке повторите запуск
-preview и войдите через `http://localhost:3000/platform/login`, пароль и TOTP
-вводятся владельцем.
+Не запускайте `init-key` или `create`. Если диагностика показывает, что
+текущий ключ может расшифровать MFA ровно этого оператора, а внешнего файла ещё
+нет, безопасно перенесите именно загруженный ключ без вывода в терминал:
+
+```bash
+bash scripts/setup-platform-owner-local.sh persist-key platform-owner-local
+bash scripts/start-preview.sh
+bash scripts/setup-platform-owner-local.sh diagnose
+```
+
+`persist-key` сверяет username, требует ровно одну platform identity и
+проверяет расшифровку существующего MFA ciphertext. Он копирует текущее значение
+из backend environment во внешний файл без печати ключа; если текущий ключ не
+может расшифровать TOTP или учёток несколько, операция останавливается. Этот
+шаг не меняет пароль, MFA, сессии или запись владельца. После проверки входите
+через `http://localhost:3000/platform/login`; пароль и TOTP вводите сами.
 
 `init-key` разрешён только после диагностики пустой таблицы platform operators.
 Он создаёт ключ один раз во внешнем env-файле; стартовый скрипт никогда не
