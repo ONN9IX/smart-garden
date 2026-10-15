@@ -51,7 +51,7 @@ jobs:
           .candidate-venv/bin/alembic upgrade head
           .candidate-venv/bin/pytest tests/test_platform_quality.py tests/test_auth.py tests/test_account_access.py
       - name: Publish candidate diff
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: python-dependency-candidate-diff
           path: backend/dependency-candidate.diff
