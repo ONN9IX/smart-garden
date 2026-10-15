@@ -31,7 +31,9 @@ $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 icacls $ownerDir /inheritance:r /grant:r "*$sid`:(OI)(CI)F" 'SYSTEM:(OI)(CI)F'
 ```
 
-Запустите preview, затем выполните read-only диагностику:
+Если preview уже запущен, сначала выполните только read-only диагностику. Если
+preview остановлен, запустите его с текущей конфигурацией (не запускайте
+`init-key`/`create`), затем выполните диагностику:
 
 ```bash
 bash scripts/start-preview.sh
