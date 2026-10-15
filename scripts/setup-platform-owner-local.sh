@@ -24,6 +24,7 @@ usage() {
 Usage:
   bash scripts/setup-platform-owner-local.sh diagnose
   bash scripts/setup-platform-owner-local.sh init-key
+  bash scripts/setup-platform-owner-local.sh persist-key EXISTING_USERNAME
   bash scripts/setup-platform-owner-local.sh create USERNAME
   bash scripts/setup-platform-owner-local.sh recover EXISTING_USERNAME
 
@@ -133,6 +134,49 @@ with SessionLocal() as db:
   write_new_key
   echo "Created a persistent owner key at $platform_owner_env_file (value withheld)."
   echo 'This is safe only because the database currently has no platform operators.'
+  exit 0
+fi
+
+if [[ "$action" == persist-key ]]; then
+  if [[ $# -ne 2 ]]; then usage >&2; exit 2; fi
+  if [[ -e "$platform_owner_env_file" ]]; then
+    echo 'Key persistence refused: the external config already exists and was not changed.' >&2
+    exit 1
+  fi
+  mkdir -p "$platform_owner_dir"
+  chmod 700 "$platform_owner_dir"
+  temporary_key_file=$(mktemp "$platform_owner_dir/.platform-owner.XXXXXX")
+  trap 'rm -f "$temporary_key_file"' EXIT
+  "${compose[@]}" exec -T backend python -c '
+import os
+import sys
+from sqlalchemy import select
+from app.core.config import get_settings
+from app.core.platform_security import decrypt_secret
+from app.db.session import SessionLocal
+from app.models.platform_operator import PlatformOperator
+try:
+    key = get_settings().platform_encryption_key
+    with SessionLocal() as db:
+        operators = db.scalars(select(PlatformOperator)).all()
+        if len(operators) != 1 or operators[0].username != sys.argv[1]:
+            raise ValueError
+        decrypt_secret(operators[0].totp_secret_ciphertext)
+    if not key:
+        raise ValueError
+except Exception:
+    raise SystemExit("Current key or owner precondition failed; no key was exported.") from None
+os.write(1, b"PLATFORM_ENCRYPTION_KEY=" + key.encode("ascii") + b"\n")
+' "$2" > "$temporary_key_file"
+  chmod 600 "$temporary_key_file"
+  if [[ -e "$platform_owner_env_file" ]]; then
+    echo 'Key persistence refused: config file appeared during setup; temporary copy removed.' >&2
+    exit 1
+  fi
+  mv "$temporary_key_file" "$platform_owner_env_file"
+  trap - EXIT
+  echo "Persisted the current decryptable key at $platform_owner_env_file (value withheld)."
+  echo 'The key was not changed. Restart preview and rerun diagnose to verify the loaded config.'
   exit 0
 fi
 
