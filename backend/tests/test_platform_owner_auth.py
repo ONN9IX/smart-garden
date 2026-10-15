@@ -4,16 +4,16 @@ from datetime import UTC, datetime, timedelta
 
 import pyotp
 import pytest
-from alembic.config import Config
-from cryptography.fernet import Fernet
-from sqlalchemy import select, text
-
 from alembic import command
+from alembic.config import Config
 from app.core import platform_security as security
 from app.core.config import get_settings
 from app.db.session import engine
 from app.models.platform_session import PlatformSession
 from app.services.platform_bootstrap import configure_operator
+from cryptography.fernet import Fernet
+from sqlalchemy import select, text
+
 from tests.conftest import TEST_PASSWORD
 
 PASSWORD = "synthetic-owner-password-221"
@@ -233,6 +233,26 @@ def test_missing_key_fails_closed(client, monkeypatch):
     )
 
 
+def test_incorrect_key_fails_closed_during_mfa(client, platform_owner, monkeypatch):
+    monkeypatch.setattr(
+        get_settings(), "platform_encryption_key", Fernet.generate_key().decode()
+    )
+    csrf = challenge(client)
+    response = client.post(
+        ROOT + "/auth/mfa/verify",
+        json={"code": pyotp.TOTP(platform_owner[1]).at(platform_owner[2][0])},
+        headers=headers(csrf),
+    )
+    assert response.status_code == 503
+
+
+def test_create_precondition_prevents_duplicate_operator(db, platform_owner):
+    assert db.scalar(text("SELECT count(*) FROM platform_operators")) == 1
+    with pytest.raises(ValueError, match="precondition"):
+        configure_operator(db, "synthetic-owner", PASSWORD)
+    assert db.scalar(text("SELECT count(*) FROM platform_operators")) == 1
+
+
 def test_challenge_expiry_blocked_operator_and_secure_cookie(
     client, platform_owner, db, monkeypatch
 ):
@@ -359,14 +379,13 @@ def test_cleanup_and_expired_authenticate_do_not_deadlock(platform_owner):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event
 
-    from sqlalchemy import delete, event
-    from sqlalchemy.orm import Session
-
     from app.core.errors import AppError
     from app.core.security import generate_session_token, hash_session_token
     from app.models.platform_audit_event import PlatformAuditEvent
     from app.models.platform_operator import PlatformOperator
     from app.services import platform_auth
+    from sqlalchemy import delete, event
+    from sqlalchemy.orm import Session
 
     raw = generate_session_token()
     now = platform_owner[2][0]
