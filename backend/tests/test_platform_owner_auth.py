@@ -233,6 +233,26 @@ def test_missing_key_fails_closed(client, monkeypatch):
     )
 
 
+def test_incorrect_key_fails_closed_during_mfa(client, platform_owner, monkeypatch):
+    monkeypatch.setattr(
+        get_settings(), "platform_encryption_key", Fernet.generate_key().decode()
+    )
+    csrf = challenge(client)
+    response = client.post(
+        ROOT + "/auth/mfa/verify",
+        json={"code": pyotp.TOTP(platform_owner[1]).at(platform_owner[2][0])},
+        headers=headers(csrf),
+    )
+    assert response.status_code == 503
+
+
+def test_create_precondition_prevents_duplicate_operator(db, platform_owner):
+    assert db.scalar(text("SELECT count(*) FROM platform_operators")) == 1
+    with pytest.raises(ValueError, match="precondition"):
+        configure_operator(db, "synthetic-owner", PASSWORD)
+    assert db.scalar(text("SELECT count(*) FROM platform_operators")) == 1
+
+
 def test_challenge_expiry_blocked_operator_and_secure_cookie(
     client, platform_owner, db, monkeypatch
 ):

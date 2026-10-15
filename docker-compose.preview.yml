@@ -8,6 +8,8 @@ services:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://smart_garden:smart_garden_local_only@postgres:5432/smart_garden
       SECRET_KEY: ${SMART_GARDEN_PREVIEW_SECRET_KEY:?Run bash scripts/start-preview.sh first}
+      # Optional for read-only diagnosis; platform auth fails closed without it.
+      PLATFORM_ENCRYPTION_KEY: ${PLATFORM_ENCRYPTION_KEY:-}
       CORS_ORIGINS: http://localhost:3000
     ports:
       - "127.0.0.1:8000:8000"

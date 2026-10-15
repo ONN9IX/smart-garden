@@ -13,6 +13,95 @@ git pull --ff-only
 bash scripts/start-preview.sh
 ```
 
+`PLATFORM_ENCRYPTION_KEY` для владельца хранится отдельно от репозитория в
+`%LOCALAPPDATA%\SmartGarden\platform-owner\platform-owner.env`. На Windows
+Git Bash скрипты используют тот же каталог автоматически. Ключ при запуске не
+создаётся и не меняется. Если файл отсутствует, preview поднимется для
+диагностики, а platform auth останется fail-closed.
+
+### Постоянный локальный доступ PLATFORM_OWNER
+
+До первой настройки ограничьте доступ к внешнему каталогу текущей учётной
+записью Windows и SYSTEM. Выполните в PowerShell:
+
+```powershell
+$ownerDir = Join-Path $env:LOCALAPPDATA 'SmartGarden\platform-owner'
+New-Item -ItemType Directory -Force $ownerDir | Out-Null
+$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+icacls $ownerDir /inheritance:r /grant:r "*$sid`:(OI)(CI)F" 'SYSTEM:(OI)(CI)F'
+```
+
+Если preview уже запущен, сначала выполните только read-only диагностику. Если
+preview остановлен, запустите его с текущей конфигурацией (не запускайте
+`init-key`/`create`), затем выполните диагностику:
+
+```bash
+bash scripts/start-preview.sh
+bash scripts/setup-platform-owner-local.sh diagnose
+```
+
+Диагностика показывает состояние preview/volume, HTTP-доступность
+`/platform/login`, число операторов, их username/status/MFA-present и только
+статус ключа; для существующего MFA также проверяет расшифровку ciphertext, не
+показывая результат. Она не читает и не печатает хеши паролей, MFA-секрет,
+ключ, URI или содержимое env-файлов.
+
+Если оператор уже существует, используйте именно его username и текущий ключ.
+Не запускайте `init-key` или `create`. Если диагностика показывает, что
+текущий ключ может расшифровать MFA ровно этого оператора, а внешнего файла ещё
+нет, безопасно перенесите именно загруженный ключ без вывода в терминал:
+
+```bash
+bash scripts/setup-platform-owner-local.sh persist-key platform-owner-local
+bash scripts/start-preview.sh
+bash scripts/setup-platform-owner-local.sh diagnose
+```
+
+`persist-key` сверяет username, требует ровно одну platform identity и
+проверяет расшифровку существующего MFA ciphertext. Он копирует текущее значение
+из backend environment во внешний файл без печати ключа; если текущий ключ не
+может расшифровать TOTP или учёток несколько, операция останавливается. Этот
+шаг не меняет пароль, MFA, сессии или запись владельца. После проверки входите
+через `http://localhost:3000/platform/login`; пароль и TOTP вводите сами.
+
+`init-key` разрешён только после диагностики пустой таблицы platform operators.
+Он создаёт ключ один раз во внешнем env-файле; стартовый скрипт никогда не
+перегенерирует его:
+
+```bash
+bash scripts/setup-platform-owner-local.sh init-key
+bash scripts/start-preview.sh
+bash scripts/setup-platform-owner-local.sh create platform-owner-local
+```
+
+Команда `create` откажется работать, если оператор уже существует. Она
+использует доверенный offline bootstrap, запросит пароль без отображения и
+создаст enrollment URI во внешнем `platform-owner-enrollment.json`. Откройте
+его только на этом компьютере, добавьте аккаунт в authenticator и безопасно
+удалите файл после enrollment. URI является секретом MFA.
+
+Если исходный ключ потерян, не запускайте `init-key`: он откажет при наличии
+оператора. Только для подтверждённого key-loss предусмотрено явное действие:
+
+```bash
+bash scripts/setup-platform-owner-local.sh recover platform-owner-local
+```
+
+Recovery запросит точное подтверждение `LOST-KEY-RECOVERY <username>`, затем
+существующий bootstrap попросит новый пароль и точное повторное подтверждение
+username. Recovery заменяет MFA-секрет, отзывает platform-сессии и пишет audit;
+старый TOTP перестанет работать. При нескольких операторах команда остановится,
+ничего не удаляя. При сохранном ключе recovery также меняет MFA и требует
+явного запуска владельцем.
+
+Внешний env-файл нужен для стабильности после перезапуска Windows и обычного
+`docker compose down`/up. Для этого локального preview Compose передаёт ключ в
+переменную окружения backend. Поэтому пользователь с доступом к Docker daemon
+может увидеть его через `docker inspect` или `docker compose config`; не запускайте
+эти команды с выводом на общий экран и не сохраняйте их результат. Доступ к
+Docker daemon означает доверие к владельцу машины. Этот локальный механизм не
+является production-secure.
+
 Откройте:
 
 - Frontend: http://localhost:3000/login
@@ -115,6 +204,10 @@ bash scripts/start-preview.sh
 ```
 
 Команда удаляет только локальный preview volume.
+
+**Не используйте `down -v`**, если нужно сохранить platform owner, пароль/MFA,
+аудит или synthetic preview данные. Для штатного перезапуска используйте только
+`down` без `-v`, затем `bash scripts/start-preview.sh`.
 
 Чтобы просто остановить preview и сохранить данные:
 
