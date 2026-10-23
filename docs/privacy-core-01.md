@@ -6,7 +6,10 @@ Issue [#243](https://github.com/ONN9IX/smart-garden/issues/243), специфи�
 `PARALLEL-SAFE: NO`. Baseline main: `544c80f45ce359010efed8ea76277561151d9a22`.
 Проверенный исходный Alembic head: `0020`; новая единственная миграция: `0021_privacy_core.py`.
 Открытые PR проверены: #240 меняет локальное хранение ключа MFA и свой тест,
-#237 — AGENTS, остальные — зависимости. Их файлы не входят в эту реализацию.
+#237 — AGENTS, остальные — зависимости. Их файлы не входят в эту реализацию. Первый полный CI выявил PYSEC-2026-4320
+в существующем Python lock: certifi 2026.7.22. Write-set последовательно расширен
+только на backend/requirements.txt для минимального обновления до исправленной
+2026.10.19; активные PR не меняют этот файл. Исключений в аудит не добавлено.
 
 Запрос владельца разрешает этот технический контур до регистрации поставщика,
 только без реальных персональных данных. Это уточняет прежний запрет запуска
@@ -211,6 +214,7 @@ backend/app/services/account_access.py
 backend/app/services/audit.py
 backend/app/services/privacy.py
 backend/app/services/privacy_catalog.py
+backend/requirements.txt
 backend/tests/conftest.py
 backend/tests/privacy_helpers.py
 backend/tests/test_account_access.py
