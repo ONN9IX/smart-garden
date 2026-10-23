@@ -7,7 +7,9 @@ import assert from "node:assert/strict";
 
 const ALLOWED_ADVISORY_URL = "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm";
 const ALLOWED_PACKAGE = "braces";
-const REVIEWED_NEXT_VERSION = "16.3.8";
+// 16.4.1 fixes GHSA-2464-fhr4-w9xw, GHSA-673q-mjm6-r5xr and GHSA-p3m5-59mp-jv5r.
+// Keep the existing dev-only braces exception and all rejection rules unchanged.
+const REVIEWED_NEXT_VERSION = "16.4.1";
 const REVIEWED_CHAIN = [
   ["eslint-config-next", REVIEWED_NEXT_VERSION],
   ["@next/eslint-plugin-next", REVIEWED_NEXT_VERSION],
@@ -163,6 +165,7 @@ export function runSelfTests() {
     micromatch: { severity: "high", via: [{ name: "micromatch", severity: "high", url: "https://github.com/advisories/GHSA-other" }] },
   })));
   mustFail(() => validateAudit(audit({ other: { severity: "critical", via: [{ name: "other", severity: "critical", url: "https://github.com/advisories/GHSA-other" }] } })));
+  mustFail(() => validateAudit(audit({ next: { severity: "critical", via: [{ name: "next", severity: "critical", url: "https://github.com/advisories/GHSA-2464-fhr4-w9xw" }] } })));
   const runtimeLock = syntheticLock();
   runtimeLock.packages[""].dependencies.braces = "3.0.3";
   mustFail(() => validateLock(runtimeLock));

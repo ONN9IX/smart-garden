@@ -22,6 +22,7 @@ export function ManagementMobileNav({ role, username, roleLabel }: {
 
   return <>
     {open && <div className="mobile-more-panel" id="management-more-panel">
+      <Link href="/privacy-center" onClick={() => setOpen(false)}>Конфиденциальность</Link>
       <Link href="/access-accounts" onClick={() => setOpen(false)}>Доступ и аккаунты</Link>
       <Link href="/notifications" onClick={() => setOpen(false)}>Контроль и уведомления</Link>
       {role === "DIRECTOR" ? <>

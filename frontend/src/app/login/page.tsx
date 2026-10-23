@@ -13,6 +13,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import Link from "next/link";
+import { PrivacyLink } from "@/features/privacy/documents";
 
 export default function LoginPage() {
   return <AuthGate route="login"><LoginForm /></AuthGate>;
@@ -57,5 +58,5 @@ function LoginForm() {
       <Button className="full-width" type="submit" disabled={busy}>{busy ? "Вход..." : "Войти"}</Button>
       <p><Link className="text-link" href="/forgot-password">Забыли пароль?</Link></p>
     </form>
-  </section></main>;
+  <PrivacyLink /></section></main>;
 }

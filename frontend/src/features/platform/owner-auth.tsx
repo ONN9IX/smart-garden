@@ -1,4 +1,5 @@
 "use client";
+import { PrivacyLink } from "@/features/privacy/documents";
 import { FormEvent, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthProvider } from "@/features/auth/auth-provider";
@@ -114,6 +115,7 @@ export function PlatformLogin() {
           Настройка и восстановление MFA выполняются через защищённый процесс
           администратора.
         </p>
+        <PrivacyLink />
       </section>
     </main>
   );

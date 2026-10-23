@@ -25,6 +25,7 @@ from app.api.health import router as health_router
 from app.api.management import router as management_router
 from app.api.platform import router as platform_router
 from app.api.platform import tenant_router as platform_subscription_router
+from app.api.privacy import router as privacy_router
 from app.api.teacher import router as teacher_router
 from app.api.teacher_management import router as teacher_management_router
 from app.core.config import get_settings
@@ -57,7 +58,7 @@ async def enforce_origin(request: Request, call_next):
     if request.method in {"POST", "PUT", "PATCH", "DELETE"} and origin and origin not in settings.allowed_origins:
         return error_response(403, "FORBIDDEN")
     response = await call_next(request)
-    if request.url.path.startswith("/api/v1/platform/"):
+    if request.url.path.startswith(("/api/v1/platform/", "/api/v1/privacy/")):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
     return response
@@ -73,6 +74,7 @@ async def unexpected_error(request: Request, error: Exception) -> JSONResponse:
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(account_access_router, prefix="/api/v1")
+app.include_router(privacy_router, prefix="/api/v1")
 app.include_router(groups_router, prefix="/api/v1")
 app.include_router(children_router, prefix="/api/v1")
 app.include_router(guardians_router, prefix="/api/v1")

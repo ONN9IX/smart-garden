@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { PrivacyLink } from "@/features/privacy/documents";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -32,5 +33,5 @@ export default function ForgotPasswordPage() {
   }
   return <main className="center-screen"><section className="auth-card"><div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> ПРОМАКС</div><h1>Восстановление доступа</h1>
     {done ? <Alert tone="success">{GENERIC}</Alert> : <form onSubmit={(event) => void submit(event)}><FormField id="identifier" label="Логин или email"><Input id="identifier" required autoFocus value={identifier} onChange={(event) => setIdentifier(event.target.value)} /></FormField>{error && <Alert>{error}</Alert>}<Button className="full-width" disabled={busy}>{busy ? "Отправка…" : "Отправить ссылку"}</Button></form>}
-    <p><Link className="text-link" href="/login">Вернуться ко входу</Link></p></section></main>;
+    <p><Link className="text-link" href="/login">Вернуться ко входу</Link></p><PrivacyLink /></section></main>;
 }

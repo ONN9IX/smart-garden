@@ -13,11 +13,12 @@ def _director(client, users):
     assert client.post("/api/v1/auth/login", json={"username": "director-test", "password": TEST_PASSWORD}).status_code == 200
 
 
-def test_employee_invite_no_duplicate_and_access_controls(client, db, users, monkeypatch):
+def test_employee_invite_no_duplicate_and_access_controls(client, db, users, monkeypatch, privacy_basis):
     sender = email_delivery.InMemoryEmailSender([])
     monkeypatch.setattr(email_delivery, "get_email_sender", lambda: sender)
     _director(client, users)
     employee_id = client.post(ROOT, json={"first_name": "Ирина", "last_name": "Пример", "position": "Администратор", "category": "administrator", "email": "admin@example.test"}).json()["id"]
+    privacy_basis(client, "employee", employee_id)
     path = f"{ROOT}/{employee_id}/account"
     created = client.post(path, json={"role": "ADMIN"})
     assert created.status_code == 201 and created.json()["status"] == "sent"

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { PrivacyLink } from "@/features/privacy/documents";
 import { useRouter } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -48,5 +49,5 @@ export function PasswordLinkPage({ purpose }: { purpose: "activation" | "reset" 
       {error && <Alert>{error}</Alert>}<Button className="full-width" disabled={busy}>{busy ? "Сохранение…" : "Сохранить пароль"}</Button>
     </form>}
     <p><Link className="text-link" href="/login">Вернуться ко входу</Link></p>
-  </section></main>;
+  <PrivacyLink /></section></main>;
 }

@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { featureEnabled, type ProductFeature } from "@/config/product-features";
 import { AuthGate } from "@/features/auth/auth-gate";
@@ -87,6 +88,7 @@ function ParentContent() {
     <header className={`${styles.card} ${styles.parentHeader}`}>
       <div className={styles.parentHeaderMain}><div className="auth-brand"><span className="brand-mark" aria-hidden="true">✳</span> ПРОМАКС</div><h1>Кабинет родителя</h1><p className={styles.muted}>{current.organization.name} · {current.user.username}</p></div>
       <button className={styles.buttonSecondary} onClick={() => void logout()}>Выйти</button>
+      <Link className={styles.buttonSecondary} href="/privacy-center">Конфиденциальность</Link>
     </header>
     {error && <div><p className={styles.error} role="alert">{error}</p><button className={styles.buttonSecondary} disabled={loading} onClick={() => { setLoading(true); void load(); }}>Повторить загрузку кабинета</button></div>}
     <nav className={styles.parentTabs} aria-label="Разделы кабинета">{tabs.filter(([, , feature]) => !feature || featureEnabled(feature)).map(([item, label]) => <button aria-pressed={tab === item} className={tab === item ? styles.button : styles.buttonSecondary} key={item} onClick={() => setTab(item)}>{label}</button>)}</nav>

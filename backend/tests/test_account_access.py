@@ -40,12 +40,13 @@ def _raw(sender):
     return sender.messages[-1]["text"].split("#token=", 1)[1].splitlines()[0]
 
 
-def test_parent_invite_is_digest_only_one_time_and_resend_revokes(client, db, users, monkeypatch):
+def test_parent_invite_is_digest_only_one_time_and_resend_revokes(client, db, users, monkeypatch, privacy_basis):
     sender = _fake(monkeypatch)
     _director(client, users)
     guardian = client.post("/api/v1/guardians", json={
         "first_name": "Ирина", "last_name": "Тестова", "email": "parent@example.test",
     }).json()
+    privacy_basis(client, "guardian", guardian["id"])
     created = client.post(f"/api/v1/guardians/{guardian['id']}/account")
     assert created.status_code == 201 and created.json()["status"] == "sent"
     assert "password" not in str(created.json()).lower()
@@ -67,10 +68,11 @@ def test_parent_invite_is_digest_only_one_time_and_resend_revokes(client, db, us
     assert not parent.must_change_password and verify_password(parent.password_hash, "safe-parent-password-1")
 
 
-def test_wrong_expired_revoked_purpose_and_cross_tenant_tokens_fail(client, db, users, monkeypatch):
+def test_wrong_expired_revoked_purpose_and_cross_tenant_tokens_fail(client, db, users, monkeypatch, privacy_basis):
     sender = _fake(monkeypatch)
     _director(client, users)
     guardian_id = client.post("/api/v1/guardians", json={"first_name": "А", "last_name": "Б", "email": "a@example.test"}).json()["id"]
+    privacy_basis(client, "guardian", guardian_id)
     client.post(f"/api/v1/guardians/{guardian_id}/account")
     raw = _raw(sender)
     grant = db.scalar(select(AccountAccessToken).order_by(AccountAccessToken.created_at.desc()))
@@ -122,13 +124,14 @@ def test_reset_revokes_sessions_and_blocked_remains_blocked(client, db, users, m
     assert login.status_code == 403 and login.json()["error"]["code"] == "USER_BLOCKED"
 
 
-def test_employee_invite_category_director_only_and_role_change_archives(client, db, users, monkeypatch):
+def test_employee_invite_category_director_only_and_role_change_archives(client, db, users, monkeypatch, privacy_basis):
     _fake(monkeypatch)
     _director(client, users)
     employee_id = client.post("/api/v1/employees", json={
         "first_name": "Пётр", "last_name": "Тестов", "position": "Воспитатель",
         "category": "teacher", "email": "teacher@example.test",
     }).json()["id"]
+    privacy_basis(client, "employee", employee_id)
     invite = client.post(f"/api/v1/employees/{employee_id}/account", json={"role": "TEACHER"})
     assert invite.status_code == 201 and invite.json()["role"] == "TEACHER"
     employee = db.get(Employee, employee_id)
@@ -201,7 +204,7 @@ def test_competing_token_replacements_leave_only_newest_effective(migrations):
             cleanup.commit()
 
 
-def test_bulk_parent_delivery_failure_keeps_independent_commits(client, db, users, monkeypatch):
+def test_bulk_parent_delivery_failure_keeps_independent_commits(client, db, users, monkeypatch, privacy_basis):
     class FailSecondSender:
         def __init__(self):
             self.calls = 0
@@ -238,6 +241,8 @@ def test_bulk_parent_delivery_failure_keeps_independent_commits(client, db, user
     ])
     db.flush()
 
+    for guardian in guardians:
+        privacy_basis(client, "guardian", guardian.id)
     response = client.post("/api/v1/access-accounts/parents/bulk-invite", json={
         "guardian_ids": [str(guardian.id) for guardian in guardians], "confirm": True,
     })

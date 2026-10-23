@@ -81,6 +81,7 @@ class BulkParentRequest(BaseModel):
 
 
 class BulkPreflight(BaseModel):
+    missing_legal_evidence: int = 0
     eligible: int = 0
     missing_or_invalid_email: int = 0
     activated: int = 0

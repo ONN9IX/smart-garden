@@ -67,9 +67,10 @@ def _employee_and_group(db, users, suffix=""):
     return employee, group
 
 
-def test_teacher_account_assignment_access_and_lifecycle(client, db, users):
+def test_teacher_account_assignment_access_and_lifecycle(client, db, users, privacy_basis):
     _director(client, users)
     employee, group = _employee_and_group(db, users)
+    privacy_basis(client, "employee", employee.id)
     account_path = f"{ROOT}/employees/{employee.id}/account"
     created = client.post(account_path)
     assert created.status_code == 201
@@ -124,10 +125,11 @@ def test_teacher_account_assignment_access_and_lifecycle(client, db, users):
     assert "token" not in str(details).lower() and "password" not in str(details).lower()
 
 
-def test_teacher_assignment_management_roles_and_tenant_boundaries(client, db, users):
+def test_teacher_assignment_management_roles_and_tenant_boundaries(client, db, users, privacy_basis):
     organization, other, _, admin = users
     _director(client, users)
     employee, group = _employee_and_group(db, users, "-2")
+    privacy_basis(client, "employee", employee.id)
     client.post(f"{ROOT}/employees/{employee.id}/account")
     foreign_group = Group(organization_id=other.id, name="Чужая группа", status="active")
     foreign_employee = Employee(

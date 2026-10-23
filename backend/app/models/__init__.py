@@ -33,6 +33,15 @@ from app.models.platform_operator import PlatformOperator
 from app.models.platform_provisioning_request import PlatformProvisioningRequest
 from app.models.platform_session import PlatformSession
 from app.models.poll import Poll, PollOption, PollVote
+from app.models.privacy import (
+    BasisAttestation,
+    ConsentEvent,
+    LegalDocument,
+    PaperConsent,
+    PrivacyRequest,
+    ProcessingPurpose,
+    RequestEvent,
+)
 from app.models.teacher_group_assignment import TeacherGroupAssignment
 from app.models.teacher_task import TeacherTask
 from app.models.tenant_subscription import TenantSubscription
@@ -45,12 +54,14 @@ __all__ = [
     "Attendance",
     "AuditEvent",
     "AuthSession",
+    "BasisAttestation",
     "Child",
     "ChildDiaryEntry",
     "ChildGuardian",
     "CommunicationMessage",
     "CommunicationReadState",
     "CommunicationThread",
+    "ConsentEvent",
     "DocumentNotice",
     "Employee",
     "Group",
@@ -58,10 +69,12 @@ __all__ = [
     "Guardian",
     "Incident",
     "InitialSetupBatch",
+    "LegalDocument",
     "Notification",
     "OperationalAlertState",
     "Organization",
     "OrganizationNotificationSettings",
+    "PaperConsent",
     "PhotoAsset",
     "PhotoAssetChild",
     "PhotoConsent",
@@ -72,6 +85,9 @@ __all__ = [
     "Poll",
     "PollOption",
     "PollVote",
+    "PrivacyRequest",
+    "ProcessingPurpose",
+    "RequestEvent",
     "TeacherGroupAssignment",
     "TeacherTask",
     "TenantSubscription",

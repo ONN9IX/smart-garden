@@ -43,6 +43,9 @@ _ALLOWED_DETAIL_KEYS = {
     "recipient_count",
 }
 _ALLOWED_ACTIONS = {
+    "privacy_attestation": {"privacy.attest"},
+    "privacy_consent": {"privacy.consent.record", "privacy.consent.withdraw"},
+    "privacy_request": {"privacy.request.create", "privacy.request.status"},
     "group": {"group.create", "group.update", "group.archive", "group.restore"},
     "child": {"child.create", "child.update", "child.archive", "child.restore"},
     "guardian": {"guardian.create", "guardian.update", "guardian.archive", "guardian.restore"},

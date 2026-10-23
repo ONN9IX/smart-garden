@@ -34,6 +34,7 @@ from app.schemas.account_access import (
 )
 from app.services import audit, email_delivery
 from app.services.auth import utc_now
+from app.services.privacy import require_invitation_basis
 
 ALPHABET = string.ascii_lowercase + string.digits
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
@@ -141,6 +142,7 @@ def invite_guardian(db: Session, actor: User, guardian_id: UUID) -> InviteRespon
     if guardian.status != "active":
         raise AppError(409, "GUARDIAN_ARCHIVED")
     email = _valid_email(guardian.email)
+    require_invitation_basis(db, actor, "guardian", guardian.id)
     parent = _tenant_user(db, guardian.user_id, actor.organization_id)
     if parent is not None and (parent.organization_id != actor.organization_id or parent.role != "PARENT"):
         raise AppError(409, "PARENT_ACCOUNT_ALREADY_EXISTS")
@@ -178,6 +180,7 @@ def invite_employee(db: Session, actor: User, employee_id: UUID, role: str) -> I
     if expected is None or employee.category != expected:
         raise AppError(409, "EMPLOYEE_CATEGORY_CONFLICT", "category")
     email = _valid_email(employee.email)
+    require_invitation_basis(db, actor, "employee", employee.id)
     account = _tenant_user(db, employee.user_id, actor.organization_id)
     if account is not None and (account.organization_id != actor.organization_id or account.role not in {"TEACHER", "ADMIN"}):
         raise AppError(409, "EMPLOYEE_ACCOUNT_ALREADY_EXISTS")
@@ -455,6 +458,13 @@ def bulk_parent_invites(
         elif status == "invited":
             preflight.already_invited += 1
         else:
+            try:
+                require_invitation_basis(db, actor, "guardian", guardian.id)
+            except AppError as error:
+                if error.code != "PRIVACY_BASIS_REQUIRED":
+                    raise
+                preflight.missing_legal_evidence += 1
+                continue
             preflight.eligible += 1
             if status in {"delivery_failed", "invite_expired"}:
                 preflight.failed_or_expired += 1

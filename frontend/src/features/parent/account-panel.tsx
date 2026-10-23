@@ -1,5 +1,7 @@
 "use client";
 
+import { BasisConfirmation } from "@/features/privacy/basis-confirmation";
+
 import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,7 @@ export function AccountPanel({ guardian, onAccountChange }: { guardian: Guardian
   }
   const account = guardian.account;
   return <section className="section-space"><h2>Учётная запись родителя</h2>{error && <Alert>{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
+    {(!account || account.must_change_password) && guardian.status === "active" && <BasisConfirmation type="guardian" ids={[guardian.id]} />}
     {!account ? <div className="card section-card"><p>Доступ пока не создан. Родитель задаст пароль по одноразовой ссылке из письма.</p><Button disabled={busy || guardian.status !== "active"} onClick={() => void run(() => guardiansApi.createAccount(guardian.id))}>Создать доступ</Button></div>
       : <div className="card section-card"><p>Логин: <strong>{account.username}</strong></p><p>Статус: {account.status === "active" ? "Активен" : "Заблокирован"}</p><div className="action-row">
         {account.must_change_password && <Button variant="secondary" disabled={busy} onClick={() => void run(() => guardiansApi.resendInvite(guardian.id))}>Отправить приглашение снова</Button>}

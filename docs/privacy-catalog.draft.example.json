@@ -1,0 +1,57 @@
+{
+  "synthetic": true,
+  "documents": [
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "organization_id": "00000000-0000-4000-8000-000000000001",
+      "document_type": "policy",
+      "version": "draft-v1",
+      "title": "ЧЕРНОВИК политики — не действует",
+      "operator": {
+        "name": "СИНТЕТИЧЕСКИЙ оператор — юридические реквизиты не определены",
+        "address": null,
+        "contact": null,
+        "registration_details": null,
+        "role": null
+      },
+      "content": "ЮРИДИЧЕСКИЙ ЧЕРНОВИК. Только синтетическая подготовка. Оператор, правовые основания, места обработки, сроки и контакты не утверждены. Этот текст нельзя публиковать как действующий документ.",
+      "content_hash": "7b48095821336208c62ae075c6845fa99a117ec390aade227b5d5de1a1579a68",
+      "status": "draft",
+      "approved_at": null,
+      "approval_reference": null,
+      "effective_at": null
+    }
+  ],
+  "purposes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "organization_id": "00000000-0000-4000-8000-000000000001",
+      "code": "account_access",
+      "version": "draft-v1",
+      "title": "Доступ к кабинету — не утверждено",
+      "document_id": "00000000-0000-4000-8000-000000000002",
+      "consent_document_id": null,
+      "subject_categories": [
+        "user"
+      ],
+      "data_categories": [
+        "Логин, email приглашения, роль и статус аккаунта"
+      ],
+      "operations": [
+        "Юридический перечень не утверждён"
+      ],
+      "access_roles": [
+        "DIRECTOR",
+        "ADMIN",
+        "TEACHER",
+        "PARENT"
+      ],
+      "legal_basis": null,
+      "retention": null,
+      "processors": null,
+      "locations": null,
+      "consent_required": null,
+      "enabled": false
+    }
+  ]
+}
