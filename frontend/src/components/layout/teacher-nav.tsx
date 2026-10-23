@@ -13,6 +13,7 @@ export function TeacherNav() {
   const ownerCoach = current?.user.role === "DIRECTOR" && current.organization.operating_profile === "GYMNASTICS";
   const items = [
     ["/teacher", "Сегодня"],
+    ["/privacy-center", "Конфиденциальность"],
     ["/teacher/groups", `Мои ${terms.groups}`],
     ["/teacher/attendance", terms.attendance],
     ["/teacher/schedule", terms.schedule],

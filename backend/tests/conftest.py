@@ -65,3 +65,19 @@ def users(db):
     db.add_all([director, admin])
     db.flush()
     return organization, other, director, admin
+
+
+@pytest.fixture
+def privacy_basis(db, users):
+    """Existing invitation tests explicitly satisfy the new external-documents gate."""
+    from tests.privacy_helpers import install_synthetic_catalog
+
+    catalog = install_synthetic_catalog(db, users[0].id)
+
+    def confirm(client, profile_type, profile_id):
+        response = client.post("/api/v1/privacy/attestations", json={
+            "profile_type": profile_type, "profile_ids": [str(profile_id)],
+            "purpose_id": str(catalog.purposes[0].id), "documents_confirmed": True,
+        })
+        assert response.status_code == 201, response.text
+    return confirm

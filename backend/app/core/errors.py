@@ -5,6 +5,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 MESSAGES = {
+    "PRIVACY_NOT_APPROVED": "Для этой цели ещё нет утверждённых действующих документов.",
+    "PRIVACY_BASIS_REQUIRED": "Выберите утверждённое основание и подтвердите наличие документов перед приглашением.",
+    "PRIVACY_NEW_ORIGINAL_REQUIRED": "После отзыва необходимо новое бумажное согласие с более поздней датой.",
+    "PRIVACY_REQUEST_STATE": "Статус обращения изменился или переход недоступен. Обновите список.",
+    "PRIVACY_ALREADY_RECORDED": "Для этой цели и версии уже учтён действующий оригинал.",
     "INVALID_CREDENTIALS": "Неверный логин или пароль",
     "USER_BLOCKED": "Доступ к аккаунту заблокирован. Обратитесь к администратору сада.",
     "ORGANIZATION_BLOCKED": "Доступ к детскому саду заблокирован. Обратитесь к администратору.",

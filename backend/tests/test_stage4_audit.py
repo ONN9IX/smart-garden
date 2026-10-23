@@ -40,7 +40,7 @@ def _patch(client, path: str, payload: dict) -> dict:
     return response.json()
 
 
-def test_all_stage4_audit_actions_and_privacy(client, db, users):
+def test_all_stage4_audit_actions_and_privacy(client, db, users, privacy_basis):
     _director(client, db, users)
 
     group = _post(client, "/api/v1/groups", {"name": "Синтетическая аудит-группа"}, 201)
@@ -62,6 +62,7 @@ def test_all_stage4_audit_actions_and_privacy(client, db, users):
     _post(client, f"/api/v1/children/{child['id']}/guardians/{guardian['id']}/archive")
     _post(client, f"/api/v1/children/{child['id']}/guardians/{guardian['id']}/restore")
 
+    privacy_basis(client, "guardian", guardian["id"])
     parent_credentials = _post(client, f"/api/v1/guardians/{guardian['id']}/account", status=201)
     _post(client, f"/api/v1/guardians/{guardian['id']}/account/resend")
     _post(client, f"/api/v1/guardians/{guardian['id']}/account/block")
@@ -72,6 +73,7 @@ def test_all_stage4_audit_actions_and_privacy(client, db, users):
         "position": "Администратор", "category": "administrator", "email": "staff-audit@example.test",
     }, 201)
     _patch(client, f"/api/v1/employees/{employee['id']}", {"position": "Старший администратор"})
+    privacy_basis(client, "employee", employee["id"])
     admin_credentials = _post(client, f"/api/v1/employees/{employee['id']}/account", {"role": "ADMIN"}, 201)
     _post(client, f"/api/v1/employees/{employee['id']}/account/resend", {"role": "ADMIN"})
     _post(client, f"/api/v1/employees/{employee['id']}/account/block")

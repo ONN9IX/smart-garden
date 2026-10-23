@@ -1,5 +1,7 @@
 "use client";
 
+import { BasisConfirmation } from "@/features/privacy/basis-confirmation";
+
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -80,6 +82,7 @@ function TeachersContent() {
     {loading ? <Loading /> : items.length === 0 ? <p className="empty-state">Воспитатели и доступные кандидаты не найдены.</p> : <ul className="record-list">{items.map((item) => <li key={item.employee_id}><div className="card section-card">
       <h2>{fullName(item)}</h2><p className="muted">{item.position} · {item.employee_status === "active" ? "Активен" : "Архив"}</p>
       <p>{item.account ? `${roleLabel(item.account.role, current?.organization.operating_profile ?? "KINDERGARTEN")}: ${item.account.username} · ${item.account.status === "active" ? "активен" : "заблокирован"}` : `Учётная запись ${terms.teacher} не выдана`}</p>
+      {director && (item.eligible_for_teacher_account || item.account?.must_change_password) && <BasisConfirmation type="employee" ids={[item.employee_id]} />}
       <div className="action-row">
         {director && item.eligible_for_teacher_account && <Button disabled={busy} onClick={() => void reveal(() => managementApi.createTeacherAccount(item.employee_id), "Доступ воспитателя выдан.")}>Выдать доступ</Button>}
         {director && item.account?.must_change_password && <Button variant="secondary" disabled={busy} onClick={() => void reveal(() => managementApi.resendTeacherInvite(item.employee_id), "Приглашение отправлено снова.")}>Отправить приглашение снова</Button>}

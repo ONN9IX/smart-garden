@@ -41,7 +41,7 @@ def _logout(client) -> None:
     assert client.post("/api/v1/auth/logout").status_code == 200
 
 
-def _foundation_teacher(client, db, users):
+def _foundation_teacher(client, db, users, privacy_basis):
     organization, _, _, _ = users
     employee = Employee(
         organization_id=organization.id,
@@ -55,6 +55,7 @@ def _foundation_teacher(client, db, users):
     group = Group(organization_id=organization.id, name="Группа управления", status="active")
     db.add_all([employee, group])
     db.flush()
+    privacy_basis(client, "employee", employee.id)
     credentials = client.post(f"{TEACHER}/employees/{employee.id}/account")
     assert credentials.status_code == 201, credentials.text
     account_id = employee.user_id
@@ -70,12 +71,12 @@ def _foundation_teacher(client, db, users):
     return employee, group, account, assignment.json()
 
 
-def test_management_cabinet_director_end_to_end_and_privacy(client, db, users, monkeypatch):
+def test_management_cabinet_director_end_to_end_and_privacy(client, db, users, monkeypatch, privacy_basis):
     for feature in ("diary", "polls", "incidents", "photos", "document_notices"):
         monkeypatch.setitem(PRODUCT_FEATURES, feature, True)
     organization, _, director, _ = users
     _director(client, db, users)
-    employee, group, teacher, assignment = _foundation_teacher(client, db, users)
+    employee, group, teacher, assignment = _foundation_teacher(client, db, users, privacy_basis)
     assert teacher is not None
 
     child = Child(
@@ -236,10 +237,10 @@ def test_management_cabinet_director_end_to_end_and_privacy(client, db, users, m
     assert "Asia/Yekaterinburg" not in str(settings_event.details)
 
 
-def test_management_admin_permissions_and_operational_access(client, db, users):
+def test_management_admin_permissions_and_operational_access(client, db, users, privacy_basis):
     organization, _, _, admin = users
     _director(client, db, users)
-    employee, group, teacher, _ = _foundation_teacher(client, db, users)
+    employee, group, teacher, _ = _foundation_teacher(client, db, users, privacy_basis)
     assert teacher is not None
     _logout(client)
     _login(client, admin.username)
@@ -400,10 +401,10 @@ def test_management_today_aggregate_is_tenant_scoped_and_uses_active_assignments
     assert str(foreign_group.id) not in str(admin_payload)
 
 
-def test_new_task_notifies_only_active_assignee_in_same_tenant(client, db, users):
+def test_new_task_notifies_only_active_assignee_in_same_tenant(client, db, users, privacy_basis):
     organization, other, _, _ = users
     _director(client, db, users)
-    employee, group, teacher, _ = _foundation_teacher(client, db, users)
+    employee, group, teacher, _ = _foundation_teacher(client, db, users, privacy_basis)
     assert teacher is not None
     unrelated = User(
         organization_id=organization.id,

@@ -14,11 +14,12 @@ def _admin(client):
     assert client.post("/api/v1/auth/login", json={"username": "admin-test", "password": TEST_PASSWORD}).status_code == 200
 
 
-def test_invite_resend_block_and_unblock(client, db, users, monkeypatch):
+def test_invite_resend_block_and_unblock(client, db, users, monkeypatch, privacy_basis):
     sender = email_delivery.InMemoryEmailSender([])
     monkeypatch.setattr(email_delivery, "get_email_sender", lambda: sender)
     _admin(client)
     guardian_id = client.post(ROOT, json={"first_name": "Ирина", "last_name": "Пример", "email": "parent@example.test"}).json()["id"]
+    privacy_basis(client, "guardian", guardian_id)
     path = f"{ROOT}/{guardian_id}/account"
     created = client.post(path)
     assert created.status_code == 201 and created.json()["status"] == "sent"

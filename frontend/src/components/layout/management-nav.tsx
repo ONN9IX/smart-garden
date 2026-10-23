@@ -65,6 +65,7 @@ export function ManagementNav({ role }: { role: Role }) {
       </div>
       {role === "DIRECTOR" && <Link href="/settings" className={navClass(pathname.startsWith("/settings"))} aria-current={pathname.startsWith("/settings") ? "page" : undefined}>Настройки</Link>}
       {role === "DIRECTOR" && <Link href="/initial-setup" className={navClass(pathname.startsWith("/initial-setup"))} aria-current={pathname.startsWith("/initial-setup") ? "page" : undefined}>Первоначальная настройка</Link>}
+      <Link href="/privacy-center" className={navClass(pathname === "/privacy-center")}>Конфиденциальность</Link>
     </nav>
     <p className="sidebar-note">{role === "DIRECTOR" ? (current?.organization.operating_profile === "GYMNASTICS" ? "Управление спортивной секцией" : "Управление детским садом") : (current?.organization.operating_profile === "GYMNASTICS" ? "Работа спортивной секции" : "Операционная работа детского сада")}</p>
   </>;

@@ -58,7 +58,7 @@ test("DIRECTOR gets the v2 navigation and a single-read exception-first Today", 
   await expect(page.getByText("Синтетический сад", { exact: true })).toBeVisible();
   await expect(page.getByText("7 октября 2026 г.")).toBeVisible();
   const navLabels = await page.locator(".management-sidebar nav a").allTextContents();
-  expect(navLabels).toEqual(["Сегодня", "Группы", "Дети", "Родители", "Сотрудники", "Доступ и аккаунты", "Посещаемость", "Расписание", "Задачи", "Сообщения", "Объявления", "Контроль и уведомления", "Журнал действий", "Настройки", "Первоначальная настройка"]);
+  expect(navLabels).toEqual(["Сегодня", "Группы", "Дети", "Родители", "Сотрудники", "Доступ и аккаунты", "Посещаемость", "Расписание", "Задачи", "Сообщения", "Объявления", "Контроль и уведомления", "Журнал действий", "Настройки", "Первоначальная настройка", "Конфиденциальность"]);
   await expect(page.getByRole("link", { name: "Воспитатели", exact: true })).toHaveCount(0);
 
   for (const label of ["В саду", "Ушли", "Отсутствуют", "Без отметки", "Активные группы", "Без воспитателя", "Просроченные задачи"]) {
