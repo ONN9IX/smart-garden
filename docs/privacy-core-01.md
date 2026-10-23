@@ -6,10 +6,23 @@ Issue [#243](https://github.com/ONN9IX/smart-garden/issues/243), специфи�
 `PARALLEL-SAFE: NO`. Baseline main: `544c80f45ce359010efed8ea76277561151d9a22`.
 Проверенный исходный Alembic head: `0020`; новая единственная миграция: `0021_privacy_core.py`.
 Открытые PR проверены: #240 меняет локальное хранение ключа MFA и свой тест,
-#237 — AGENTS, остальные — зависимости. Их файлы не входят в эту реализацию. Первый полный CI выявил PYSEC-2026-4320
-в существующем Python lock: certifi 2026.7.22. Write-set последовательно расширен
-только на backend/requirements.txt для минимального обновления до исправленной
-2026.10.19; активные PR не меняют этот файл. Исключений в аудит не добавлено.
+#237 — AGENTS, остальные — зависимости. Их ветки не изменены.
+Полный CI обнаружил уязвимости уже закреплённых зависимостей:
+
+- certifi 2026.7.22: PYSEC-2026-4320; минимальный фикс — 2026.10.19.
+- Next.js 16.3.8: GHSA-2464-fhr4-w9xw, GHSA-673q-mjm6-r5xr,
+  GHSA-p3m5-59mp-jv5r; минимальный опубликованный фикс — 16.4.1.
+
+Для обязательного security CI write-set последовательно расширен на Python lock,
+frontend package/lock и точный version guard audit-скрипта. Обновлены только Next.js
+и согласованная ESLint-конфигурация; dev-chain fast-glob/micromatch/braces не меняется.
+Прежнее узкое dev-only исключение braces не расширено; новый runtime advisory
+явно проверяется отрицательным self-test. React, Playwright и CI workflow не меняются.
+Есть известное пересечение двух npm manifest-файлов с зависимостным PR #234:
+он предлагает Next.js/ESLint 16.4.2 и также React/Playwright. Эта поставка содержит
+минимальное исправление 16.4.1; перед merge любой из веток нужно последовательно
+проверить/перебазировать другую. Ни один PR не сливается автоматически.
+
 
 Запрос владельца разрешает этот технический контур до регистрации поставщика,
 только без реальных персональных данных. Это уточняет прежний запрет запуска
@@ -228,6 +241,9 @@ backend/tests/test_stage6_management_cabinet.py
 backend/unit_tests/test_privacy_catalog.py
 docs/privacy-catalog.draft.example.json
 docs/privacy-core-01.md
+frontend/package-lock.json
+frontend/package.json
+frontend/scripts/check-npm-audit.mjs
 frontend/src/app/access-accounts/page.tsx
 frontend/src/app/forgot-password/page.tsx
 frontend/src/app/login/page.tsx
