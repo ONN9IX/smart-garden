@@ -645,6 +645,76 @@ def test_paper_duplicate_new_key_and_receipt_before_document_rejected(
     )
 
 
+@pytest.mark.parametrize(
+    "zone,hour,receipt_offset,expected",
+    [
+        ("Europe/Moscow", 23, 1, 201),
+        ("America/Los_Angeles", 0, 0, 400),
+    ],
+)
+def test_original_date_uses_operator_day_not_utc(
+    client, db, world, monkeypatch, zone, hour, receipt_offset, expected
+):
+    from app.core import organization_time
+
+    frozen = (datetime.now(UTC) + timedelta(days=2)).replace(hour=hour, minute=30)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen.astimezone(tz) if tz else frozen.replace(tzinfo=None)
+
+    monkeypatch.setattr(organization_time, "datetime", FrozenDateTime)
+    world["org"].timezone = zone
+    as_user(client, db, world["director"])
+    payload = paper_payload(world)
+    payload["received_on"] = str(frozen.date() + timedelta(days=receipt_offset))
+    assert client.post(ROOT + "/consents", json=payload).status_code == expected
+
+
+def test_withdrawal_requires_a_later_operator_calendar_day(
+    client, db, world, monkeypatch
+):
+    from app.core import organization_time
+
+    world["org"].timezone = "Europe/Moscow"
+    item = record(client, db, world)
+    frozen = (datetime.now(UTC) + timedelta(days=2)).replace(hour=23, minute=30)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen.astimezone(tz) if tz else frozen.replace(tzinfo=None)
+
+    monkeypatch.setattr(organization_time, "datetime", FrozenDateTime)
+    db.add(
+        ConsentEvent(
+            organization_id=world["org"].id,
+            consent_id=UUID(item["id"]),
+            actor_user_id=world["parent"].id,
+            action="withdrawn",
+            created_at=frozen,
+        )
+    )
+    db.flush()
+    payload = {
+        **paper_payload(world),
+        "received_on": str(frozen.date() + timedelta(days=1)),
+    }
+    response = client.post(ROOT + "/consents", json=payload)
+    assert (
+        response.status_code == 409
+        and response.json()["error"]["code"] == "PRIVACY_NEW_ORIGINAL_REQUIRED"
+    )
+    frozen += timedelta(days=1)
+    payload = {
+        **payload,
+        "received_on": str(frozen.date() + timedelta(days=1)),
+        "idempotency_key": str(uuid4()),
+    }
+    assert client.post(ROOT + "/consents", json=payload).status_code == 201
+
+
 def test_concurrent_request_record_and_withdrawal_use_single_evidence(migrations):
     """Two PostgreSQL connections contend on a tenant in an isolated NEW schema."""
     schema = "privacy_race_" + uuid4().hex

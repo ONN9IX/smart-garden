@@ -9,6 +9,7 @@ from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.organization_time import organization_today, organization_zone
 from app.models.child import Child
 from app.models.child_guardian import ChildGuardian
 from app.models.employee import Employee
@@ -435,11 +436,13 @@ def record_consent(db: Session, actor: User, payload: PaperConsentInput) -> dict
         or purpose.consent_document_id != payload.document_id
     ):
         raise AppError(409, "PRIVACY_NOT_APPROVED")
-    if payload.received_on > datetime.now(UTC).date():
+    zone = organization_zone(actor.organization.timezone)
+    if payload.received_on > organization_today(actor.organization):
         raise AppError(400, "VALIDATION_ERROR")
     document = _document(db, payload.document_id, actor.organization_id)
     if payload.received_on < max(
-        document.effective_at.date(), document.approved_at.date()
+        document.effective_at.astimezone(zone).date(),
+        document.approved_at.astimezone(zone).date(),
     ):
         raise AppError(400, "VALIDATION_ERROR", "received_on")
     if payload.subject_user_id:
@@ -508,7 +511,10 @@ def record_consent(db: Session, actor: User, payload: PaperConsentInput) -> dict
         .order_by(ConsentEvent.created_at.desc())
         .limit(1)
     )
-    if latest_withdrawal and payload.received_on <= latest_withdrawal.date():
+    if (
+        latest_withdrawal
+        and payload.received_on <= latest_withdrawal.astimezone(zone).date()
+    ):
         raise AppError(409, "PRIVACY_NEW_ORIGINAL_REQUIRED")
     existing = db.scalar(
         select(PaperConsent.id).where(
